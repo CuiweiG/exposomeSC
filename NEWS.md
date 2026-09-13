@@ -50,7 +50,8 @@ Initial Bioconductor submission.
   with unregistered coordinates, normalises on the whole transcriptome rather
   than the reported genes, and seeds k-means.
 * `as_scee()` reads the `exp` assay of an `ExposomeSet`; previously it could
-  not extract exposures from one.
+  not extract exposures from one. It keeps the rows for the samples present in
+  the single-cell data, so a larger exposome cohort can be used directly.
 * `simulate_crossomic_network()` ran only with an explicit seed, generated
   transcripts and metabolites independently of the cross-omic edges it
   returned, and ignored `composition_confounding` and `n_cells_per_donor`. The

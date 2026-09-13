@@ -10,14 +10,20 @@ build_scee(sce, exposure_matrix, sample_col, exposure_info = NULL)
 \item{sce}{A \code{\link[SingleCellExperiment:SingleCellExperiment-class]{SingleCellExperiment}}.}
 
 \item{exposure_matrix}{Numeric matrix. Rows = samples,
-columns = exposure variables. Row names must match
-sample IDs in \code{colData(sce)[[sample_col]]}.}
+columns = exposure variables, with unique row and column names.
+The row names must be exactly the sample IDs in
+\code{colData(sce)[[sample_col]]}: every sample of the SCE must
+have a row, and rows for samples absent from the SCE are an
+error. \code{NA} is allowed; \code{NaN} and infinite values are
+not.}
 
 \item{sample_col}{Character. Column in \code{colData(sce)}
 containing the sample/donor ID.}
 
 \item{exposure_info}{\code{DataFrame} (optional). Metadata
-for exposures (family, unit, LOD).}
+for exposures (for example family, unit and LOD). It must contain
+an \code{exposure} column equal to
+\code{colnames(exposure_matrix)}, in the same order.}
 }
 \value{
 A \code{\linkS4class{SingleCellExposomeExperiment}}.
