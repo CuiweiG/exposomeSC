@@ -1,0 +1,124 @@
+Package: exposomeSC
+Title: Single-Cell Exposome-Wide Association Studies
+    with Cross-Omic Network Inference
+Version: 0.99.0
+Authors@R:
+    person(given = "Cuiwei",
+           family = "Gao",
+           email = "48gaocuiwei@gmail.com",
+           role = c("aut", "cre"))
+Description: A framework for cell-type-specific exposome-wide
+    association studies (sc-ExWAS) that bridges donor-level
+    environmental exposures with single-cell resolution gene
+    expression. The package extends SingleCellExperiment to
+    store exposure measurements alongside transcriptomic data,
+    and implements donor-level raw-count pseudobulk inference to
+    avoid cellular pseudoreplication (Squair et al. 2021
+    <doi:10.1038/s41467-021-25960-2>). The default workflow uses
+    robust edgeR quasi-likelihood models, exposure-independent
+    expression-support filtering, complete-transcriptome offsets,
+    design-rank diagnostics, and global multiplicity correction.
+    Additional modules support repeated-sample sensitivity analyses,
+    dose-response modelling, exposure mixtures, cross-cohort
+    synthesis, and cell-level gene-protein coupling. Exploratory
+    decomposition and mediation utilities report model-based
+    associations; they do not by themselves identify causal effects.
+License: Artistic-2.0
+Depends: R (>= 4.5.0)
+Imports:
+    methods,
+    Matrix,
+    S4Vectors (>= 0.32.0),
+    SummarizedExperiment,
+    SingleCellExperiment,
+    stats,
+    BiocParallel,
+    MASS,
+    edgeR,
+    limma,
+    withr
+Suggests:
+    DESeq2,
+    dreamlet,
+    variancePartition,
+    compositions,
+    muscat,
+    MAST,
+    fgsea,
+    scran,
+    lme4,
+    lmerTest,
+    pbkrtest,
+    glmmTMB,
+    mgcv,
+    qgcomp,
+    mediation,
+    glasso,
+    Biobase,
+    SpatialExperiment,
+    coglasso,
+    igraph,
+    ggraph,
+    tidygraph,
+    ggplot2,
+    patchwork,
+    scales,
+    ggrepel,
+    muscData,
+    metafor,
+    ppcor,
+    statmod,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    BiocStyle,
+    BiocCheck
+Config/testthat/edition: 3
+biocViews: SingleCell, GeneExpression, DifferentialExpression,
+    Transcriptomics, CellBiology, StatisticalMethod, Network,
+    NetworkInference, Regression
+URL: https://github.com/CuiweiG/exposomeSC
+BugReports: https://github.com/CuiweiG/exposomeSC/issues
+Encoding: UTF-8
+LazyData: false
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr
+Collate:
+    'AllClasses.R'
+    'AllGenerics.R'
+    'below-lod.R'
+    'build-scee.R'
+    'bridge.R'
+    'utils.R'
+    'causal-mediation.R'
+    'cell-coupling.R'
+    'composition.R'
+    'data-docs.R'
+    'dose-response.R'
+    'enrichment.R'
+    'erd-interventional.R'
+    'exposomeSC-package.R'
+    'gam-dr.R'
+    'glmm-inference.R'
+    'iers.R'
+    'interaction.R'
+    'mediation.R'
+    'meta-analysis.R'
+    'methods.R'
+    'mixture.R'
+    'sc-exwas.R'
+    'multi-exwas.R'
+    'network-utils.R'
+    'network-build.R'
+    'network-compare.R'
+    'network-differential.R'
+    'network-mediation.R'
+    'network-plots.R'
+    'network-simulate.R'
+    'network-temporal.R'
+    'null-calibration.R'
+    'power.R'
+    'qgcomp-mixture.R'
+    'sample-blocked-voom.R'
+    'spatial.R'
+    'state-coupling.R'

@@ -1,0 +1,4 @@
+^(?!(DESCRIPTION|NAMESPACE|NEWS\.md|README\.md|R|man|tests|vignettes|inst)$)[^/]+$
+^inst/(?!(extdata|doc)$)[^/]+$
+^vignettes/.*_cache$
+^.*\.log$

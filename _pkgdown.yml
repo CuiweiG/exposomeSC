@@ -1,0 +1,85 @@
+url: https://cuiweig.github.io/exposomeSC/
+template:
+  bootstrap: 5
+  
+reference:
+  - title: "Data Classes"
+    desc: "S4 classes for single-cell exposome data"
+    contents:
+      - SingleCellExposomeExperiment-class
+      - CelltypeNetwork-class
+      - CelltypeNetworkResult-class
+      - NetworkComparison-class
+      - TemporalNetwork-class
+
+  - title: "Data Construction"
+    desc: "Build and convert exposome objects"
+    contents:
+      - build_scee
+      - as_scee
+      - seurat_to_exposure
+
+  - title: "Accessors"
+    contents:
+      - exposureData
+      - "exposureData<-"
+      - exposureInfo
+      - "exposureInfo<-"
+      - exposureNames
+      - sampleMap
+
+  - title: "Single-Cell ExWAS"
+    desc: "Exposure-wide association studies at single-cell resolution"
+    contents:
+      - run_sc_exwas
+      - run_sc_exwas_glmm
+      - run_spatial_exwas
+      - run_multi_exwas
+      - run_meta_exwas
+
+  - title: "Mixtures and Interactions"
+    contents:
+      - run_sc_mixture
+      - run_mixture_qgcomp
+      - run_interaction_test
+      - run_exposure_composition
+
+  - title: "Dose-Response"
+    contents:
+      - run_dose_response
+      - run_dose_response_gam
+
+  - title: "Mediation and Causal Inference"
+    contents:
+      - run_mediation
+      - run_causal_mediation
+      - run_network_mediation
+      - run_gsea
+
+  - title: "Network Analysis"
+    desc: "Exposure and cell-type networks"
+    contents:
+      - run_exposure_network
+      - run_celltype_network
+      - run_cell_coupling
+      - run_state_coupling
+      - run_comparative_network
+      - run_differential_network
+      - run_temporal_network
+      - simulate_crossomic_network
+
+  - title: "Visualization"
+    contents:
+      - plot_celltype_network
+      - plot_network_comparison
+      - plot_stability_surface
+      - plot_temporal_dynamics
+
+  - title: "Sensitivity and Power"
+    contents:
+      - estimate_power
+      - exposure_impute_lod
+
+  - title: "Other"
+    contents:
+      - matches(".")

@@ -1,0 +1,223 @@
+---
+title: "Introduction to exposomeSC: a smoking-association workflow"
+author: "Cuiwei Gao"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Introduction to exposomeSC}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>"
+)
+```
+
+# Scope
+
+`exposomeSC` relates donor-level exposures to expression within annotated
+single-cell populations. The package stores counts, cell metadata, donor
+exposures and exposure metadata in a validated
+`SingleCellExposomeExperiment`, then fits models at the biological-replicate
+level.
+
+The motivating analysis contrasts ever- with never-smoking in the integrated
+Human Lung Cell Atlas (HLCA). It is an observational association analysis.
+Smoking history is not a randomised intervention, and the available
+ever-smoking indicator combines active and former exposure. We therefore avoid
+causal language.
+
+# Unit of analysis and estimand
+
+Cells inherit their donor's exposure. Treating those cells as independent
+replicates would underestimate uncertainty. For each cell type, the canonical
+workflow sums raw counts within donor, producing one pseudobulk column per
+eligible donor. The target is the exposure-associated rate ratio for relative
+expression within that cell type.
+
+This target differs from cell-type abundance. If smoking changes only the
+number of captured cells of a type, both its gene counts and complete library
+size may change together while its within-type expression rate remains stable.
+Relative composition is consequently analysed as a separate multivariate
+outcome.
+
+# Required data contract
+
+A defensible input has:
+
+- a raw, non-negative integer count assay;
+- unique cell and feature identifiers;
+- a donor identifier for every cell;
+- donor-constant exposure and baseline-covariate values;
+- cell-type annotations fixed before exposure testing; and
+- an auditable map from biological samples to donors when donors have repeated
+  samples.
+
+The rows of the donor design matrix must match donor identifiers exactly. A
+categorical study variable is represented by prespecified numeric indicator
+columns before the object is built.
+
+```{r build}
+library(exposomeSC)
+
+# A small deterministic object makes the vignette executable. It illustrates
+# the data contract only; it is not used for the HLCA results.
+donor_ids <- paste0("D", seq_len(12L))
+smoking_ever <- rep(c(0, 1), each = 6L)
+cell_donor <- rep(donor_ids, each = 24L)
+cell_type <- rep(
+    rep(c("AT2", "Macrophage"), each = 12L),
+    times = length(donor_ids)
+)
+gene_ids <- paste0("Gene", seq_len(12L))
+cell_ids <- paste0("cell", seq_along(cell_donor))
+counts <- outer(
+    seq_along(gene_ids),
+    seq_along(cell_ids),
+    function(gene, cell) 3L + ((11L * gene + 7L * cell) %% 8L)
+)
+exposed_at2 <- smoking_ever[match(cell_donor, donor_ids)] == 1 &
+    cell_type == "AT2"
+counts[1L, exposed_at2] <- counts[1L, exposed_at2] + 4L
+storage.mode(counts) <- "integer"
+dimnames(counts) <- list(gene_ids, cell_ids)
+
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = counts),
+    colData = S4Vectors::DataFrame(
+        cell_id = cell_ids,
+        donor_id = cell_donor,
+        ann_level_3 = cell_type
+    )
+)
+age_scaled <- as.numeric(scale(c(
+    45, 52, 61, 48, 57, 66, 50, 59, 68, 54, 63, 72
+)))
+donor_design <- cbind(
+    smoking_ever = smoking_ever,
+    age_scaled = age_scaled
+)
+rownames(donor_design) <- donor_ids
+
+scee <- build_scee(
+    sce,
+    donor_design,
+    sample_col = "donor_id"
+)
+
+methods::validObject(scee)
+exposureNames(scee)
+```
+
+# Canonical donor-pseudobulk model
+
+The implemented primary backend uses robust edgeR quasi-likelihood inference.
+Expression support is fixed independently of the smoking labels, and the
+complete target-cell-type transcriptome remains available for library-size and
+normalisation calculations after filtering. The HLCA analysis adjusts for a
+three-degree-of-freedom natural spline in age, sex and source study.
+
+```{r primary-model}
+fit <- run_sc_exwas(
+    scee,
+    exposure = "smoking_ever",
+    celltype_col = "ann_level_3",
+    sample_col = "donor_id",
+    covariates = "age_scaled",
+    min_cells = 10L,
+    min_donors = 10L,
+    min_group_donors = 5L,
+    method = "edgeR",
+    filter_genes = TRUE,
+    filter_method = "fixed_support",
+    filter_min_cpm = 1,
+    filter_min_donors = 5L,
+    filter_min_total_count = 15L,
+    robust = TRUE
+)
+
+head(fit[order(fit$padj_global, fit$pvalue), ])
+```
+
+The exact analysis is not reconstructed from this abbreviated call. A complete
+analysis also builds the spline and study terms, verifies immutable inputs,
+classifies features, checks the design, records code identity and writes
+outputs atomically.
+
+# Multiplicity and output interpretation
+
+The primary feature family comprises the annotation-defined, exposure-blind
+support-filtered host-expression transcriptome. Benjamini--Hochberg adjustment
+is applied across its complete realised tested gene-by-cell-type family. The
+host category is externally annotated; the realised tested universe also
+depends on the frozen donor-support rule in the HLCA data. Immune-receptor and residual-annotation
+features are retained as separate secondary or exploratory audits; their
+adjusted values are not merged into the primary family after looking at the
+results.
+
+The returned data include the effect estimate, backend-specific test statistic,
+unadjusted p-value, within-cell-type adjustment, cross-cell-type adjustment and
+donor-support diagnostics. edgeR quasi-likelihood fits report the coefficient
+standard-error field as numeric `NA`: `glmQLFTest()` provides a QL F test, not a
+coefficient standard error. The signed square-root QL statistic preserves
+direction for ranking but is neither a Wald statistic nor a basis for a
+coefficient confidence interval. DESeq2 and voom-dream retain their own valid
+Wald and moderated-t uncertainty semantics. A small p-value is insufficient on
+its own. We also require a stable feature definition, adequate support, an
+identifiable design, sensitivity to annotation and sampling choices,
+empirical-null calibration, and influence assessment.
+
+**Result values are pending frozen outputs.** This vignette contains no
+discovery count, effect estimate or biological conclusion.
+
+# Repeated samples and composition
+
+The donor-aggregated model is the primary expression estimand. A separate
+sample-pseudobulk sensitivity preserves repeated biological samples and uses
+donor blocking with voom/limma while retaining the primary hypothesis universe.
+It is not a second discovery screen.
+
+The composition analysis operates on the supported `ann_level_3` simplex. It
+uses Jeffreys-regularised log ratios, donor-level aggregation and a
+study-adjusted multivariate test. The resulting coefficients concern relative
+captured-cell composition—not absolute lung-cell abundance—and no mediation
+interpretation is made.
+
+# Developmental decomposition interfaces
+
+`run_decomposed_exwas()` has been removed. `run_erd_interventional()` is
+retained as a developmental interface and is not for confirmatory
+interpretation. The earlier within-type-rate outcome cannot identify the
+mechanical contribution of cell-type abundance to a tissue mixture, so former
+direct/indirect labels and ERD E-values must not be used for causal or abundance
+claims.
+
+A replacement estimand remains developmental until it is implemented, calibrated
+under appropriate data-generating mechanisms and assessed independently.
+
+# Public source and reproducibility
+
+The HLCA source is the CC BY 4.0 CZ CELLxGENE collection associated with
+Sikkema *et al.* (2023):
+
+- collection: <https://cellxgene.cziscience.com/collections/6f6d381a-7701-4781-935c-db10d30de293>;
+- exact H5AD: <https://datasets.cellxgene.cziscience.com/688185ad-11c2-4172-a53a-f4f1f4076860.h5ad>;
+- publication: <https://doi.org/10.1038/s41591-023-02327-2>;
+- count layer: `/raw/X`; and
+- H5AD SHA-256: `1cbdde1e513a31bdb6a3f70296e2d0612760d2af4032e239c94596ea87b44007`.
+
+Every reportable result must retain the verified input hashes, ordered code
+manifest, model parameters, design diagnostics, session information and output
+hashes. Figures and tables read frozen result objects; numerical values are not
+transcribed into display code.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

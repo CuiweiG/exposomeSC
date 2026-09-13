@@ -1,0 +1,174 @@
+---
+title: "Simulation and calibration protocol for sc-ExWAS inference"
+author: "Cuiwei Gao"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Simulation and calibration protocol for sc-ExWAS inference}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE
+)
+```
+
+# Status
+
+This document specifies interpretation and execution contracts; it does not
+transcribe numerical benchmark results. A content-addressed full simulation
+bundle exists, but the estimand-aligned comparator gate remains open because
+the frozen library lacks several proposed packages and the negative-binomial
+random-intercept extension has not been executed. Earlier fixed performance,
+runtime, superiority and replication claims are withdrawn. Reportable values
+must be extracted from authenticated R objects rather than copied here.
+
+# Match each method to its estimand
+
+The primary sc-ExWAS estimand is the exposure association with relative
+expression within a cell type. Differential-abundance methods target relative
+composition and are not expression-model competitors. A future
+molecular-contribution decomposition would target the product of composition
+and within-type expression and requires a distinct simulation truth.
+
+Comparators are evaluated only when they share:
+
+- the same biological unit of replication;
+- the same raw-count input and eligibility rules;
+- the same fixed feature-by-cell-type universe;
+- compatible offsets and covariates;
+- the same multiplicity denominator; and
+- an estimand against which their output can be scored.
+
+A cell-level test that treats cells as independent can be included as a
+negative control, but not as a plausible population-inference method.
+
+# Real-data complete-null diagnostics
+
+The principal calibration protocol is a fixed-design negative-binomial
+parametric bootstrap. The observed exposure and nuisance design, donor and
+sample support, offsets, expression-support family and feature-by-cell-type
+keys remain fixed; counts are generated under a reduced model with a zero
+exposure coefficient, after which the frozen edgeR pipeline is rerun. The
+result is a conditional plug-in diagnostic for that exact generator and family,
+not proof of strong FDR control under arbitrary mixtures of true and false null
+hypotheses.
+
+The earlier within-study smoking-label shuffle is retained only as an
+observational stress audit. Smoking was not randomised, and its conditional
+exchangeability is not established. It is therefore ineligible as the formal
+calibration, irrespective of how thoroughly its accepted permutations are
+audited.
+
+Pilot and smoke runs estimate engineering cost only. Every formal replicate
+must retain its seed, fit diagnostics, complete-family call summaries, code and
+input contracts, runtime and checksum. Resume logic re-authenticates completed
+files before reuse, and a failed fit cannot be recoded as no call.
+
+# Simulation data-generating mechanisms
+
+Simulation must generate the hierarchy explicitly:
+
+1. study and donor covariates;
+2. donor exposure under declared overlap and confounding structures;
+3. donor/sample cell-type composition;
+4. donor-level expression variation and dispersion;
+5. per-cell RNA content and sequencing depth;
+6. raw counts conditional on the preceding quantities; and
+7. annotation and dropout mechanisms, where relevant.
+
+At minimum, the design should cross null and non-null expression effects with
+balanced and imbalanced exposure, heterogeneous study effects, repeated
+samples, rare cell types, unequal library sizes, influential donors and
+misspecified age trends. Parameter values must be justified from held-out or
+external summaries, not tuned to favour one implementation.
+
+A pure composition scenario changes only the composition-generating process.
+It must not insert the composition score directly into within-type expression.
+A contextual-expression scenario may do so, but it is labelled and scored as a
+different mechanism.
+
+# Metrics
+
+For each independent simulation replicate, report:
+
+- false-discovery proportion, defined as zero when there are no calls;
+- family-wise any-call indicator under the complete null;
+- power for the prespecified non-null family;
+- effect-estimate bias and empirical calibration of test rejection rates;
+- estimability and explicit failure reasons;
+- effect concordance on a common fitted universe; coefficient standard-error
+  and interval-coverage comparisons only for backends that return valid
+  coefficient standard errors (explicitly not edgeR QL); and
+- elapsed time and peak memory under the same hardware allocation.
+
+False-discovery rate is the mean of replicate-level false-discovery
+proportions. Gene-by-replicate rows are correlated and must not be treated as
+independent observations when calculating uncertainty. Empirical-null
+rejection-rate intervals are calculated over independent simulation or
+bootstrap replicates. Failed fits remain failures; they are not recoded as no
+call.
+
+# Comparator alignment
+
+The executed expression comparisons are donor-pseudobulk edgeR,
+sample-pseudobulk donor-blocked voom and a deliberately naive cell-level
+negative control. `muscat`, `dreamlet`, `variancePartition`, `MAST`, `DESeq2`,
+`glmmTMB` and `nebula` are absent from the frozen library and must not be named
+as executed. A sample-pseudobulk negative-binomial donor-random-intercept
+extension using installed `lme4` is a protocol until a fixed manifest, resource
+pilot and complete-family formal run pass. Method labels must describe the
+actual fitted model rather than a wrapper package. Composition methods are
+assessed only against composition truth.
+
+For a targeted model evaluation, `test_features` fixes the reported family while the
+full feature matrix remains available for library sizes, normalisation and
+dispersion estimation. A missing or unsupported requested feature is reported
+as not estimable; the family must not shrink silently.
+
+# Multiplicity
+
+Filtering and feature-family definitions are fixed without exposure labels.
+The primary adjusted values use the complete host-expression-by-cell-type
+family. Separate receptor and residual-annotation audits do not alter that
+denominator. Same-data screening followed by unadjusted decomposition or
+pathway inference is not a valid confirmatory procedure.
+
+# Reproducibility record
+
+A frozen benchmark release must include:
+
+- the simulation and analysis source digests;
+- the complete parameter grid and random-number streams;
+- every simulated dataset or an exact deterministic reconstruction recipe;
+- raw method calls, warnings and failures for every replicate;
+- the fixed hypothesis and comparator alignment tables;
+- replicate-level metrics before aggregation;
+- session information, hardware and worker allocation; and
+- checksums for result, summary, table and figure objects.
+
+Figures and tables read these objects directly. No metric is typed into display
+code. Until this record is complete, the package makes no quantitative
+calibration, power, speed or superiority claim.
+
+# Developmental ERD assessment
+
+The legacy ERD APIs are excluded from confirmatory benchmarking. Their earlier
+within-type-rate outcome did not identify the abundance contribution described
+by the old direct/indirect labels. The redesigned molecular-contribution
+estimand must first be implemented, then tested under pure abundance,
+within-type expression, combined, contextual, null and misspecified scenarios.
+No mediational E-value is reported without a derivation valid for that exact
+multivariate stochastic-composition estimand.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

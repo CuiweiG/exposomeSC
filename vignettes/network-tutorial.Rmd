@@ -1,0 +1,189 @@
+---
+title: "Exploratory cross-omic network inference with exposomeSC"
+author: "Cuiwei Gao"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Exploratory cross-omic network inference}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>",
+    warning = FALSE,
+    message = FALSE
+)
+```
+
+# Scope
+
+The network module estimates cell-type-resolved conditional-association
+structures that combine transcript pseudobulk with donor-level molecular
+measurements such as metabolomics. It is exploratory. An edge is a
+regularised conditional association under the fitted model—not a biochemical
+interaction or a causal relation.
+
+Network analysis answers a different question from sc-ExWAS. sc-ExWAS tests a
+prespecified marginal exposure coefficient for each feature and cell type.
+Network analysis describes multivariate dependence after preprocessing and
+covariate adjustment. Selection and tuning uncertainty, sample size and
+external stability must be reported separately.
+
+The fitted network object records its matrices, feature annotations, method
+and provenance-related metadata in an explicit S4 contract.
+
+```{r class-contract}
+library(exposomeSC)
+methods::getSlots("CelltypeNetworkResult")
+```
+
+# Input alignment
+
+The transcript and metabolite data must refer to the same donors. Raw
+single-cell counts are aggregated within donor and cell type before network
+estimation; donor-level metabolite rows are then aligned by identifier. Do not
+match rows by position.
+
+```{r build-network, eval=FALSE}
+library(exposomeSC)
+
+# `scee` is a validated SingleCellExposomeExperiment.
+# `metabolites` has donors in rows and metabolites in columns.
+mono_net <- run_celltype_network(
+    scee,
+    metabolites = metabolites,
+    celltype = "Monocyte",
+    celltype_col = "ann_level_3",
+    exposure = "smoking_ever",
+    covariates = c("age", "sex"),
+    method = "coglasso",
+    stability = TRUE,
+    top_var_genes = 100L
+)
+```
+
+This abbreviated call does not reproduce the HLCA primary model. In a
+multistudy application, study and other prespecified design terms must be
+included consistently, and the feature-selection rule must be recorded before
+network fitting.
+
+# Collaborative graphical lasso
+
+The `coglasso` backend permits different penalties for within-omic and
+between-omic precision-matrix blocks. Penalty selection is based on resampling
+stability. The complete tuning grid, resample identifiers, edge-selection
+frequencies and final penalty must be retained; a network plot alone is not an
+adequate result record.
+
+```{r inspect-network, eval=FALSE}
+mono_net
+plot_stability_surface(mono_net)
+plot_celltype_network(
+    mono_net,
+    layout = "fr",
+    color_by = "omic_layer",
+    highlight_cross_omic = TRUE
+)
+```
+
+# Comparing cell types
+
+Cell-type comparisons require aligned features, compatible preprocessing and
+adequate donor support in every network. Apparent differences can result from
+unequal measurement error or selection stability rather than a true change in
+conditional association.
+
+```{r compare-networks, eval=FALSE}
+comparison <- run_comparative_network(
+    mono_net,
+    bcell_net,
+    method = "descriptive"
+)
+
+plot_network_comparison(comparison)
+```
+
+This comparison is descriptive. Inferential permutation and Fisher-Z modes are
+retired because the current result object does not retain the aligned
+donor-level matrices needed for complete paired refitting. Edge-presence or
+weight differences are not evidence of differential conditional association.
+
+# Exposure-restricted networks
+
+`run_exposure_network()` uses an exposure-association stage followed by network
+estimation. This is a two-stage exploratory procedure. Selecting and estimating
+on the same donors can exaggerate stability and effect size; nested resampling,
+sample splitting or independent validation is required for confirmatory use.
+
+```{r exposure-network, eval=FALSE}
+smoking_net <- run_exposure_network(
+    scee,
+    metabolites,
+    celltype = "Monocyte",
+    exposure = "smoking_ever",
+    selection_method = "univariate",
+    fdr_threshold = 0.05
+)
+```
+
+# Longitudinal networks
+
+Time-point-specific networks can be organised with `run_temporal_network()`.
+Repeated measurements must remain linked to their donor, and an apparent
+emerging or disappearing edge is descriptive unless its uncertainty has been
+assessed under an appropriate longitudinal resampling scheme.
+
+```{r temporal-network, eval=FALSE}
+temporal <- run_temporal_network(
+    scee_list = list(baseline = scee_baseline, follow_up = scee_follow_up),
+    metabolites_list = list(
+        baseline = metabolites_baseline,
+        follow_up = metabolites_follow_up
+    ),
+    celltype = "Monocyte",
+    method = "coglasso"
+)
+
+plot_temporal_dynamics(temporal)
+```
+
+# Mediation terminology
+
+`run_network_mediation()` is a model-based exploratory utility. Network
+topology does not establish temporal ordering, eliminate unmeasured
+confounding or identify a causal indirect effect. Results must be described as
+conditional model associations unless the study design and identification
+assumptions independently support stronger language.
+
+# Composition and provenance
+
+Building a network within a cell type removes variation in broad cell-type
+mixture from the expression outcome, but it does not eliminate subtype mixture,
+sampling, dissociation, capture, annotation or residual confounding. The
+network model does not supply evidence for a composition-mediated pathway.
+
+Every reported network should retain input hashes, donor inclusion, feature
+definitions, preprocessing, covariate design, tuning grid, random seeds,
+resampling output, software versions and the exact object used for plotting.
+No HLCA network result is claimed here; numerical outputs remain pending a
+prespecified, frozen analysis.
+
+# References
+
+- Albanese A, Kohlen W, Behrouzi P (2024). Collaborative graphical lasso.
+  arXiv:2403.18602.
+- Liu H, Roeder K, Wasserman L (2010). Stability approach to regularisation
+  selection (StARS). *NeurIPS* 23.
+- Meinshausen N, Bühlmann P (2010). Stability selection. *Journal of the Royal
+  Statistical Society: Series B* 72:417--473.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

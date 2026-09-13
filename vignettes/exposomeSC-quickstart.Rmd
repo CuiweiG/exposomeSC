@@ -1,0 +1,175 @@
+---
+title: "exposomeSC quick start: donor-pseudobulk smoking association"
+author: "Cuiwei Gao"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{exposomeSC quick start}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>"
+)
+```
+
+# What the package estimates
+
+`exposomeSC` estimates donor-level exposure associations with relative gene
+expression within a cell type. Cells are measurements nested within a donor,
+not independent replicates. The implemented default workflow aggregates raw
+counts by donor and cell type and fits a robust edgeR quasi-likelihood model.
+
+The current real-data application is ever- versus never-smoking in the HLCA.
+It is an adjusted observational contrast, not a causal effect.
+
+# Prepare a validated container
+
+`sce` must contain a raw integer `counts` assay and `colData` columns identifying
+donor and cell type. `donor_design` must be numeric, have one row per donor and
+use the same donor identifiers as its row names.
+
+```{r build}
+library(exposomeSC)
+
+# A deterministic, deliberately small demonstration object. The full
+# analysis uses the pinned HLCA inputs described below, not these synthetic
+# counts.
+donor_ids <- paste0("D", seq_len(12L))
+smoking_ever <- rep(c(0, 1), each = 6L)
+cell_donor <- rep(donor_ids, each = 24L)
+cell_type <- rep(
+    rep(c("AT2", "Macrophage"), each = 12L),
+    times = length(donor_ids)
+)
+gene_ids <- paste0("Gene", seq_len(12L))
+cell_ids <- paste0("cell", seq_along(cell_donor))
+counts <- outer(
+    seq_along(gene_ids),
+    seq_along(cell_ids),
+    function(gene, cell) 3L + ((11L * gene + 7L * cell) %% 8L)
+)
+exposed_at2 <- smoking_ever[match(cell_donor, donor_ids)] == 1 &
+    cell_type == "AT2"
+counts[1L, exposed_at2] <- counts[1L, exposed_at2] + 4L
+storage.mode(counts) <- "integer"
+dimnames(counts) <- list(gene_ids, cell_ids)
+
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = counts),
+    colData = S4Vectors::DataFrame(
+        cell_id = cell_ids,
+        donor_id = cell_donor,
+        ann_level_3 = cell_type
+    )
+)
+donor_design <- cbind(smoking_ever = smoking_ever)
+rownames(donor_design) <- donor_ids
+
+scee <- build_scee(
+    sce,
+    donor_design,
+    sample_col = "donor_id"
+)
+
+methods::validObject(scee)
+exposureNames(scee)
+```
+
+For a multistudy atlas, construct the study indicators and nonlinear age terms
+before building the object. Never derive those terms, the cell-type universe or
+the feature family from observed exposure effects.
+
+# Fit the donor-pseudobulk model
+
+```{r fit}
+fit <- run_sc_exwas(
+    scee,
+    exposure = "smoking_ever",
+    celltype_col = "ann_level_3",
+    sample_col = "donor_id",
+    min_cells = 10L,
+    min_donors = 10L,
+    min_group_donors = 5L,
+    method = "edgeR",
+    filter_method = "fixed_support",
+    filter_min_cpm = 1,
+    filter_min_donors = 5L,
+    filter_min_total_count = 15L,
+    robust = TRUE
+)
+```
+
+The model retains the complete target-cell-type library size for offsets and
+TMM normalisation even when the reported feature family is restricted. The
+fixed-support filter depends on counts and donor support, not smoking labels.
+
+# Inspect results without changing the family
+
+```{r inspect}
+required_columns <- c(
+    "gene", "celltype", "log2FC", "se", "statistic", "pvalue",
+    "padj", "padj_global", "n_donors"
+)
+stopifnot(all(required_columns %in% colnames(fit)))
+
+# Sorting is descriptive; the inferential family was fixed before this step.
+head(fit[order(fit$padj_global, fit$pvalue), required_columns])
+```
+
+For the default edgeR backend, `se` is deliberately numeric `NA` because the
+quasi-likelihood F test does not supply a coefficient standard error.
+`statistic` is the signed square root of that QL F statistic—a directional
+ranking quantity, not a Wald z statistic and not a basis for a coefficient
+confidence interval. Inspect `metadata(fit)$parameters[c("se_method",
+"statistic_type")]` before any downstream operation that uses uncertainty.
+
+In the full HLCA analysis, feature annotation defines a primary
+host-expression family and separate receptor/residual families after fitting.
+The reporting adjustment is recomputed across each complete prespecified
+gene-by-cell-type family, so do not infer that family from this abbreviated
+example.
+
+**Numerical results are pending frozen outputs.** No discovery count,
+calibration statistic or biological conclusion is embedded in this vignette.
+
+# Sensitivity analyses
+
+Reasonable analyses should examine annotation resolution, target-cell support,
+age specification, missing BMI, within-study exposure overlap, sex strata,
+current and former smoking separately, and leave-one-study-out fits. Donors with
+repeated biological samples require a sample-pseudobulk sensitivity with donor
+blocking. Influence is assessed by refitting after donor or study deletion,
+not by selectively removing observations.
+
+# Composition is a different outcome
+
+Relative cell-type composition should be modelled jointly at donor level. A
+within-type expression coefficient does not estimate absolute abundance, and a
+captured-cell proportion is affected by tissue sampling, dissociation, capture,
+quality control and annotation.
+
+# Legacy decomposition interfaces
+
+`run_decomposed_exwas()` has been removed, and `run_erd_interventional()` is a
+developmental interface that is not for confirmatory interpretation. The former
+direct/indirect labels and E-values do not establish a causal pathway or an
+abundance contribution. A replacement estimand is under development.
+
+# Full reproducible analysis
+
+The exact HLCA asset, `/raw/X` layer and SHA-256 value are listed in the
+package README. Reportable outputs must include matching input and code
+manifests, parameters, design diagnostics, session information and output
+hashes.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```
