@@ -257,6 +257,7 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
             n_features     = p,
             n_transcripts  = assembled$n_transcripts,
             n_metabolites  = assembled$n_metabolites,
+            transform      = assembled$transform,
             exposure       = exposure,
             covariates     = covariates,
             edge_counts    = edge_counts,
@@ -270,8 +271,8 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 
 #' Exposure-driven network: exposure-associated features only
 #'
-#' Pre-selects features associated with exposure via stability
-#' selection lasso or univariate testing, then builds a
+#' Pre-selects features associated with exposure by stability
+#' selection or univariate testing, then builds a
 #' cross-omic network on the selected features only. This
 #' mirrors the two-stage approach in Cheng et al. (2024).
 #'
@@ -284,30 +285,62 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 #'   Default \code{"cell_type"}.
 #' @param sample_col Character or NULL; donor ID column.
 #' @param covariates Character vector or NULL.
-#' @param selection_method Character; \code{"stability_lasso"}
+#' @param selection_method Character; \code{"stability"}
 #'   (default) or \code{"univariate"}.
 #' @param fdr_threshold Numeric; FDR threshold for univariate
 #'   selection. Default 0.05.
-#' @param pi_threshold Numeric; stability threshold for lasso
-#'   selection. Default 0.6 (Meinshausen & Buhlmann 2010).
+#' @param pi_threshold Numeric in (0.5, 1]; minimum proportion of
+#'   subsamples in which a feature must be selected under
+#'   \code{selection_method = "stability"}. Default 0.6.
+#' @param stability_q Integer or \code{NULL}; number of features
+#'   selected in each subsample under
+#'   \code{selection_method = "stability"}. The default \code{NULL}
+#'   uses \eqn{\max(1, \lfloor\sqrt{(2\pi_{thr} - 1)p}\rfloor)}, the
+#'   largest value for which the Meinshausen-Buhlmann bound on the
+#'   expected number of falsely selected features is at most 1 (when
+#'   \eqn{(2\pi_{thr} - 1)p \ge 1}).
 #' @param min_cells Integer; minimum cells per pseudobulk.
-#' @param ... Additional arguments passed to
-#'   \code{run_celltype_network}.
+#' @param network_method Character; \code{"coglasso"} (default) or
+#'   \code{"block_glasso"}, the estimator for the network on the
+#'   selected features. \code{"coglasso"} requires the \pkg{coglasso}
+#'   package and at least one selected transcript and metabolite;
+#'   otherwise the block graphical lasso is used.
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}}
-#'   restricted to exposure-associated features.
+#'   restricted to exposure-associated features. Its metadata record
+#'   the expression transform, the selection settings and, for
+#'   stability selection, \code{pfer_bound}.
 #'
 #' @details
 #' Stage 1: Feature selection. For each transcript and
 #' metabolite, tests association with exposure.
-#' \code{"univariate"} uses correlation tests with BH
-#' correction. \code{"stability_lasso"} uses repeated
-#' subsampling with lasso regression, selecting features
-#' with selection probability above \code{pi_threshold}.
+#' \code{"univariate"} uses Spearman correlation tests (asymptotic
+#' \emph{t} approximation) with BH correction; features without
+#' variation across donors are not selected.
+#' \code{"stability"} applies stability selection (Meinshausen and
+#' Buhlmann 2010) to a marginal screen: in each of 100 random
+#' subsamples of half the donors with an observed exposure, the
+#' \code{stability_q} features with the largest absolute Spearman
+#' correlation with the exposure are selected, and features selected
+#' in a proportion of at least \code{pi_threshold} of subsamples are
+#' retained. The screen remains defined when features outnumber
+#' donors. Under the exchangeability and better-than-random-guessing
+#' assumptions of Meinshausen and Buhlmann, the expected number of
+#' falsely selected features is at most
+#' \eqn{q^2 / ((2\pi_{thr} - 1)p)}, reported as \code{pfer_bound}.
+#' At least three features must be selected.
+#'
+#' Transcript values are log-CPM or VST values and therefore relative
+#' to each donor's library size. When the exposure strongly changes
+#' genes that carry a large share of the counts, the remaining genes
+#' shift in the opposite direction and can pass the screen; with few
+#' measured genes this can dominate the univariate screen.
 #'
 #' Stage 2: Network estimation on selected features only,
-#' WITHOUT residualizing exposure (to capture
-#' exposure-driven rewiring).
+#' without residualising the exposure (to capture
+#' exposure-driven rewiring), with collaborative graphical lasso
+#' model selection by XStARS (\code{"coglasso"}) or the block
+#' graphical lasso (\code{"block_glasso"}).
 #'
 #' @references
 #' Cheng SL et al. (2024). Multiomic signatures of traffic-related
@@ -320,26 +353,46 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 #'
 #' @export
 #' @examples
-#' \dontrun{
-#' net <- run_exposure_network(scee, metab,
-#'     celltype = "Monocyte",
-#'     exposure = "PM2.5",
-#'     selection_method = "univariate")
-#' }
+#' set.seed(3)
+#' donors <- sprintf("D%02d", 1:20)
+#' donor <- rep(donors, each = 40)
+#' exposure <- stats::setNames(stats::rnorm(20), donors)
+#' counts <- matrix(stats::rpois(20 * length(donor), 20), nrow = 20,
+#'     dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+#' ## two genes rise and two fall with the exposure
+#' effect <- c(0.8, 0.8, -0.8, -0.8)
+#' for (g in 1:4)
+#'     counts[g, ] <- stats::rpois(length(donor),
+#'         20 * exp(effect[g] * exposure[donor]))
+#' sce <- SingleCellExperiment::SingleCellExperiment(
+#'     assays = list(counts = counts),
+#'     colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+#' scee <- build_scee(sce, matrix(exposure, ncol = 1,
+#'     dimnames = list(donors, "PM2.5")), sample_col = "donor_id")
+#' metabolites <- matrix(stats::rnorm(20 * 3), nrow = 20,
+#'     dimnames = list(donors, paste0("M", 1:3)))
+#' metabolites[, "M1"] <- metabolites[, "M1"] + 1.5 * exposure
+#' net <- run_exposure_network(scee, metabolites, celltype = "Mono",
+#'     exposure = "PM2.5", sample_col = "donor_id",
+#'     selection_method = "univariate", network_method = "block_glasso")
+#' net
 run_exposure_network <- function(scee, metabolites, celltype,
                                   exposure,
                                   celltype_col = "cell_type",
                                   sample_col = NULL,
                                   covariates = NULL,
                                   selection_method = c(
-                                      "stability_lasso",
+                                      "stability",
                                       "univariate"),
                                   fdr_threshold = 0.05,
                                   pi_threshold = 0.6,
+                                  stability_q = NULL,
                                   min_cells = 10L,
-                                  ...) {
+                                  network_method = c("coglasso",
+                                                     "block_glasso")) {
 
     selection_method <- match.arg(selection_method)
+    network_method <- match.arg(network_method)
 
     ## Assemble data WITHOUT residualization (we want exposure signal)
     assembled <- .assemble_crossomic(
@@ -363,41 +416,53 @@ run_exposure_network <- function(scee, metabolites, celltype,
     p <- ncol(X)
     selected <- rep(FALSE, p)
 
+    pfer_bound <- NA_real_
+    varies <- apply(X, 2L, function(v) isTRUE(stats::sd(v) > 0))
+
     if (selection_method == "univariate") {
-        ## Univariate correlation test per feature
-        pvals <- vapply(seq_len(p), function(j) {
-            ct <- cor.test(X[, j], y, method = "spearman")
-            ct$p.value
+        ## Univariate Spearman test per feature; constant features are
+        ## not tested and not selected
+        pvals <- rep(NA_real_, p)
+        pvals[varies] <- vapply(which(varies), function(j) {
+            cor.test(X[, j], y, method = "spearman",
+                     exact = FALSE)$p.value
         }, numeric(1))
         padj <- p.adjust(pvals, method = "BH")
-        selected <- padj < fdr_threshold
+        selected <- !is.na(padj) & padj < fdr_threshold
 
     } else {
-        ## Stability selection with lasso
-        n_sub <- max(floor(nrow(X) * 0.8), 5L)
-        n_boot <- 100L
+        ## Stability selection (Meinshausen and Buhlmann 2010) over a
+        ## marginal screen, which stays defined when p exceeds n
+        if (!is.numeric(pi_threshold) || length(pi_threshold) != 1L ||
+            is.na(pi_threshold) || pi_threshold <= 0.5 ||
+            pi_threshold > 1)
+            stop("pi_threshold must be a single number in (0.5, 1].")
+        observed <- which(is.finite(y))
+        n_half <- floor(length(observed) / 2)
+        if (n_half < 5L)
+            stop("Stability selection needs at least 10 donors with an ",
+                 "observed exposure; use selection_method = ",
+                 "'univariate'.")
+        if (is.null(stability_q))
+            stability_q <- max(1, floor(sqrt((2 * pi_threshold - 1) * p)))
+        if (!is.numeric(stability_q) || length(stability_q) != 1L ||
+            is.na(stability_q) || stability_q < 1 || stability_q > p ||
+            stability_q != round(stability_q))
+            stop("stability_q must be a single integer between 1 and ",
+                 "the number of features (", p, ").")
+        stability_q <- as.integer(stability_q)
+
+        n_subsamples <- 100L
         sel_freq <- numeric(p)
-
-        for (b in seq_len(n_boot)) {
-            idx <- sample(nrow(X), n_sub, replace = FALSE)
-            X_sub <- X[idx, , drop = FALSE]
-            y_sub <- y[idx]
-
-            ## Simple lasso via coordinate descent
-            ## Use scaled cross-validation lambda
-            sel_freq <- sel_freq + tryCatch({
-                fit <- lm(y_sub ~ X_sub)
-                coefs <- coef(fit)[-1]  # drop intercept
-                ## Select features with |t| > 2
-                se <- summary(fit)$coefficients[-1, 2]
-                se[se == 0] <- Inf
-                t_stat <- abs(coefs / se)
-                as.numeric(t_stat > 2)
-            }, error = function(e) rep(0, p))
+        for (b in seq_len(n_subsamples)) {
+            idx <- sample(observed, n_half)
+            sel_freq <- sel_freq + .top_marginal_features(
+                X[idx, , drop = FALSE], y[idx], stability_q)
         }
 
-        sel_prob <- sel_freq / n_boot
+        sel_prob <- sel_freq / n_subsamples
         selected <- sel_prob >= pi_threshold
+        pfer_bound <- stability_q^2 / ((2 * pi_threshold - 1) * p)
     }
 
     n_selected <- sum(selected)
@@ -432,8 +497,14 @@ run_exposure_network <- function(scee, metabolites, celltype,
     n_tx_sel <- sum(sel_node_info$omic_layer == "transcript")
     n_met_sel <- sum(sel_node_info$omic_layer == "metabolite")
 
-    if (requireNamespace("coglasso", quietly = TRUE) &&
-        n_tx_sel > 0 && n_met_sel > 0) {
+    use_coglasso <- network_method == "coglasso" &&
+        n_tx_sel > 0 && n_met_sel > 0
+    if (use_coglasso && !requireNamespace("coglasso", quietly = TRUE)) {
+        message("[exposomeSC] Package 'coglasso' is not installed; ",
+                "using the block graphical lasso.")
+        use_coglasso <- FALSE
+    }
+    if (use_coglasso) {
         cg_result <- coglasso::bs(
             sel_X,
             p = n_tx_sel,
@@ -472,6 +543,16 @@ run_exposure_network <- function(scee, metabolites, celltype,
             n_metabolites     = n_met_sel,
             exposure          = exposure,
             selection_method  = selection_method,
+            fdr_threshold     = if (selection_method == "univariate")
+                fdr_threshold else NA_real_,
+            pi_threshold      = if (selection_method == "stability")
+                pi_threshold else NA_real_,
+            stability_q       = if (is.null(stability_q))
+                NA_integer_ else stability_q,
+            pfer_bound        = pfer_bound,
+            network_method    = if (use_coglasso) "coglasso" else
+                "block_glasso",
+            transform         = assembled$transform,
             n_total_features  = p,
             edge_counts       = edge_counts
         )

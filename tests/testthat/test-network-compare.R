@@ -45,8 +45,17 @@ test_that("run_comparative_network works with fisher_z", {
         method = "block_glasso",
         metadata = list(n_donors = 50L))
 
-    comp <- run_comparative_network(net1, net2,
-                                     method = "fisher_z")
+    exposomeSC:::.reset_experimental_warnings()
+    expect_warning(
+        comp <- run_comparative_network(net1, net2, method = "fisher_z"),
+        "experimental")
+    expect_no_warning(run_comparative_network(net1, net2,
+                                              method = "fisher_z"))
+    ## Edge g1-m1 has precision 0.3 in net1 only: partial correlation -0.3
+    edge <- rbind(as.data.frame(comp@diff_edges),
+                  as.data.frame(comp@shared_edges))
+    edge <- edge[edge$node_i == "g1" & edge$node_j == "m1", ]
+    expect_equal(edge$max_diff, 0.3, tolerance = 1e-12)
 
     expect_s4_class(comp, "NetworkComparison")
     expect_true(nrow(comp@shared_edges) > 0 ||
@@ -75,4 +84,26 @@ test_that("run_comparative_network rejects < 2 networks", {
 test_that("NetworkComparison S4 class works", {
     nc <- new("NetworkComparison")
     expect_s4_class(nc, "NetworkComparison")
+})
+
+test_that("run_comparative_network is descriptive by default", {
+    feat <- c("g1", "g2", "m1")
+    make <- function(ct, w) {
+        prec <- diag(3)
+        prec[1, 3] <- prec[3, 1] <- w
+        adj <- (prec != 0) * 1L
+        diag(adj) <- 0L
+        new("CelltypeNetworkResult",
+            precision_matrix = prec, adjacency_matrix = adj,
+            stability_scores = matrix(nrow = 0, ncol = 0),
+            node_info = S4Vectors::DataFrame(feature = feat,
+                omic_layer = c("transcript", "transcript", "metabolite")),
+            celltype = ct, method = "precomputed",
+            metadata = list(n_donors = 20L))
+    }
+    exposomeSC:::.reset_experimental_warnings()
+    expect_no_warning(
+        comp <- run_comparative_network(make("A", -0.4), make("B", -0.1)))
+    expect_true(all(is.na(comp@shared_edges$p_value)))
+    expect_equal(comp@summary$method, "descriptive")
 })

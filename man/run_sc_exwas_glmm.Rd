@@ -41,7 +41,7 @@ donors).}
 default) or \code{"nbinom"} (negative-binomial GLMM on cell counts).}
 
 \item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes;
-defaults to a Windows-safe PSOCK \code{SnowParam}.}
+defaults to a PSOCK \code{SnowParam}.}
 }
 \value{
 A \code{data.frame}, one row per gene x cell type: \code{gene},

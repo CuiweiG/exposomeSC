@@ -67,6 +67,8 @@ Differential edge \eqn{(i,j)}: \eqn{\Delta_{ij} =
 Significance via label permutation: shuffle exposure labels
 across donors, re-estimate both networks, compute null
 distribution of \eqn{\Delta_{ij}}.
+
+Requires the \pkg{glasso} package.
 }
 \examples{
 donor_ids <- paste0("D", seq_len(10L))

@@ -9,40 +9,43 @@ NULL
 
 #' Compare networks across cell types
 #'
-#' Tests whether edges differ significantly between two or
-#' more cell-type-specific networks from the same donors.
-#' For each edge (i,j), tests whether the partial correlation
-#' differs across cell types using permutation of donor labels
-#' or Fisher's Z transformation.
+#' Classifies the union of edges from two or more cell-type-specific
+#' networks estimated on the same features as shared, unique to one
+#' cell type or differential, and reports pairwise Jaccard overlap.
+#' The default \code{method = "descriptive"} reports no p-values.
+#'
+#' \code{method = "fisher_z"} also compares the partial correlations
+#' of each edge with Fisher's Z test. This mode is experimental and
+#' warns once per session: networks estimated from the same donors are
+#' not independent samples, and penalised partial correlations do not
+#' follow the sampling distribution the test assumes, so its p-values
+#' are not validated.
 #'
 #' @param ... Two or more \code{\linkS4class{CelltypeNetworkResult}}
 #'   objects. All must share the same feature set (same genes
 #'   and metabolites).
-#' @param method Character; \code{"permutation"} (default) or
-#'   \code{"fisher_z"}. Permutation preserves the within-donor
-#'   correlation structure. Fisher's Z is faster but assumes
-#'   normality.
-#' @param n_perm Integer; number of permutations for
-#'   permutation test. Default 1000.
-#' @param adjust Character; p-value adjustment method.
-#'   Default \code{"BH"}.
+#' @param method Character; \code{"descriptive"} (default) or
+#'   \code{"fisher_z"}.
+#' @param adjust Character; p-value adjustment method used with
+#'   \code{method = "fisher_z"}. Default \code{"BH"}.
 #'
-#' @return A \code{\linkS4class{NetworkComparison}} object.
+#' @return A \code{\linkS4class{NetworkComparison}} object. Its edge
+#'   tables contain \code{max_diff}, the range of the edge's partial
+#'   correlation across networks, and \code{p_value} and
+#'   \code{p_adjusted}, which are \code{NA} for
+#'   \code{method = "descriptive"}.
 #'
 #' @details
-#' This is the single-cell analog of the temporal edge
-#' comparison in Cheng et al. (ES&T 2024).
+#' Partial correlations are computed from each precision matrix
+#' \eqn{\Theta} as \eqn{-\Theta_{ij} / \sqrt{\Theta_{ii}\Theta_{jj}}}.
+#' For two networks, Fisher's Z statistic is
+#' \code{(atanh(r1) - atanh(r2)) / sqrt(1/(n1 - 3) + 1/(n2 - 3))},
+#' where \code{n1} and \code{n2} are the donor counts recorded in the
+#' networks' metadata; with more than two networks the largest pairwise
+#' statistic is used.
 #'
-#' The permutation test shuffles donor labels within each
-#' cell type's pseudobulk matrix, re-estimates partial
-#' correlations, and computes the difference in edge
-#' weights. This preserves the within-donor correlation
-#' structure while testing cross-cell-type differences.
-#'
-#' Fisher's Z tests whether two partial correlations
-#' differ using the Z-transformation:
-#' \code{z = atanh(r1) - atanh(r2)}, with standard error
-#' \code{sqrt(1/(n1-3) + 1/(n2-3))}.
+#' This is the single-cell analogue of the temporal edge comparison in
+#' Cheng et al. (ES&T 2024).
 #'
 #' @references
 #' Cheng SL et al. (2024). Multiomic signatures of traffic-related
@@ -75,16 +78,11 @@ NULL
 #' }
 #' monocyte_network <- make_network("Monocyte", -0.45)
 #' b_cell_network <- make_network("B cell", -0.15)
-#' comparison <- run_comparative_network(
-#'     monocyte_network,
-#'     b_cell_network,
-#'     method = "fisher_z"
-#' )
+#' comparison <- run_comparative_network(monocyte_network, b_cell_network)
 #' comparison
 run_comparative_network <- function(...,
-                                     method = c("permutation",
+                                     method = c("descriptive",
                                                 "fisher_z"),
-                                     n_perm = 1000L,
                                      adjust = "BH") {
     method <- match.arg(method)
     nets <- list(...)
@@ -119,8 +117,24 @@ run_comparative_network <- function(...,
                  ct_names[1], "'.")
     }
 
-    ## --- Collect precision matrices ---
-    precisions <- lapply(nets, function(n) n@precision_matrix)
+    if (method == "fisher_z") {
+        .warn_experimental("run_comparative_network_fisher_z", paste0(
+            "run_comparative_network(method = \"fisher_z\") is ",
+            "experimental: networks from the same donors are not ",
+            "independent samples and penalised partial correlations do ",
+            "not follow the distribution Fisher's Z test assumes, so its ",
+            "p-values are not validated. This warning is shown once per ",
+            "session."))
+    }
+
+    ## --- Partial correlations from the precision matrices ---
+    precisions <- lapply(nets, function(n) {
+        theta <- n@precision_matrix
+        root_diag <- sqrt(diag(theta))
+        partial <- -theta / outer(root_diag, root_diag)
+        diag(partial) <- 1
+        partial
+    })
     adjacencies <- lapply(nets, function(n) n@adjacency_matrix)
     n_donors <- vapply(nets, function(n) {
         md <- n@metadata
@@ -161,7 +175,8 @@ run_comparative_network <- function(...,
 
             ## Statistical test
             pval <- NA_real_
-            if (method == "fisher_z" && length(nets) == 2L) {
+            if (method == "fisher_z" && length(nets) == 2L &&
+                all(is.finite(pcor_vals))) {
                 r1 <- pcor_vals[1]
                 r2 <- pcor_vals[2]
                 n1 <- n_donors[1]
@@ -175,7 +190,7 @@ run_comparative_network <- function(...,
                     pval <- 2 * pnorm(-z_stat)
                 }
             } else if (method == "fisher_z" &&
-                       length(nets) > 2L) {
+                       length(nets) > 2L && all(is.finite(pcor_vals))) {
                 ## Multi-group: pairwise max test
                 z_max <- 0
                 for (a in seq_along(nets)[-length(nets)]) {
@@ -228,7 +243,8 @@ run_comparative_network <- function(...,
             summary = list(
                 celltypes = ct_names,
                 n_edges = integer(0),
-                jaccard = 0)))
+                jaccard = 0,
+                method = method)))
     }
 
     all_df <- do.call(rbind, edge_list)

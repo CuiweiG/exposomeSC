@@ -66,9 +66,8 @@ empirical-Bayes dispersion shrinkage. \code{"DESeq2"} (and its retained
 alias \code{"pseudobulk"}) uses DESeq2 on aggregated counts.
 \code{"dreamlet"} uses variancePartition's
 voom-dream pipeline with precision weights and
-Satterthwaite degrees of freedom, providing better
-calibrated p-values and accounting for unequal cell
-counts across donors.}
+Satterthwaite degrees of freedom; it does not call the
+\pkg{dreamlet} package.}
 
 \item{min_group_donors}{Integer. For a binary exposure, minimum complete
 donors required in each group for the edgeR backend. Default 5.}
