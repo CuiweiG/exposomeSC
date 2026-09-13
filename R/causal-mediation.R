@@ -24,7 +24,8 @@ NULL
 #' @param celltype_col Character. Column with cell type labels.
 #' @param sample_col Character. Column with donor IDs.
 #' @param genes Character vector (optional). Genes to test.
-#'   Default: top 20 by total effect p-value.
+#'   Default: the 20 genes with the largest absolute Pearson
+#'   correlation between donor log-CPM and the exposure.
 #' @param n_sims Integer. Monte Carlo simulations for
 #'   mediation CI. Default 1000.
 #' @param sensitivity Logical. Run sensitivity analysis for
@@ -112,7 +113,7 @@ run_causal_mediation <- function(scee, exposure, celltype,
     exp_vec <- exp_data[valid, exposure]
     med_vec <- ct_prop[valid]
 
-    ## If no genes specified, use ERD to find top candidates
+    ## If no genes are specified, screen by correlation with the exposure
     if (is.null(genes)) {
         ## Quick screen: correlate each gene with exposure
         cors <- apply(lcpm, 1, function(y)

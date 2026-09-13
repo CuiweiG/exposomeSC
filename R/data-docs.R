@@ -19,8 +19,9 @@ NULL
 
 #' Demo exposure matrix for exposomeSC
 #'
-#' A CSV file with 20 donors (rows) and 5 environmental
-#' exposures (PM2.5, NO2, Pb, Cd, BPA). Values simulate
+#' A CSV file with 20 donors (rows), 5 environmental
+#' exposures (PM2.5, NO2, Pb, Cd, BPA) and the covariates age
+#' and sex. Values simulate
 #' realistic urban air pollution and biomonitoring data.
 #'
 #' @format A CSV file at \code{inst/extdata/demo_exposures.csv}.
