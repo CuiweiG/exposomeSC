@@ -2,7 +2,7 @@
 % Please edit documentation in R/network-plots.R
 \name{plot_stability_surface}
 \alias{plot_stability_surface}
-\title{Stability calibration surface}
+\title{Edge stability plot}
 \usage{
 plot_stability_surface(network)
 }
@@ -14,9 +14,11 @@ with \code{stability=TRUE}.}
 A \code{ggplot} object.
 }
 \description{
-Displays the lambda-pi calibration heatmap for
-hyperparameter transparency, reproducing the StARS
-stability surface.
+Plots the selection probability of the most stable edges (up to
+50) with a reference line at 0.6. The network object stores
+stability at the selected penalty only, so this is not a
+lambda-by-pi surface; keep the tuning grid from the estimator if
+a calibration surface is required.
 }
 \examples{
 features <- c("G1", "G2", "M1")
