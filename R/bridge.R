@@ -71,13 +71,14 @@ as_scee <- function(exposome_set, sce, sample_col,
     exp_mat <- t(as.matrix(exposure_by_sample))
 
     if (!is.numeric(exp_mat)) {
-        converted <- suppressWarnings(matrix(
-            as.numeric(exp_mat), nrow = nrow(exp_mat),
-            dimnames = dimnames(exp_mat)))
-        if (any(is.na(converted) & !is.na(exp_mat)))
+        values <- trimws(as.character(exp_mat))
+        number_pattern <-
+            "^[-+]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][-+]?[0-9]+)?$"
+        if (!all(is.na(values) | grepl(number_pattern, values)))
             stop("Some exposures are not numeric; encode categorical ",
                  "exposures numerically before conversion.")
-        exp_mat <- converted
+        exp_mat <- matrix(as.numeric(values), nrow = nrow(exp_mat),
+                          dimnames = dimnames(exp_mat))
     }
 
     if (!is.null(exposures)) {
@@ -145,16 +146,17 @@ seurat_to_exposure <- function(seurat_meta, sample_col,
              paste(non_numeric, collapse = ", "),
              ". Encode them numerically first.")
 
-    donors <- unique(as.character(seurat_meta[[sample_col]]))
-    varying <- character()
+    donor_of_cell <- as.character(seurat_meta[[sample_col]])
+    donors <- unique(donor_of_cell)
+    varies_within_donor <- vapply(exposure_cols, function(col) {
+        any(tapply(seurat_meta[[col]], donor_of_cell, function(vals)
+            length(unique(vals[!is.na(vals)])) > 1L))
+    }, logical(1))
+    varying <- exposure_cols[varies_within_donor]
     exp_mat <- do.call(rbind, lapply(donors, function(d) {
-        rows <- seurat_meta[as.character(seurat_meta[[sample_col]]) == d, ,
-                            drop = FALSE]
+        rows <- seurat_meta[donor_of_cell == d, , drop = FALSE]
         vapply(exposure_cols, function(col) {
-            vals <- rows[[col]]
-            observed <- vals[!is.na(vals)]
-            if (length(unique(observed)) > 1L)
-                varying <<- union(varying, col)
+            observed <- rows[[col]][!is.na(rows[[col]])]
             if (length(observed)) mean(observed) else NA_real_
         }, numeric(1))
     }))
