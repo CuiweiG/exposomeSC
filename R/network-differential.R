@@ -48,6 +48,8 @@ NULL
 #' across donors, re-estimate both networks, compute null
 #' distribution of \eqn{\Delta_{ij}}.
 #'
+#' Requires the \pkg{glasso} package.
+#'
 #' @examples
 #' donor_ids <- paste0("D", seq_len(10L))
 #' exposure <- rep(c(0, 1), each = 5L)
@@ -135,19 +137,17 @@ run_differential_network <- function(scee, exposure, celltype,
     message(sprintf("Differential network: %d high, %d low donors",
         n_high, n_low))
 
+    if (!requireNamespace("glasso", quietly = TRUE))
+        stop("Package 'glasso' is required for run_differential_network(). ",
+             "Install it with BiocManager::install('glasso').")
+
     ## Estimate precision matrices via glasso
     fit_glasso <- function(data_mat) {
         S <- cor(t(data_mat))
-        if (requireNamespace("glasso", quietly = TRUE)) {
-            fit <- glasso::glasso(S, rho = lambda)
-            adj <- (abs(fit$wi) > 1e-6) * 1
-            diag(adj) <- 0
-            return(list(omega = fit$wi, adj = adj))
-        }
-        ## Fallback: thresholded correlation
-        adj <- (abs(S) > 0.3) * 1
+        fit <- glasso::glasso(S, rho = lambda)
+        adj <- (abs(fit$wi) > 1e-6) * 1
         diag(adj) <- 0
-        list(omega = solve(S + diag(0.1, nrow(S))), adj = adj)
+        list(omega = fit$wi, adj = adj)
     }
 
     net_high <- fit_glasso(lcpm[, high_idx, drop = FALSE])
@@ -202,8 +202,8 @@ run_differential_network <- function(scee, exposure, celltype,
     edges <- data.frame(
         gene1 = genes[edge_idx[, 1]],
         gene2 = genes[edge_idx[, 2]],
-        delta = round(obs_delta, 4),
-        perm_p = round(perm_p, 4),
+        delta = obs_delta,
+        perm_p = perm_p,
         stringsAsFactors = FALSE)
     edges <- edges[order(edges$perm_p), ]
     rownames(edges) <- NULL

@@ -16,7 +16,7 @@ exposures with single-cell resolution gene expression.
   \item{\code{\link{build_scee}}}{Build a
     SingleCellExposomeExperiment from SCE + exposure matrix}
   \item{\code{\link{run_sc_exwas}}}{Cell-type-specific ExWAS
-    via pseudobulk (DESeq2 or dreamlet backend)}
+    via pseudobulk (edgeR, DESeq2 or voom-dream backend)}
   \item{\code{\link{run_sc_exwas_glmm}}}{GLMM-based ExWAS
     with donor random effects}
   \item{\code{\link{run_multi_exwas}}}{Batch ExWAS across

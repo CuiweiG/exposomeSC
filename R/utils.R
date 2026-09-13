@@ -156,3 +156,21 @@ NULL
     withr::local_seed(seed, .local_envir = envir, .rng_kind = kind)
     invisible(NULL)
 }
+
+# Experimental interfaces warn once per session. Tests reset the record with
+# .reset_experimental_warnings() before asserting the warning.
+.experimental_warnings <- new.env(parent = emptyenv())
+
+.warn_experimental <- function(key, message) {
+    if (!isTRUE(.experimental_warnings[[key]])) {
+        assign(key, TRUE, envir = .experimental_warnings)
+        warning(message, call. = FALSE)
+    }
+    invisible(NULL)
+}
+
+.reset_experimental_warnings <- function() {
+    rm(list = ls(.experimental_warnings, all.names = TRUE),
+       envir = .experimental_warnings)
+    invisible(NULL)
+}

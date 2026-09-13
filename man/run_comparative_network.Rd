@@ -6,8 +6,7 @@
 \usage{
 run_comparative_network(
   ...,
-  method = c("permutation", "fisher_z"),
-  n_perm = 1000L,
+  method = c("descriptive", "fisher_z"),
   adjust = "BH"
 )
 }
@@ -16,41 +15,44 @@ run_comparative_network(
 objects. All must share the same feature set (same genes
 and metabolites).}
 
-\item{method}{Character; \code{"permutation"} (default) or
-\code{"fisher_z"}. Permutation preserves the within-donor
-correlation structure. Fisher's Z is faster but assumes
-normality.}
+\item{method}{Character; \code{"descriptive"} (default) or
+\code{"fisher_z"}.}
 
-\item{n_perm}{Integer; number of permutations for
-permutation test. Default 1000.}
-
-\item{adjust}{Character; p-value adjustment method.
-Default \code{"BH"}.}
+\item{adjust}{Character; p-value adjustment method used with
+\code{method = "fisher_z"}. Default \code{"BH"}.}
 }
 \value{
-A \code{\linkS4class{NetworkComparison}} object.
+A \code{\linkS4class{NetworkComparison}} object. Its edge
+  tables contain \code{max_diff}, the range of the edge's partial
+  correlation across networks, and \code{p_value} and
+  \code{p_adjusted}, which are \code{NA} for
+  \code{method = "descriptive"}.
 }
 \description{
-Tests whether edges differ significantly between two or
-more cell-type-specific networks from the same donors.
-For each edge (i,j), tests whether the partial correlation
-differs across cell types using permutation of donor labels
-or Fisher's Z transformation.
+Classifies the union of edges from two or more cell-type-specific
+networks estimated on the same features as shared, unique to one
+cell type or differential, and reports pairwise Jaccard overlap.
+The default \code{method = "descriptive"} reports no p-values.
 }
 \details{
-This is the single-cell analog of the temporal edge
-comparison in Cheng et al. (ES&T 2024).
+\code{method = "fisher_z"} also compares the partial correlations
+of each edge with Fisher's Z test. This mode is experimental and
+warns once per session: networks estimated from the same donors are
+not independent samples, and penalised partial correlations do not
+follow the sampling distribution the test assumes, so its p-values
+are not validated.
 
-The permutation test shuffles donor labels within each
-cell type's pseudobulk matrix, re-estimates partial
-correlations, and computes the difference in edge
-weights. This preserves the within-donor correlation
-structure while testing cross-cell-type differences.
 
-Fisher's Z tests whether two partial correlations
-differ using the Z-transformation:
-\code{z = atanh(r1) - atanh(r2)}, with standard error
-\code{sqrt(1/(n1-3) + 1/(n2-3))}.
+Partial correlations are computed from each precision matrix
+\eqn{\Theta} as \eqn{-\Theta_{ij} / \sqrt{\Theta_{ii}\Theta_{jj}}}.
+For two networks, Fisher's Z statistic is
+\code{(atanh(r1) - atanh(r2)) / sqrt(1/(n1 - 3) + 1/(n2 - 3))},
+where \code{n1} and \code{n2} are the donor counts recorded in the
+networks' metadata; with more than two networks the largest pairwise
+statistic is used.
+
+This is the single-cell analogue of the temporal edge comparison in
+Cheng et al. (ES&T 2024).
 }
 \examples{
 features <- c("G1", "G2", "M1")
@@ -76,11 +78,7 @@ make_network <- function(celltype, cross_weight) {
 }
 monocyte_network <- make_network("Monocyte", -0.45)
 b_cell_network <- make_network("B cell", -0.15)
-comparison <- run_comparative_network(
-    monocyte_network,
-    b_cell_network,
-    method = "fisher_z"
-)
+comparison <- run_comparative_network(monocyte_network, b_cell_network)
 comparison
 }
 \references{

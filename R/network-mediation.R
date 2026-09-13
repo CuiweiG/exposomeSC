@@ -13,8 +13,13 @@ NULL
 #' by metabolite changes, using the network topology to
 #' identify candidate mediation paths. Only cross-omic edges
 #' (metabolite-transcript) from the network are tested as
-#' potential mediation paths, dramatically reducing the
-#' multiple testing burden.
+#' potential mediation paths, which reduces the multiple
+#' testing burden.
+#'
+#' This function is experimental and warns once per session: the
+#' selection, identification, resampling and confidence-interval
+#' properties of network-guided mediation have not been validated, so
+#' its effects and p-values are exploratory.
 #'
 #' @param scee \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @param metabolites Numeric matrix; rows = donors,
@@ -28,14 +33,11 @@ NULL
 #'   Default \code{"cell_type"}.
 #' @param sample_col Character or NULL; donor ID column.
 #' @param covariates Character vector or NULL.
-#' @param method Character; \code{"penalized"} (default) or
-#'   \code{"topology_guided"}.
-#'   \code{"penalized"}: penalized mediation across all
-#'   cross-omic edges simultaneously.
-#'   \code{"topology_guided"}: tests each cross-omic edge
-#'   as a mediation path independently.
-#' @param n_boot Integer; number of bootstrap resamples for
-#'   confidence intervals. Default 1000.
+#' @param method Character; only \code{"topology_guided"} is
+#'   implemented: each cross-omic edge is tested independently as a
+#'   single-mediator path.
+#' @param n_boot Integer; number of bootstrap resamples for the
+#'   indirect-effect p-value. Default 1000.
 #' @param adjust Character; p-value adjustment. Default "BH".
 #'
 #' @return \code{DataFrame} with columns:
@@ -49,7 +51,8 @@ NULL
 #'       (ACME): exposure -> metabolite -> transcript.}
 #'     \item{total_effect}{Total effect (ADE + ACME).}
 #'     \item{proportion_mediated}{ACME / total effect.}
-#'     \item{p_value}{Bootstrap p-value for indirect effect.}
+#'     \item{p_value}{Two-sided percentile bootstrap p-value for the
+#'       indirect effect.}
 #'     \item{p_adjusted}{Adjusted p-value.}
 #'   }
 #'
@@ -73,25 +76,52 @@ NULL
 #'
 #' @export
 #' @examples
-#' \dontrun{
-#' med <- run_network_mediation(
-#'     scee, metabolites,
-#'     celltype = "Monocyte",
-#'     exposure = "PM2.5",
-#'     network = mono_net)
-#' med[med$p_adjusted < 0.05, ]
-#' }
+#' set.seed(3)
+#' donors <- sprintf("D%02d", 1:20)
+#' donor <- rep(donors, each = 40)
+#' exposure <- stats::setNames(stats::rnorm(20), donors)
+#' counts <- matrix(stats::rpois(20 * length(donor), 20), nrow = 20,
+#'     dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+#' sce <- SingleCellExperiment::SingleCellExperiment(
+#'     assays = list(counts = counts),
+#'     colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+#' scee <- build_scee(sce, matrix(exposure, ncol = 1,
+#'     dimnames = list(donors, "PM2.5")), sample_col = "donor_id")
+#' metabolites <- matrix(1.5 * exposure + stats::rnorm(20), ncol = 1,
+#'     dimnames = list(donors, "M1"))
+#' features <- c("G1", "G2", "G3", "M1")
+#' precision <- diag(4)
+#' precision[1, 4] <- precision[4, 1] <- 0.3
+#' adjacency <- (precision != 0) * 1L
+#' diag(adjacency) <- 0L
+#' dimnames(precision) <- dimnames(adjacency) <- list(features, features)
+#' network <- methods::new("CelltypeNetworkResult",
+#'     precision_matrix = precision, adjacency_matrix = adjacency,
+#'     stability_scores = matrix(nrow = 0, ncol = 0),
+#'     node_info = S4Vectors::DataFrame(feature = features,
+#'         omic_layer = c(rep("transcript", 3), "metabolite"),
+#'         block = c(1L, 1L, 1L, 2L)),
+#'     celltype = "Mono", method = "precomputed",
+#'     metadata = list(n_donors = 20L))
+#' run_network_mediation(scee, metabolites, celltype = "Mono",
+#'     exposure = "PM2.5", network = network, sample_col = "donor_id",
+#'     n_boot = 100L)
 run_network_mediation <- function(scee, metabolites, celltype,
                                    exposure, network,
                                    celltype_col = "cell_type",
                                    sample_col = NULL,
                                    covariates = NULL,
-                                   method = c("penalized",
-                                              "topology_guided"),
+                                   method = "topology_guided",
                                    n_boot = 1000L,
                                    adjust = "BH") {
 
     method <- match.arg(method)
+    .warn_experimental("run_network_mediation", paste0(
+        "run_network_mediation() is experimental: the selection, ",
+        "identification, resampling and confidence-interval properties of ",
+        "network-guided mediation have not been validated, so its effects ",
+        "and p-values are exploratory. This warning is shown once per ",
+        "session."))
 
     ## --- Extract cross-omic edges from network ---
     if (is(network, "TemporalNetwork")) {
@@ -233,10 +263,10 @@ run_network_mediation <- function(scee, metabolites, celltype,
         prop_med <- if (abs(total) > 1e-10)
             indirect / total else NA_real_
 
-        ## Bootstrap p-value (proportion of bootstrap
-        ## indirects crossing zero)
-        p_val <- mean(boot_indirect <= 0) * 2
-        p_val <- min(p_val, 1)
+        ## Two-sided percentile bootstrap p-value: twice the smaller
+        ## tail proportion of bootstrap indirect effects beyond zero
+        p_val <- min(1, 2 * min(mean(boot_indirect <= 0),
+                                mean(boot_indirect >= 0)))
 
         idx <- idx + 1L
         results[[idx]] <- data.frame(

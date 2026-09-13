@@ -12,11 +12,12 @@ run_exposure_network(
   celltype_col = "cell_type",
   sample_col = NULL,
   covariates = NULL,
-  selection_method = c("stability_lasso", "univariate"),
+  selection_method = c("stability", "univariate"),
   fdr_threshold = 0.05,
   pi_threshold = 0.6,
+  stability_q = NULL,
   min_cells = 10L,
-  ...
+  network_method = c("coglasso", "block_glasso")
 )
 }
 \arguments{
@@ -36,49 +37,99 @@ Default \code{"cell_type"}.}
 
 \item{covariates}{Character vector or NULL.}
 
-\item{selection_method}{Character; \code{"stability_lasso"}
+\item{selection_method}{Character; \code{"stability"}
 (default) or \code{"univariate"}.}
 
 \item{fdr_threshold}{Numeric; FDR threshold for univariate
 selection. Default 0.05.}
 
-\item{pi_threshold}{Numeric; stability threshold for lasso
-selection. Default 0.6 (Meinshausen & Buhlmann 2010).}
+\item{pi_threshold}{Numeric in (0.5, 1]; minimum proportion of
+subsamples in which a feature must be selected under
+\code{selection_method = "stability"}. Default 0.6.}
+
+\item{stability_q}{Integer or \code{NULL}; number of features
+selected in each subsample under
+\code{selection_method = "stability"}. The default \code{NULL}
+uses \eqn{\max(1, \lfloor\sqrt{(2\pi_{thr} - 1)p}\rfloor)}, the
+largest value for which the Meinshausen-Buhlmann bound on the
+expected number of falsely selected features is at most 1 (when
+\eqn{(2\pi_{thr} - 1)p \ge 1}).}
 
 \item{min_cells}{Integer; minimum cells per pseudobulk.}
 
-\item{...}{Additional arguments passed to
-\code{run_celltype_network}.}
+\item{network_method}{Character; \code{"coglasso"} (default) or
+\code{"block_glasso"}, the estimator for the network on the
+selected features. \code{"coglasso"} requires the \pkg{coglasso}
+package and at least one selected transcript and metabolite;
+otherwise the block graphical lasso is used.}
 }
 \value{
 A \code{\linkS4class{CelltypeNetworkResult}}
-  restricted to exposure-associated features.
+  restricted to exposure-associated features. Its metadata record
+  the expression transform, the selection settings and, for
+  stability selection, \code{pfer_bound}.
 }
 \description{
-Pre-selects features associated with exposure via stability
-selection lasso or univariate testing, then builds a
+Pre-selects features associated with exposure by stability
+selection or univariate testing, then builds a
 cross-omic network on the selected features only. This
 mirrors the two-stage approach in Cheng et al. (2024).
 }
 \details{
 Stage 1: Feature selection. For each transcript and
 metabolite, tests association with exposure.
-\code{"univariate"} uses correlation tests with BH
-correction. \code{"stability_lasso"} uses repeated
-subsampling with lasso regression, selecting features
-with selection probability above \code{pi_threshold}.
+\code{"univariate"} uses Spearman correlation tests (asymptotic
+\emph{t} approximation) with BH correction; features without
+variation across donors are not selected.
+\code{"stability"} applies stability selection (Meinshausen and
+Buhlmann 2010) to a marginal screen: in each of 100 random
+subsamples of half the donors with an observed exposure, the
+\code{stability_q} features with the largest absolute Spearman
+correlation with the exposure are selected, and features selected
+in a proportion of at least \code{pi_threshold} of subsamples are
+retained. The screen remains defined when features outnumber
+donors. Under the exchangeability and better-than-random-guessing
+assumptions of Meinshausen and Buhlmann, the expected number of
+falsely selected features is at most
+\eqn{q^2 / ((2\pi_{thr} - 1)p)}, reported as \code{pfer_bound}.
+At least three features must be selected.
+
+Transcript values are log-CPM or VST values and therefore relative
+to each donor's library size. When the exposure strongly changes
+genes that carry a large share of the counts, the remaining genes
+shift in the opposite direction and can pass the screen; with few
+measured genes this can dominate the univariate screen.
 
 Stage 2: Network estimation on selected features only,
-WITHOUT residualizing exposure (to capture
-exposure-driven rewiring).
+without residualising the exposure (to capture
+exposure-driven rewiring), with collaborative graphical lasso
+model selection by XStARS (\code{"coglasso"}) or the block
+graphical lasso (\code{"block_glasso"}).
 }
 \examples{
-\dontrun{
-net <- run_exposure_network(scee, metab,
-    celltype = "Monocyte",
-    exposure = "PM2.5",
-    selection_method = "univariate")
-}
+set.seed(3)
+donors <- sprintf("D\%02d", 1:20)
+donor <- rep(donors, each = 40)
+exposure <- stats::setNames(stats::rnorm(20), donors)
+counts <- matrix(stats::rpois(20 * length(donor), 20), nrow = 20,
+    dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+## two genes rise and two fall with the exposure
+effect <- c(0.8, 0.8, -0.8, -0.8)
+for (g in 1:4)
+    counts[g, ] <- stats::rpois(length(donor),
+        20 * exp(effect[g] * exposure[donor]))
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = counts),
+    colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+scee <- build_scee(sce, matrix(exposure, ncol = 1,
+    dimnames = list(donors, "PM2.5")), sample_col = "donor_id")
+metabolites <- matrix(stats::rnorm(20 * 3), nrow = 20,
+    dimnames = list(donors, paste0("M", 1:3)))
+metabolites[, "M1"] <- metabolites[, "M1"] + 1.5 * exposure
+net <- run_exposure_network(scee, metabolites, celltype = "Mono",
+    exposure = "PM2.5", sample_col = "donor_id",
+    selection_method = "univariate", network_method = "block_glasso")
+net
 }
 \references{
 Cheng SL et al. (2024). Multiomic signatures of traffic-related
