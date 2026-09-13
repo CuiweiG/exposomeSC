@@ -123,7 +123,7 @@ not support causal or abundance claims. `run_erd_interventional()` is retained
 as a developmental interface and is not for confirmatory interpretation.
 
 Network comparison, network mediation, causal mediation, interventional ERD and IERS
-are experimental or retired pending estimator, resampling, selection and
+are experimental pending estimator, resampling, selection and
 identification repairs. The package does not supply causal identification by
 itself.
 

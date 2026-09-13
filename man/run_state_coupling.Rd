@@ -79,10 +79,27 @@ indicates state-dependent rewiring.
 Global test: ANOVA on \eqn{\beta_1(t)} across bins.
 }
 \examples{
-\dontrun{
-# State coupling requires CITE-seq data with trajectory annotations;
-# run_state_coupling() operates on an altExp of surface proteins.
-sim <- simulate_crossomic_network(n_donors = 15, n_genes = 20,
-    n_metabolites = 10, n_celltypes = 2, seed = 42)
+set.seed(1)
+donors <- sprintf("D\%02d", 1:12)
+donor <- rep(donors, each = 60)
+gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+    dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+    dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = gene),
+    colData = S4Vectors::DataFrame(donor = donor, celltype = "T",
+        pseudotime = stats::runif(length(donor))))
+SingleCellExperiment::altExp(sce, "CITE") <-
+    SummarizedExperiment::SummarizedExperiment(
+        assays = list(counts = protein))
+exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
+    dimnames = list(donors, "exposure"))
+scee <- build_scee(sce, exp_mat, sample_col = "donor")
+if (requireNamespace("metafor", quietly = TRUE)) {
+    run_state_coupling(scee, gene = "Gene1", protein = "Prot1",
+        exposure = "exposure", celltype = "T",
+        state_col = "pseudotime", n_bins = 3L,
+        min_cells_per_bin = 10L, min_donors = 10L)
 }
 }

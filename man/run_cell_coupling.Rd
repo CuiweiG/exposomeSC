@@ -136,30 +136,28 @@ shared technical or biological confounds. Donor-level
 moderators (age, sex) are included in Stage 2.
 }
 \examples{
-\dontrun{
-# Basic: library-size controlled
-res <- run_cell_coupling(scee,
-    genes = c("IFI27", "ISG15"),
-    proteins = c("CD38", "HLA-ABC"),
-    exposure = "severity",
-    celltype = "Mono_Classical")
-
-# With cell-cycle and mito confounders
-res2 <- run_cell_coupling(scee,
-    genes = top_genes,
-    proteins = top_proteins,
-    exposure = "severity",
-    celltype = "Mono_Classical",
-    confounders = c("S.Score", "G2M.Score", "percent.mt"))
-
-# With donor-level moderators
-res3 <- run_cell_coupling(scee,
-    genes = top_genes,
-    proteins = top_proteins,
-    exposure = "PM2.5",
-    celltype = "Mono",
-    confounders = c("S.Score", "G2M.Score"),
-    meta_moderators = c("age", "sex"))
+set.seed(1)
+donors <- sprintf("D\%02d", 1:12)
+donor <- rep(donors, each = 60)
+gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+    dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+    dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = gene),
+    colData = S4Vectors::DataFrame(donor = donor, celltype = "T",
+        pseudotime = stats::runif(length(donor))))
+SingleCellExperiment::altExp(sce, "CITE") <-
+    SummarizedExperiment::SummarizedExperiment(
+        assays = list(counts = protein))
+exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
+    dimnames = list(donors, "exposure"))
+scee <- build_scee(sce, exp_mat, sample_col = "donor")
+if (requireNamespace("metafor", quietly = TRUE) &&
+    requireNamespace("ppcor", quietly = TRUE)) {
+    run_cell_coupling(scee, genes = "Gene1", proteins = "Prot1",
+        exposure = "exposure", celltype = "T",
+        min_cells = 20L, min_donors = 10L)
 }
 }
 \references{

@@ -89,6 +89,7 @@ NULL
              celltype, "' (min_cells=", min_cells, ")")
 
     ## --- VST or log-CPM transform ---
+    tx_mat <- NULL
     if (vst && requireNamespace("DESeq2", quietly = TRUE)) {
         tx_mat <- tryCatch({
             suppressMessages({
@@ -100,13 +101,12 @@ NULL
                 vsd <- DESeq2::vst(dds, blind = TRUE)
                 t(SummarizedExperiment::assay(vsd))
             })
-        }, error = function(e) {
-            ## Fallback to log-CPM if VST fails
-            t(.log_cpm(pb$pb_mat))
-        })
-    } else {
-        tx_mat <- t(.log_cpm(pb$pb_mat))
+        }, error = function(e) NULL)
     }
+    ## log-CPM when VST is not requested, DESeq2 is absent or VST fails
+    ## (for example with fewer genes than its subsampling needs)
+    transform <- if (is.null(tx_mat)) "log_cpm" else "vst"
+    if (is.null(tx_mat)) tx_mat <- t(.log_cpm(pb$pb_mat))
     ## tx_mat: donors x genes
 
     ## --- Optional: select top variable genes ---
@@ -177,6 +177,7 @@ NULL
         data_matrix    = data_matrix,
         node_info      = node_info,
         donors         = shared_donors,
+        transform      = transform,
         n_transcripts  = length(tx_names),
         n_metabolites  = length(met_names)
     )
@@ -394,4 +395,22 @@ NULL
 
     adj <- .precision_to_adjacency(wi)
     list(wi = wi, adj = adj)
+}
+
+# -------------------------------------------------------
+# Base selector for stability selection: 0/1 indicator of the q
+# features with the largest absolute Spearman correlation with y.
+# Constant features are never selected.
+# -------------------------------------------------------
+#' @keywords internal
+.top_marginal_features <- function(x, y, q) {
+    chosen <- numeric(ncol(x))
+    if (!isTRUE(stats::sd(y) > 0)) return(chosen)
+    varies <- which(apply(x, 2L, function(v) isTRUE(stats::sd(v) > 0)))
+    if (length(varies) == 0L) return(chosen)
+    rho <- abs(stats::cor(x[, varies, drop = FALSE], y,
+                          method = "spearman"))[, 1]
+    ranked <- varies[order(-rho, varies)]
+    chosen[ranked[seq_len(min(q, length(varies)))]] <- 1
+    chosen
 }

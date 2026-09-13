@@ -7,16 +7,21 @@
 #' @importFrom stats lm coef residuals predict quantile
 NULL
 
-#' Formal Causal Mediation Analysis for ERD
+#' Exploratory mediation through cell-type proportion
 #'
-#' Applies formal causal mediation (Imai et al. 2010) to
-#' provide:
+#' Fits single-mediator models (Imai et al. 2010) in which the
+#' donor-level proportion of \code{celltype} among all cells mediates
+#' the association between an exposure and the within-cell-type
+#' pseudobulk log-CPM of each gene, and reports:
 #' \enumerate{
 #'   \item Average Causal Mediation Effect (ACME) with CI
 #'   \item Average Direct Effect (ADE) with CI
 #'   \item Sensitivity analysis for sequential ignorability
-#'   \item Identifiability conditions check
 #' }
+#'
+#' This function is experimental and warns once per session. The
+#' effects are causal only under sequential ignorability, which the
+#' data cannot verify, and cell-type proportions are compositional.
 #'
 #' @param scee A \code{SingleCellExposomeExperiment}.
 #' @param exposure Character. Exposure variable name.
@@ -26,15 +31,18 @@ NULL
 #' @param genes Character vector (optional). Genes to test.
 #'   Default: the 20 genes with the largest absolute Pearson
 #'   correlation between donor log-CPM and the exposure.
-#' @param n_sims Integer. Monte Carlo simulations for
-#'   mediation CI. Default 1000.
-#' @param sensitivity Logical. Run sensitivity analysis for
-#'   unmeasured confounding (rho parameter). Default TRUE.
+#' @param n_sims Integer. Quasi-Bayesian Monte Carlo draws for
+#'   \code{mediation::mediate()}, or bootstrap resamples for the
+#'   fallback. Default 1000.
+#' @param sensitivity Logical. Run \code{mediation::medsens()} for
+#'   unmeasured mediator-outcome confounding. Default TRUE.
 #'
-#' @return A \code{data.frame} with columns:
-#'   gene, ACME (indirect/compositional), ACME_ci_lo/hi,
-#'   ADE (direct), ADE_ci_lo/hi, prop_mediated,
-#'   rho_at_zero (sensitivity: correlation at which ACME=0).
+#' @return A \code{data.frame} with one row per gene and columns
+#'   gene, ACME (indirect, through the proportion), ACME_ci_lo/hi,
+#'   ACME_p, ADE (direct), ADE_ci_lo/hi, ADE_p, total,
+#'   prop_mediated, prop_mediated_p, rho_at_zero (the error
+#'   correlation nearest zero at which the ACME is zero, or \code{NA})
+#'   and method (\code{"mediation"} or \code{"difference_bootstrap"}).
 #'
 #' @details
 #' \strong{Causal identification assumptions (sequential
@@ -55,27 +63,34 @@ NULL
 #' and reports the \eqn{\rho} value at which ACME = 0.
 #' Larger |\eqn{\rho}| means the result is more robust.
 #'
+#' When \pkg{mediation} is not installed, or \code{mediate()} fails for
+#' a gene, the ACME is the difference between the exposure
+#' coefficients without and with the mediator, with a percentile
+#' bootstrap CI and p-value; the ADE CI, the p-value for the
+#' proportion mediated and \code{rho_at_zero} are then \code{NA}.
+#'
 #' @references
 #' Imai K, Keele L, Tingley D (2010). A general approach to
 #' causal mediation analysis. \emph{Psychol Methods}
 #' 15:309-334.
 #'
 #' @examples
-#' \dontrun{
+#' set.seed(2)
+#' donors <- sprintf("D%02d", 1:12)
+#' n_mono <- 20:31
+#' donor <- c(rep(donors, times = n_mono), rep(donors, each = 25))
+#' cell_type <- c(rep("Mono", sum(n_mono)), rep("NK", 25 * 12))
+#' counts <- matrix(stats::rpois(30 * length(donor), 8), nrow = 30,
+#'     dimnames = list(paste0("G", 1:30), paste0("c", seq_along(donor))))
 #' sce <- SingleCellExperiment::SingleCellExperiment(
-#'     assays = list(counts = matrix(rpois(500, 5), 50, 10,
-#'         dimnames = list(paste0("G", 1:50), paste0("C", 1:10)))))
-#' sce$donor_id <- rep(paste0("D", 1:5), each = 2)
-#' sce$cell_type <- rep("Mono", 10)
-#' exp_mat <- matrix(rnorm(5), 5, 1,
-#'     dimnames = list(paste0("D", 1:5), "PM25"))
+#'     assays = list(counts = counts),
+#'     colData = S4Vectors::DataFrame(donor_id = donor,
+#'         cell_type = cell_type))
+#' exp_mat <- matrix(stats::rnorm(12), ncol = 1,
+#'     dimnames = list(donors, "PM2.5"))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
-#' # Requires mediation package
-#' if (requireNamespace("mediation", quietly = TRUE)) {
-#'   res <- run_causal_mediation(scee, "PM25", "Mono",
-#'       mediator_gene = "G1", genes = c("G2", "G3"), sims = 50)
-#' }
-#' }
+#' run_causal_mediation(scee, exposure = "PM2.5", celltype = "Mono",
+#'     genes = c("G1", "G2"), n_sims = 100L, sensitivity = FALSE)
 #' @export
 run_causal_mediation <- function(scee, exposure, celltype,
                                   celltype_col = "cell_type",
@@ -85,6 +100,11 @@ run_causal_mediation <- function(scee, exposure, celltype,
                                   sensitivity = TRUE) {
 
     stopifnot(is(scee, "SingleCellExposomeExperiment"))
+    .warn_experimental("run_causal_mediation", paste0(
+        "run_causal_mediation() is experimental: its effects are causal ",
+        "only under sequential ignorability, which the data cannot ",
+        "verify, and cell-type proportions are compositional. This ",
+        "warning is shown once per session."))
 
     exp_data <- exposureData(scee)
     cd <- SummarizedExperiment::colData(scee)
@@ -158,6 +178,7 @@ run_causal_mediation <- function(scee, exposure, celltype,
                     prop_mediated = med_out$n0,
                     prop_mediated_p = med_out$n0.p,
                     rho_at_zero = NA_real_,
+                    method = "mediation",
                     stringsAsFactors = FALSE)
 
                 ## Sensitivity analysis
@@ -166,8 +187,11 @@ run_causal_mediation <- function(scee, exposure, celltype,
                         mediation::medsens(med_out,
                             rho.by = 0.05, sims = 200),
                         error = function(e) NULL)
-                    if (!is.null(sens)) {
-                        row$rho_at_zero <- sens$rho.at.sign
+                    crossings <- if (is.null(sens)) NULL else
+                        sens$err.cr.d
+                    if (length(crossings) > 0L) {
+                        row$rho_at_zero <-
+                            crossings[which.min(abs(crossings))]
                     }
                 }
 
@@ -203,10 +227,11 @@ run_causal_mediation <- function(scee, exposure, celltype,
             ADE_p = summary(fit_y)$coefficients[
                 "exp_vec", "Pr(>|t|)"],
             total = beta_total,
-            prop_mediated = ifelse(abs(beta_total) > 1e-10,
-                acme / beta_total, 0),
+            prop_mediated = if (abs(beta_total) > 1e-10)
+                acme / beta_total else NA_real_,
             prop_mediated_p = NA_real_,
             rho_at_zero = NA_real_,
+            method = "difference_bootstrap",
             stringsAsFactors = FALSE)
     }
 

@@ -68,8 +68,9 @@ test_that("direction string encodes signs correctly", {
         exposure = "X")
 
     meta <- run_meta_exwas(list(r1, r2))
-    ## Should show discordant direction
+    ## Should show discordant direction in ASCII
     expect_true(nchar(meta$direction[1]) == 2)
+    expect_setequal(strsplit(meta$direction[1], "")[[1]], c("+", "-"))
 })
 
 test_that("fixed-effect estimate and uncertainty are exact", {

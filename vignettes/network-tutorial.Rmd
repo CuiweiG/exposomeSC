@@ -108,10 +108,11 @@ comparison <- run_comparative_network(
 plot_network_comparison(comparison)
 ```
 
-This comparison is descriptive. Inferential permutation and Fisher-Z modes are
-retired because the current result object does not retain the aligned
-donor-level matrices needed for complete paired refitting. Edge-presence or
-weight differences are not evidence of differential conditional association.
+This comparison is descriptive and reports no p-values. The Fisher-Z mode is
+experimental: networks estimated from the same donors are not independent
+samples, and penalised partial correlations do not follow the distribution the
+test assumes. Edge-presence or weight differences are not evidence of
+differential conditional association.
 
 # Exposure-restricted networks
 

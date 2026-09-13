@@ -333,7 +333,7 @@ run_meta_exwas <- function(results_list,
         signs <- ifelse(
             effects > 0,
             "+",
-            ifelse(effects < 0, "\u2212", "0")
+            ifelse(effects < 0, "-", "0")
         )
 
         data.frame(

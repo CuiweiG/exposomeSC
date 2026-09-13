@@ -35,15 +35,16 @@
 #' @importFrom stats p.adjust as.formula coef vcov anova setNames
 NULL
 
-# ---- Windows-safe parallel backend --------------------------------------
-# Fork is forbidden on this platform (MSYS2 fork bug); use PSOCK only. Workers
-# are capped at min(detectCores() - 4, 120) to respect R's 128-connection
-# ceiling. Returns NULL (serial fallback) when BiocParallel is unavailable.
+# ---- Parallel backend ---------------------------------------------------
+# PSOCK workers (SnowParam) behave the same on Windows, macOS and Linux.
+# Workers are capped at detectCores() - 4 and at most 48, to stay well within
+# R's limit on open connections, and at 2 when _R_CHECK_LIMIT_CORES_ is set.
+# Returns NULL (serial fallback) when BiocParallel is unavailable.
 .snow_param <- function(seed = 20260703L) {
     if (!requireNamespace("BiocParallel", quietly = TRUE)) return(NULL)
-    nw <- min(parallel::detectCores() - 4L, 48L)   # <=48: connection headroom
-    ## R CMD check (and BiocParallel) forbid more than 2 workers when
-    ## _R_CHECK_LIMIT_CORES_ is set; respect it so examples/tests stay clean.
+    cores <- parallel::detectCores()
+    if (is.na(cores)) cores <- 1L
+    nw <- min(cores - 4L, 48L)
     if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) nw <- min(nw, 2L)
     BiocParallel::SnowParam(workers = max(1L, nw), type = "SOCK",
                             RNGseed = seed)
@@ -112,7 +113,7 @@ NULL
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{scee}).
 #' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes;
-#'   defaults to a Windows-safe PSOCK \code{SnowParam}. Pass \code{NULL} on a
+#'   defaults to a PSOCK \code{SnowParam}. Pass \code{NULL} on a
 #'   platform without \code{BiocParallel} to run serially.
 #'
 #' @return A \code{data.frame}, one row per gene x cell type:
@@ -284,7 +285,7 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
 #' @param family \code{"gaussian"} (LMM on cell-level \eqn{\log_2} CP10k,
 #'   default) or \code{"nbinom"} (negative-binomial GLMM on cell counts).
 #' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes;
-#'   defaults to a Windows-safe PSOCK \code{SnowParam}.
+#'   defaults to a PSOCK \code{SnowParam}.
 #'
 #' @return A \code{data.frame}, one row per gene x cell type: \code{gene},
 #'   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic} (Satterthwaite

@@ -34,20 +34,32 @@ Initial Bioconductor submission.
   adjacency matrices per cell type. Its edges are model-dependent summaries,
   not validated conditional-independence discoveries.
 
-* The former `stability_lasso` option in `run_exposure_network()` was
-  mislabelled: it used repeated ordinary least-squares screening rather than a
-  penalised lasso. It will be retired or renamed before release.
+* `run_exposure_network()` replaces the mislabelled `stability_lasso` option
+  with `selection_method = "stability"`: stability selection over a marginal
+  Spearman screen in half-samples, which stays defined when features outnumber
+  donors and reports the Meinshausen-Buhlmann bound on expected false
+  selections. The former option refitted ordinary least squares on all features
+  and failed whenever features outnumbered 80% of donors. The univariate screen
+  no longer fails on features without variation, and network metadata record
+  the expression transform (VST or log-CPM).
 
-* Inferential modes of `run_comparative_network()` are retired pending aligned
-  donor matrices and complete paired network refitting. Descriptive adjacency
-  overlap may be reported without inferential p values.
+* `run_comparative_network()` classifies edges as shared, unique or
+  differential and reports Jaccard overlap, without p-values by default. Its
+  `fisher_z` mode is experimental and warns once per session: networks from the
+  same donors are not independent samples, and penalised partial correlations
+  do not follow the distribution the test assumes. Partial correlations are
+  now derived from the precision matrices before the test.
 
 * `run_temporal_network()` records descriptive edge presence across separately
   estimated time-point networks. It does not test longitudinal rewiring.
 
-* Inferential network mediation is retired until selection, identification,
-  resampling, confidence-interval and method-branch contracts are implemented
-  and independently validated.
+* `run_network_mediation()` is experimental and warns once per session: its
+  selection, identification, resampling and confidence-interval properties
+  have not been validated. Each cross-omic edge is tested as a single-mediator
+  path with a two-sided percentile bootstrap p-value.
+
+* `run_exposure_network()` gains `network_method` to choose between the
+  collaborative and the block graphical lasso for the second stage.
 
 ## NEW: Network visualisation
 
@@ -125,6 +137,11 @@ Initial Bioconductor submission.
 
 * `run_mediation()` is excluded from confirmatory scope pending a defensible
   identification and pre-selection contract.
+* `run_causal_mediation()` is experimental and warns once per session. With
+  `sensitivity = TRUE` it now returns `rho_at_zero` from
+  `mediation::medsens()`, which was previously dropped, and a `method` column
+  records whether `mediation::mediate()` or the difference-method bootstrap
+  fallback produced each row.
 * `run_meta_exwas()` cross-cohort meta-analysis with
   fixed/random effects, I², and direction strings.
 * `run_spatial_exwas()` region-resolved ExWAS via

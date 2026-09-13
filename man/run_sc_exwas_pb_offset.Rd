@@ -30,7 +30,7 @@ run_sc_exwas_pb_offset(
 \code{scee}).}
 
 \item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes;
-defaults to a Windows-safe PSOCK \code{SnowParam}. Pass \code{NULL} on a
+defaults to a PSOCK \code{SnowParam}. Pass \code{NULL} on a
 platform without \code{BiocParallel} to run serially.}
 }
 \value{

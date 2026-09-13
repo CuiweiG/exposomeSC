@@ -13,7 +13,7 @@ run_network_mediation(
   celltype_col = "cell_type",
   sample_col = NULL,
   covariates = NULL,
-  method = c("penalized", "topology_guided"),
+  method = "topology_guided",
   n_boot = 1000L,
   adjust = "BH"
 )
@@ -39,15 +39,12 @@ Default \code{"cell_type"}.}
 
 \item{covariates}{Character vector or NULL.}
 
-\item{method}{Character; \code{"penalized"} (default) or
-\code{"topology_guided"}.
-\code{"penalized"}: penalized mediation across all
-cross-omic edges simultaneously.
-\code{"topology_guided"}: tests each cross-omic edge
-as a mediation path independently.}
+\item{method}{Character; only \code{"topology_guided"} is
+implemented: each cross-omic edge is tested independently as a
+single-mediator path.}
 
-\item{n_boot}{Integer; number of bootstrap resamples for
-confidence intervals. Default 1000.}
+\item{n_boot}{Integer; number of bootstrap resamples for the
+indirect-effect p-value. Default 1000.}
 
 \item{adjust}{Character; p-value adjustment. Default "BH".}
 }
@@ -63,7 +60,8 @@ confidence intervals. Default 1000.}
       (ACME): exposure -> metabolite -> transcript.}
     \item{total_effect}{Total effect (ADE + ACME).}
     \item{proportion_mediated}{ACME / total effect.}
-    \item{p_value}{Bootstrap p-value for indirect effect.}
+    \item{p_value}{Two-sided percentile bootstrap p-value for the
+      indirect effect.}
     \item{p_adjusted}{Adjusted p-value.}
   }
 }
@@ -72,10 +70,16 @@ Tests whether exposure effects on transcripts are mediated
 by metabolite changes, using the network topology to
 identify candidate mediation paths. Only cross-omic edges
 (metabolite-transcript) from the network are tested as
-potential mediation paths, dramatically reducing the
-multiple testing burden.
+potential mediation paths, which reduces the multiple
+testing burden.
 }
 \details{
+This function is experimental and warns once per session: the
+selection, identification, resampling and confidence-interval
+properties of network-guided mediation have not been validated, so
+its effects and p-values are exploratory.
+
+
 The mediation model for each cross-omic edge:
 
 \deqn{M = \alpha_0 + \alpha_1 X + \epsilon_1}
@@ -89,14 +93,36 @@ Statistical significance is assessed via percentile
 bootstrap (Imai et al. 2010).
 }
 \examples{
-\dontrun{
-med <- run_network_mediation(
-    scee, metabolites,
-    celltype = "Monocyte",
-    exposure = "PM2.5",
-    network = mono_net)
-med[med$p_adjusted < 0.05, ]
-}
+set.seed(3)
+donors <- sprintf("D\%02d", 1:20)
+donor <- rep(donors, each = 40)
+exposure <- stats::setNames(stats::rnorm(20), donors)
+counts <- matrix(stats::rpois(20 * length(donor), 20), nrow = 20,
+    dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = counts),
+    colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+scee <- build_scee(sce, matrix(exposure, ncol = 1,
+    dimnames = list(donors, "PM2.5")), sample_col = "donor_id")
+metabolites <- matrix(1.5 * exposure + stats::rnorm(20), ncol = 1,
+    dimnames = list(donors, "M1"))
+features <- c("G1", "G2", "G3", "M1")
+precision <- diag(4)
+precision[1, 4] <- precision[4, 1] <- 0.3
+adjacency <- (precision != 0) * 1L
+diag(adjacency) <- 0L
+dimnames(precision) <- dimnames(adjacency) <- list(features, features)
+network <- methods::new("CelltypeNetworkResult",
+    precision_matrix = precision, adjacency_matrix = adjacency,
+    stability_scores = matrix(nrow = 0, ncol = 0),
+    node_info = S4Vectors::DataFrame(feature = features,
+        omic_layer = c(rep("transcript", 3), "metabolite"),
+        block = c(1L, 1L, 1L, 2L)),
+    celltype = "Mono", method = "precomputed",
+    metadata = list(n_donors = 20L))
+run_network_mediation(scee, metabolites, celltype = "Mono",
+    exposure = "PM2.5", network = network, sample_col = "donor_id",
+    n_boot = 100L)
 }
 \references{
 Imai K, Keele L, Tingley D (2010). A General Approach to
