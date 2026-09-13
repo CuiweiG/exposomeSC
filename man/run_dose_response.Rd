@@ -38,16 +38,17 @@ with small sample sizes.}
 \value{
 A \code{DataFrame} with columns: gene, best_model
   ("linear", "quadratic", "cubic"), linear_coef, AIC_linear,
-  AIC_best, p_nonlinear (F-test vs linear), celltype,
+  AIC_best, p_nonlinear (F-test of \code{nonlinear_model}
+  against the linear model), nonlinear_model, celltype,
   n_donors.
 }
 \description{
 Fits linear and polynomial dose-response models for each
 gene within a cell type, testing whether the
-exposure-expression relationship is nonlinear. Most
-environmental health studies assume linearity, but
-endocrine disruptors and air pollutants often show
-U-shaped or threshold effects (Vandenberg et al. 2012).
+exposure-expression relationship is nonlinear. Linear
+exposure-response models are common, but some exposures,
+such as endocrine-disrupting chemicals, show non-monotonic
+dose responses (Vandenberg et al. 2012).
 }
 \details{
 For each gene, the function fits:
@@ -57,14 +58,16 @@ For each gene, the function fits:
   \item \code{y ~ poly(exposure, 3)} (cubic, if max_degree
     >= 3)
 }
-on pseudobulk log-CPM values. Model selection uses AIC.
-A likelihood ratio test (via anova) compares the best
-nonlinear model against the linear baseline.
+on pseudobulk log-CPM values. \code{best_model} is the model
+with the lowest AIC and is descriptive.
 
-This addresses a critical gap: environmental epidemiology
-frequently encounters nonlinear dose-response
-relationships (Vandenberg et al. 2012 \emph{Endocr Rev}),
-but existing single-cell tools only test linear effects.
+\code{p_nonlinear} is an F-test of the highest-degree
+polynomial that could be fitted (cubic when
+\code{max_degree = 3} and at least six donors are available,
+otherwise quadratic) against the linear model. It is fixed in
+advance and does not depend on the AIC selection, because
+testing the model chosen by AIC would overstate the evidence
+for nonlinearity.
 }
 \examples{
 library(SingleCellExperiment); library(S4Vectors)

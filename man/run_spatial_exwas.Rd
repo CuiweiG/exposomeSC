@@ -12,7 +12,9 @@ run_spatial_exwas(
   region_col = NULL,
   n_regions = 4L,
   target_genes = NULL,
-  min_spots = 10L
+  min_spots = 10L,
+  coordinates_registered = FALSE,
+  seed = 1L
 )
 }
 \arguments{
@@ -30,21 +32,32 @@ donor/sample IDs.}
 \item{region_col}{Character (optional). Column with spatial
 region annotations (e.g., tissue compartment). If
 \code{NULL}, spatial regions are defined by k-means on
-coordinates.}
+coordinates, which requires a single tissue section or
+\code{coordinates_registered = TRUE}.}
 
 \item{n_regions}{Integer. Number of spatial regions for
 k-means (only if \code{region_col = NULL}). Default 4.}
 
 \item{target_genes}{Character vector (optional). Genes to
-test. Default: top 50 most spatially variable.}
+report. Default: the 50 genes with the largest variance of
+spot counts.}
 
 \item{min_spots}{Integer. Minimum spots per region per
 donor. Default 10.}
+
+\item{coordinates_registered}{Logical. Set to \code{TRUE} only
+when the spatial coordinates of all sections share one
+registered frame, so that k-means regions correspond between
+sections. Default \code{FALSE}.}
+
+\item{seed}{Integer seed for k-means. The caller's random
+number generator state is restored on return. Default 1.}
 }
 \value{
 A \code{DataFrame} with columns: gene, region,
-  coefficient (exposure effect), se, pvalue, padj,
-  n_donors, method (DESeq2 or lm).
+  coefficient (exposure effect), se, pvalue, padj (within
+  region), n_donors, method (DESeq2 or lm) and padj_global
+  (Benjamini-Hochberg across regions).
 }
 \description{
 Tests whether exposure effects on gene expression vary
@@ -56,14 +69,22 @@ enable spatially-resolved exposome analysis.
 The analysis proceeds per spatial region:
 \enumerate{
   \item Spots are grouped by region (annotated or k-means)
-  \item Within each region, spots are pseudobulked per donor
+  \item Within each region, all genes are pseudobulked per
+    donor, so that normalisation uses the whole transcriptome
   \item Exposure-expression association is tested via DESeq2
-    on pseudobulk counts (consistent with core sc-ExWAS);
-    falls back to linear regression on log-CPM when DESeq2
-    is unavailable or fewer than 5 donors
-  \item Results across regions reveal whether exposure
-    effects are spatially heterogeneous
+    on pseudobulk counts and reported for the target genes;
+    with fewer than 5 donors, or without DESeq2, linear
+    regression on log-CPM is used instead
+  \item Results across regions describe whether exposure
+    effects differ between regions; comparing regions
+    formally requires an interaction model
 }
+
+Coordinates of separate tissue sections are generally not in
+a common frame, so k-means regions computed from pooled
+coordinates would not correspond between donors. Without
+\code{region_col}, more than one section is therefore an
+error unless \code{coordinates_registered = TRUE}.
 
 This enables questions like: "Does PM2.5 affect gene
 expression differently in the airway epithelium vs
@@ -71,9 +92,25 @@ submucosal tissue?" -- a spatial dimension that
 dissociated scRNA-seq cannot address.
 }
 \examples{
-# Requires SpatialExperiment package
-# See vignette for usage with Visium data
-cat("See vignette for spatial examples\n")
+if (requireNamespace("SpatialExperiment", quietly = TRUE)) {
+    set.seed(1)
+    donors <- paste0("D", 1:6)
+    spot_donor <- rep(donors, each = 40)
+    region <- rep(rep(c("epithelium", "stroma"), each = 20), times = 6)
+    counts <- matrix(stats::rpois(200 * length(spot_donor), 5),
+        nrow = 200, dimnames = list(paste0("G", 1:200),
+            paste0("s", seq_along(spot_donor))))
+    spe <- SpatialExperiment::SpatialExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(sample_id = spot_donor,
+            region = region),
+        spatialCoords = cbind(x = stats::runif(240),
+            y = stats::runif(240)))
+    exposure <- matrix(stats::rnorm(6), ncol = 1,
+        dimnames = list(donors, "PM2.5"))
+    run_spatial_exwas(spe, exposure, "PM2.5", region_col = "region",
+        target_genes = paste0("G", 1:10))
+}
 }
 \references{
 Righelli D et al. (2022). SpatialExperiment: infrastructure

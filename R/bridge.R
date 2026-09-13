@@ -48,11 +48,8 @@ NULL
 #' cat("See rexposome vignette for ExposomeSet creation\n")
 as_scee <- function(exposome_set, sce, sample_col,
                      exposures = NULL) {
-    ## Check that the input looks like an ExposomeSet
-    ## (rexposome). We don't requireNamespace("rexposome")
-    ## because rexposome depends on pryr which is retired
-    ## from CRAN. Instead we check for the class and use
-    ## Biobase accessors directly.
+    ## rexposome is not required: an ExposomeSet is a Biobase eSet whose
+    ## assayData element "exp" holds exposures (rows) by samples (columns)
     if (!requireNamespace("Biobase", quietly = TRUE))
         stop("Package 'Biobase' required. ",
              "BiocManager::install('Biobase')")
@@ -65,28 +62,24 @@ as_scee <- function(exposome_set, sce, sample_col,
 
     stopifnot(is(sce, "SingleCellExperiment"))
 
-    if (!requireNamespace("Biobase", quietly = TRUE))
-        stop("Package 'Biobase' required. ",
-             "BiocManager::install('Biobase')")
-
-    ## Extract exposure matrix from ExposomeSet
-    exp_df <- tryCatch(
-        Biobase::pData(
-            Biobase::assayData(exposome_set)[["exp"]]),
+    exposure_by_sample <- tryCatch(
+        Biobase::assayDataElement(exposome_set, "exp"),
         error = function(e) NULL)
-    ## If that fails, try exprs() accessor
-    if (is.null(exp_df)) {
-        exp_df <- tryCatch(
-            as.data.frame(t(Biobase::exprs(exposome_set))),
-            error = function(e) NULL)
-    }
-    if (is.null(exp_df))
-        stop("Could not extract exposure data from ",
-             "ExposomeSet")
+    if (is.null(exposure_by_sample))
+        stop("Could not extract exposure data from ExposomeSet: ",
+             "no assayData element named 'exp'.")
+    exp_mat <- t(as.matrix(exposure_by_sample))
 
-    exp_mat <- as.matrix(exp_df)
-    if (!is.numeric(exp_mat))
-        exp_mat <- apply(exp_mat, 2, as.numeric)
+    if (!is.numeric(exp_mat)) {
+        values <- trimws(as.character(exp_mat))
+        number_pattern <-
+            "^[-+]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][-+]?[0-9]+)?$"
+        if (!all(is.na(values) | grepl(number_pattern, values)))
+            stop("Some exposures are not numeric; encode categorical ",
+                 "exposures numerically before conversion.")
+        exp_mat <- matrix(as.numeric(values), nrow = nrow(exp_mat),
+                          dimnames = dimnames(exp_mat))
+    }
 
     if (!is.null(exposures)) {
         exposures <- intersect(exposures, colnames(exp_mat))
@@ -95,11 +88,14 @@ as_scee <- function(exposome_set, sce, sample_col,
         exp_mat <- exp_mat[, exposures, drop = FALSE]
     }
 
-    ## Extract exposure metadata if available
+    ## Exposure metadata, aligned with the retained exposures
     exp_info <- tryCatch({
-        if (requireNamespace("Biobase", quietly = TRUE)) {
-            fi <- Biobase::fData(exposome_set)
-            S4Vectors::DataFrame(fi)
+        fi <- Biobase::fData(exposome_set)
+        if (all(colnames(exp_mat) %in% rownames(fi))) {
+            fi <- fi[colnames(exp_mat), setdiff(colnames(fi), "exposure"),
+                     drop = FALSE]
+            S4Vectors::DataFrame(exposure = colnames(exp_mat), fi,
+                                 check.names = FALSE)
         } else NULL
     }, error = function(e) NULL)
 
@@ -119,7 +115,9 @@ as_scee <- function(exposome_set, sce, sample_col,
 #' @param exposure_cols Character vector. Columns to use as
 #'   exposures.
 #'
-#' @return A numeric matrix (donors x exposures).
+#' @return A numeric matrix (donors x exposures). Each value is the
+#'   mean over the donor's cells; a warning names columns whose values
+#'   vary within a donor, and non-numeric columns are an error.
 #'
 #' @export
 #' @examples
@@ -141,15 +139,31 @@ seurat_to_exposure <- function(seurat_meta, sample_col,
         stop("Columns not found: ",
              paste(missing, collapse = ", "))
 
-    donors <- unique(as.character(seurat_meta[[sample_col]]))
+    non_numeric <- exposure_cols[!vapply(seurat_meta[exposure_cols],
+                                         is.numeric, logical(1))]
+    if (length(non_numeric))
+        stop("Non-numeric exposure column(s): ",
+             paste(non_numeric, collapse = ", "),
+             ". Encode them numerically first.")
+
+    donor_of_cell <- as.character(seurat_meta[[sample_col]])
+    donors <- unique(donor_of_cell)
+    varies_within_donor <- vapply(exposure_cols, function(col) {
+        any(tapply(seurat_meta[[col]], donor_of_cell, function(vals)
+            length(unique(vals[!is.na(vals)])) > 1L))
+    }, logical(1))
+    varying <- exposure_cols[varies_within_donor]
     exp_mat <- do.call(rbind, lapply(donors, function(d) {
-        rows <- seurat_meta[seurat_meta[[sample_col]] == d, ]
+        rows <- seurat_meta[donor_of_cell == d, , drop = FALSE]
         vapply(exposure_cols, function(col) {
-            vals <- rows[[col]]
-            if (is.numeric(vals)) mean(vals, na.rm = TRUE)
-            else as.numeric(vals[1])
+            observed <- rows[[col]][!is.na(rows[[col]])]
+            if (length(observed)) mean(observed) else NA_real_
         }, numeric(1))
     }))
+    if (length(varying))
+        warning("Values vary within a donor for: ",
+                paste(varying, collapse = ", "),
+                "; the donor mean is used.", call. = FALSE)
     rownames(exp_mat) <- donors
     colnames(exp_mat) <- exposure_cols
     exp_mat

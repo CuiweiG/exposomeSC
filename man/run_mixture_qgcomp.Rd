@@ -32,7 +32,8 @@ run_mixture_qgcomp(
 \item{target_genes}{Character vector (optional). Genes to
 summarise. Default: top 20 most variable.}
 
-\item{covariates}{Character vector (optional).}
+\item{covariates}{Character vector (optional). Columns of
+\code{exposureData}; an unknown name is an error.}
 
 \item{q}{Integer. Number of quantile bins. Default 4.}
 
@@ -49,12 +50,16 @@ Default \code{FALSE} (faster; uses asymptotic CI).}
 A list with components:
 \describe{
   \item{positive_weights}{Named numeric. Exposures that
-    increase the response, with relative weights.}
+    increase the response, with relative weights;
+    \code{NULL} when \code{bootstrap = TRUE}, because
+    \code{qgcomp.boot()} does not estimate weights.}
   \item{negative_weights}{Named numeric. Exposures that
-    decrease the response.}
-  \item{mixture_effect}{Overall mixture effect estimate.}
-  \item{mixture_ci}{95\% confidence interval.}
-  \item{mixture_pvalue}{P-value for overall effect.}
+    decrease the response; \code{NULL} when
+    \code{bootstrap = TRUE}.}
+  \item{mixture_effect}{Overall mixture effect estimate
+    (\eqn{\psi}).}
+  \item{mixture_ci}{95\% confidence interval for \eqn{\psi}.}
+  \item{mixture_pvalue}{P-value for \eqn{\psi}.}
   \item{fit}{The \code{qgcomp} model object (for
     plotting and further analysis).}
   \item{method}{Character: \code{"qgcomp.noboot"} or
@@ -66,30 +71,28 @@ A list with components:
 Wraps \code{qgcomp::qgcomp.noboot()} or
 \code{qgcomp::qgcomp.boot()} on pseudobulk data for
 cell-type-specific exposure mixture analysis. Unlike
-\code{\link{run_sc_mixture}} (simplified screening), this
-provides valid confidence intervals, properly separated
-positive/negative weights, and formal statistical
-inference on the overall mixture effect.
+\code{\link{run_sc_mixture}} (simplified screening), it
+reports a confidence interval and p-value for the overall
+mixture effect and, without bootstrapping, the positive and
+negative exposure weights estimated by \pkg{qgcomp}.
 }
 \details{
 Quantile g-computation (Keil et al. 2020) estimates the
 overall effect of jointly increasing all exposures by one
-quantile, while decomposing the effect into positive and
-negative contributions. This correctly handles correlated
-exposures -- a fundamental challenge in environmental
-mixtures research.
+quantile, and without bootstrapping decomposes it into
+positive and negative contributions. The weights are
+interpretable only when the exposure effects are of a
+similar shape (Keil et al. 2020).
 
-The pseudobulk response is the mean log-CPM of target
-genes (or a single gene if specified). This is a
-population-level summary that properly handles the
-donor-level aggregation required by exposome designs.
+The pseudobulk response is the mean log-CPM of the target
+genes over donors with complete exposure and covariate data.
 
 \strong{Comparison with \code{run_sc_mixture}:}
 \tabular{lll}{
   Feature \tab run_sc_mixture \tab run_mixture_qgcomp \cr
-  CI on weights \tab No \tab Yes (asymptotic or bootstrap) \cr
-  Pos/neg separation \tab No \tab Yes \cr
-  Formal p-value \tab No \tab Yes \cr
+  CI for overall effect \tab No \tab Yes (asymptotic or bootstrap) \cr
+  Pos/neg weights \tab No \tab Yes (without bootstrap) \cr
+  P-value for overall effect \tab No \tab Yes \cr
   Speed \tab Fast \tab Moderate \cr
   Minimum n \tab 5 \tab 10+ recommended \cr
 }

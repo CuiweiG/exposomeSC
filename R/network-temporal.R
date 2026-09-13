@@ -35,7 +35,7 @@ NULL
 #'     \item{edge_dynamics}{DataFrame tracking each edge's
 #'       presence/absence at each time point, with
 #'       categorization as emerging, disappearing, persistent,
-#'       or transient.}
+#'       transient or intermittent.}
 #'     \item{timepoints}{Ordered time point labels.}
 #'   }
 #'
@@ -50,6 +50,8 @@ NULL
 #'   \item{disappearing}{Present at baseline, absent later.}
 #'   \item{transient}{Present at intermediate time points
 #'     only.}
+#'   \item{intermittent}{Present at the first and last time
+#'     points but absent in between.}
 #' }
 #'
 #' This mirrors the temporal network approach in Cheng et al.
@@ -199,6 +201,8 @@ run_temporal_network <- function(scee_list, metabolites_list,
                 "emerging"
             } else if (baseline && !final) {
                 "disappearing"
+            } else if (baseline && final) {
+                "intermittent"
             } else {
                 "transient"
             }

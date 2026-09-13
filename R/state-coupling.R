@@ -22,16 +22,20 @@ NULL
 #'   or any continuous trajectory coordinate).
 #' @param celltype_col,sample_col Character. Column names.
 #' @param altexp_name Character. altExp name. Default "CITE".
-#' @param n_bins Integer. Number of state bins per donor.
-#'   Default 5.
+#' @param n_bins Integer. Number of quantile bins of the state
+#'   variable over all cells of the cell type. Default 5. Tied
+#'   quantiles give fewer bins.
 #' @param min_cells_per_bin Integer. Minimum cells per bin.
 #'   Default 20.
 #' @param min_donors Integer. Minimum donors. Default 10.
 #'
 #' @return A \code{data.frame} with one row per state bin:
 #'   bin, mean_state, beta0 (baseline coupling at this state),
-#'   beta1 (exposure effect at this state), p_beta1,
-#'   n_donors, mean_r.
+#'   beta1 (exposure effect at this state), se_beta1, p_beta1,
+#'   n_donors, mean_r. With at least two bins, the attribute
+#'   \code{slope_heterogeneity} holds the test of whether
+#'   \code{beta1} differs between bins (statistic, df1, df2,
+#'   pvalue, method).
 #'
 #' @details
 #' \strong{Mathematical model:}
@@ -47,11 +51,17 @@ NULL
 #' }
 #'
 #' \eqn{\beta_1(t)} is the exposure effect on coupling
-#' AT state \eqn{t}. A significant interaction between
-#' state and exposure (\eqn{\beta_1} varies across bins)
-#' indicates state-dependent rewiring.
+#' at state \eqn{t}.
 #'
-#' Global test: ANOVA on \eqn{\beta_1(t)} across bins.
+#' \strong{Slope heterogeneity.} The same donors contribute to
+#' every bin, so the per-bin estimates are not independent. All
+#' donor-by-bin correlations therefore enter one multilevel
+#' meta-regression (\code{metafor::rma.mv}) with bin-specific
+#' intercepts and exposure slopes, a random donor effect shared
+#' across bins and a residual heterogeneity term. The F-test of
+#' the bin-by-exposure terms asks whether the exposure effect on
+#' coupling differs between bins. A non-significant result does
+#' not show that the effect is the same in every state.
 #'
 #' @examples
 #' set.seed(1)
@@ -94,10 +104,24 @@ run_state_coupling <- function(scee, gene, protein, exposure,
         stop("Package 'metafor' required")
 
     exp_data <- exposureData(scee)
+    if (!exposure %in% colnames(exp_data))
+        stop("Exposure '", exposure, "' not in exposureData")
     exp_vec <- setNames(exp_data[, exposure],
         rownames(exp_data))
 
     cd <- SummarizedExperiment::colData(scee)
+    for (column in c(celltype_col, sample_col, state_col)) {
+        if (!column %in% colnames(cd))
+            stop("Column '", column, "' not in colData")
+    }
+    if (!altexp_name %in% SingleCellExperiment::altExpNames(scee))
+        stop("altExp '", altexp_name, "' not found")
+    prot_se <- SingleCellExperiment::altExp(scee, altexp_name)
+    if (!gene %in% rownames(scee))
+        stop("Gene '", gene, "' not found")
+    if (!protein %in% rownames(prot_se))
+        stop("Protein '", protein, "' not found in altExp")
+
     ct_idx <- which(cd[[celltype_col]] == celltype)
     if (length(ct_idx) == 0)
         stop("No cells for ", celltype)
@@ -109,19 +133,22 @@ run_state_coupling <- function(scee, gene, protein, exposure,
     ## Get gene + protein data
     gene_vals <- as.numeric(
         SummarizedExperiment::assay(scee, "counts")[gene, ct_idx])
-    prot_se <- SingleCellExperiment::altExp(scee, altexp_name)
     prot_vals <- as.numeric(
         SummarizedExperiment::assay(prot_se, "counts")[protein, ct_idx])
 
-    ## Create state bins (quantile-based)
-    bin_breaks <- quantile(state, probs = seq(0, 1,
-        length.out = n_bins + 1), na.rm = TRUE)
-    bin_labels <- seq_len(n_bins)
+    ## Quantile bins of the state over all cells of the cell type; tied
+    ## quantiles give fewer bins
+    bin_breaks <- unique(quantile(state, probs = seq(0, 1,
+        length.out = n_bins + 1), na.rm = TRUE))
+    if (length(bin_breaks) < 2L)
+        stop("The state variable does not vary within '", celltype, "'")
+    bin_labels <- seq_len(length(bin_breaks) - 1L)
     bins <- cut(state, breaks = bin_breaks, labels = bin_labels,
         include.lowest = TRUE)
 
     ## For each bin: per-donor correlation + meta-regression
     results <- list()
+    long_rows <- list()
 
     for (b in bin_labels) {
         b_idx <- which(bins == b)
@@ -131,6 +158,7 @@ run_state_coupling <- function(scee, gene, protein, exposure,
         donor_z <- numeric()
         donor_v <- numeric()
         donor_exp <- numeric()
+        donor_id <- character()
 
         for (d in b_donors) {
             d_idx <- b_idx[donors[b_idx] == d]
@@ -152,6 +180,7 @@ run_state_coupling <- function(scee, gene, protein, exposure,
             donor_z <- c(donor_z, z)
             donor_v <- c(donor_v, v)
             donor_exp <- c(donor_exp, e_d)
+            donor_id <- c(donor_id, d)
         }
 
         if (length(donor_z) < min_donors) next
@@ -175,6 +204,10 @@ run_state_coupling <- function(scee, gene, protein, exposure,
             n_donors = length(donor_z),
             mean_r = mean(tanh(donor_z)),
             stringsAsFactors = FALSE)
+        long_rows[[as.character(b)]] <- data.frame(
+            bin = as.integer(b), donor = donor_id, yi = donor_z,
+            vi = donor_v, exposure = unname(donor_exp),
+            stringsAsFactors = FALSE)
     }
 
     if (length(results) == 0) return(data.frame())
@@ -182,24 +215,40 @@ run_state_coupling <- function(scee, gene, protein, exposure,
     out <- do.call(rbind, results)
     rownames(out) <- NULL
 
-    ## Global test: is beta1 varying across bins?
-    if (nrow(out) >= 3) {
-        ## Cochran Q-like test on beta1 heterogeneity
-        beta1s <- out$beta1
-        se1s <- out$se_beta1
-        w <- 1 / se1s^2
-        beta1_avg <- sum(w * beta1s) / sum(w)
-        Q <- sum(w * (beta1s - beta1_avg)^2)
-        Q_df <- nrow(out) - 1
-        Q_p <- 1 - pchisq(Q, Q_df)
-
-        attr(out, "heterogeneity_Q") <- Q
-        attr(out, "heterogeneity_p") <- Q_p
-        attr(out, "interpretation") <-
-            if (Q_p < 0.05)
-                "Significant state-dependent rewiring"
-            else
-                "Coupling change is consistent across states"
+    ## Do the exposure slopes differ between bins? The same donors
+    ## contribute to every bin, so one multilevel model is fitted
+    if (nrow(out) >= 2L) {
+        long <- do.call(rbind, long_rows)
+        rownames(long) <- NULL
+        long$bin <- factor(long$bin)
+        long$observation <- seq_len(nrow(long))
+        joint <- tryCatch(
+            metafor::rma.mv(yi = long$yi, V = long$vi,
+                mods = ~ bin * exposure,
+                random = list(~ 1 | donor, ~ 1 | observation),
+                data = long, method = "REML", test = "t"),
+            error = function(e) NULL)
+        slope_test <- NULL
+        if (!is.null(joint)) {
+            interaction_terms <- grep(":exposure$", rownames(joint$beta))
+            slope_test <- tryCatch(
+                stats::anova(joint, btt = interaction_terms),
+                error = function(e) NULL)
+        }
+        attr(out, "slope_heterogeneity") <- if (is.null(slope_test)) {
+            data.frame(statistic = NA_real_, df1 = NA_real_,
+                       df2 = NA_real_, pvalue = NA_real_,
+                       method = "not estimable",
+                       stringsAsFactors = FALSE)
+        } else {
+            data.frame(statistic = slope_test$QM,
+                       df1 = slope_test$QMdf[1],
+                       df2 = slope_test$QMdf[2],
+                       pvalue = slope_test$QMp,
+                       method = paste("rma.mv bin-by-exposure F-test",
+                                      "with a random donor effect"),
+                       stringsAsFactors = FALSE)
+        }
     }
 
     out

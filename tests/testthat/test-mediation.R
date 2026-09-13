@@ -17,17 +17,21 @@ test_that("run_mediation works", {
     exp_mat <- matrix(rnorm(20), nrow = 10,
         dimnames = list(paste0("D", 1:10), c("E1", "E2")))
 
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
-    med <- run_mediation(scee, exposure = "E1",
+    exposomeSC:::.reset_experimental_warnings()
+    expect_warning(
+        med <- run_mediation(scee, exposure = "E1",
+            celltype_col = "cell_type", sample_col = "donor_id",
+            mediator_celltype = "Mono",
+            outcome_celltype = "NK",
+            target_genes = paste0("G", 1:5),
+            min_cells = 2L, n_sims = 100L),
+        "experimental")
+    expect_error(suppressWarnings(run_mediation(scee, exposure = "E1",
         celltype_col = "cell_type", sample_col = "donor_id",
-        mediator_celltype = "Mono",
-        outcome_celltype = "NK",
-        target_genes = paste0("G", 1:5),
-        min_cells = 2L, n_sims = 100L)
+        mediator_celltype = "Mono", outcome_celltype = "NK",
+        covariates = "nope", min_cells = 2L)), "Covariates not found")
 
     expect_s4_class(med, "DataFrame")
     expect_true(nrow(med) > 0)

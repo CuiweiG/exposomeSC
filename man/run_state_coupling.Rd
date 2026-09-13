@@ -39,8 +39,9 @@ or any continuous trajectory coordinate).}
 
 \item{altexp_name}{Character. altExp name. Default "CITE".}
 
-\item{n_bins}{Integer. Number of state bins per donor.
-Default 5.}
+\item{n_bins}{Integer. Number of quantile bins of the state
+variable over all cells of the cell type. Default 5. Tied
+quantiles give fewer bins.}
 
 \item{min_cells_per_bin}{Integer. Minimum cells per bin.
 Default 20.}
@@ -50,8 +51,11 @@ Default 20.}
 \value{
 A \code{data.frame} with one row per state bin:
   bin, mean_state, beta0 (baseline coupling at this state),
-  beta1 (exposure effect at this state), p_beta1,
-  n_donors, mean_r.
+  beta1 (exposure effect at this state), se_beta1, p_beta1,
+  n_donors, mean_r. With at least two bins, the attribute
+  \code{slope_heterogeneity} holds the test of whether
+  \code{beta1} differs between bins (statistic, df1, df2,
+  pvalue, method).
 }
 \description{
 Tests whether gene-protein coupling varies along a
@@ -72,11 +76,17 @@ For each state bin \eqn{t}:
 }
 
 \eqn{\beta_1(t)} is the exposure effect on coupling
-AT state \eqn{t}. A significant interaction between
-state and exposure (\eqn{\beta_1} varies across bins)
-indicates state-dependent rewiring.
+at state \eqn{t}.
 
-Global test: ANOVA on \eqn{\beta_1(t)} across bins.
+\strong{Slope heterogeneity.} The same donors contribute to
+every bin, so the per-bin estimates are not independent. All
+donor-by-bin correlations therefore enter one multilevel
+meta-regression (\code{metafor::rma.mv}) with bin-specific
+intercepts and exposure slopes, a random donor effect shared
+across bins and a residual heterogeneity term. The F-test of
+the bin-by-exposure terms asks whether the exposure effect on
+coupling differs between bins. A non-significant result does
+not show that the effect is the same in every state.
 }
 \examples{
 set.seed(1)

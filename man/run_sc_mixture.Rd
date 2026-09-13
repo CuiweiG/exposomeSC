@@ -31,9 +31,12 @@ run_sc_mixture(
 test. Default: top 20 most variable genes.}
 
 \item{covariates}{Character vector (optional). Additional
-covariates from \code{exposureData}.}
+covariates from \code{exposureData}; a name that is not a
+column of \code{exposureData} is an error.}
 
-\item{q}{Integer. Number of quantile bins. Default 4.}
+\item{q}{Integer. Number of quantile bins. Default 4. Tied
+exposure values (for example at a limit of detection) can
+give fewer bins.}
 
 \item{min_cells}{Integer. Minimum cells per donor. Default 10.}
 }
@@ -41,8 +44,9 @@ covariates from \code{exposureData}.}
 A \code{list} with components:
 \describe{
   \item{weights}{Named numeric vector. Relative contribution
-    of each exposure (sums to 1), derived from standardised
-    coefficients across target genes.}
+    of each exposure (sums to 1): the mean over target genes
+    of the absolute coefficients of the quantile-scored
+    exposures, normalised.}
   \item{mixture_coef}{Overall mixture coefficient (sum of
     quantile-scored exposure coefficients, averaged across
     target genes).}
@@ -50,8 +54,9 @@ A \code{list} with components:
     effect estimates.}
   \item{method}{Character. Always \code{"quantile_linear"}.}
   \item{celltype}{Character. Cell type analysed.}
-  \item{n_donors}{Integer. Donors used in analysis.}
-  \item{n_genes}{Integer. Genes analysed.}
+  \item{n_donors}{Integer. Donors with complete exposure and
+    covariate data used in the analysis.}
+  \item{n_genes}{Integer. Genes with a fitted model.}
 }
 }
 \description{
@@ -66,13 +71,16 @@ quantile-based g-computation (Keil et al. 2020) or weighted
 quantile sum regression (Carrico et al. 2015). The approach:
 
 \enumerate{
-  \item Exposures are scored into quantile bins (1 to \code{q}).
+  \item Donors with a missing exposure or covariate are
+    removed, and exposures are scored into quantile bins
+    (1 to \code{q}; fewer when quantiles are tied).
   \item For each target gene, a linear model is fit on
     pseudobulk log-CPM with all quantile-scored exposures
-    as predictors.
-  \item Weights are derived from the absolute standardised
-    coefficients of the quantile-scored model, averaged
-    across target genes, then normalised to sum to 1.
+    and covariates as predictors.
+  \item Weights are the absolute exposure coefficients,
+    averaged across target genes and normalised to sum to 1.
+    Because every exposure is on the same quantile scale,
+    the coefficients are directly comparable.
 }
 
 \strong{Limitations:}

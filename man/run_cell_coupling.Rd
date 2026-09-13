@@ -70,7 +70,8 @@ sampling variance of Fisher z-transformed correlations.
 \eqn{1.06 / (n - q - 3)}. \code{"bootstrap"} resamples
 cells within each donor to compute empirical variance,
 which is more accurate for small cell counts or
-non-normal data but slower.}
+non-normal data but slower. The bootstrap uses the random
+number generator, so set a seed for reproducible variances.}
 
 \item{n_boot}{Integer. Number of bootstrap replicates
 per donor when \code{var_method = "bootstrap"}.
@@ -87,7 +88,9 @@ A \code{data.frame} with one row per gene-protein pair:
     \item{I2}{Heterogeneity percentage.}
     \item{mean_r}{Mean partial correlation across donors.}
     \item{mean_n_cells}{Mean cells per donor.}
-    \item{n_confounders}{Number of variables partialed out.}
+    \item{n_confounders}{Number of conditioning variables
+      requested (library sizes plus confounders); variables
+      constant within a donor are dropped for that donor.}
   }
 }
 \description{
@@ -111,7 +114,8 @@ Then apply Fisher's z-transform:
 \deqn{z_d = \text{arctanh}(r_d), \quad
   \text{Var}(z_d) \approx 1.06 / (n_d - q - 3)}
 where \eqn{q} is the number of conditioning variables
-(2 + length of \code{confounders}). The factor 1.06
+(2 + length of \code{confounders}, less any that are constant
+within the donor and therefore dropped). The factor 1.06
 corrects for the efficiency loss of rank-based correlation
 (Fieller et al. 1957).
 

@@ -41,8 +41,11 @@ NULL
 #'   empirical-Bayes dispersion shrinkage. \code{"DESeq2"} (and its retained
 #'   alias \code{"pseudobulk"}) uses DESeq2 on aggregated counts.
 #'   \code{"dreamlet"} uses variancePartition's
-#'   voom-dream pipeline with precision weights and
-#'   Satterthwaite degrees of freedom; it does not call the
+#'   \code{voomWithDreamWeights()} and \code{dream()} with precision
+#'   weights from the mean-variance trend. Pseudobulk data have one
+#'   observation per donor and the model has no random effects, so
+#'   \code{dream()} fits it with limma and the moderated t statistic uses
+#'   the residual degrees of freedom; it does not call the
 #'   \pkg{dreamlet} package.
 #' @param min_group_donors Integer. For a binary exposure, minimum complete
 #'   donors required in each group for the edgeR backend. Default 5.
@@ -68,7 +71,8 @@ NULL
 #'   backend; other backends fail explicitly rather than ignoring it.
 #' @param robust Logical. Use robust empirical-Bayes dispersion and
 #'   quasi-likelihood fitting in edgeR. Default \code{TRUE}.
-#' @param ... Additional arguments.
+#' @param ... Must be empty. Any further argument is an error, so that a
+#'   misspelled argument name cannot silently change the analysis.
 #'
 #' @return A \code{DataFrame} with common columns including gene, celltype,
 #'   log2FC, se, statistic, pvalue, padj (within-cell-type BH),
@@ -157,6 +161,7 @@ setMethod("run_sc_exwas",
              ...) {
 
     method <- match.arg(method)
+    .stop_on_unused_dots("run_sc_exwas", ...)
 
     if (method != "edgeR" && !is.null(test_features)) {
         stop(
@@ -192,7 +197,7 @@ setMethod("run_sc_exwas",
         return(.run_sc_exwas_dreamlet(
             x, exposure, celltype_col, celltypes,
             sample_col, covariates, min_cells, min_donors,
-            filter_genes, ...))
+            filter_genes))
     }
 
     if (!requireNamespace("DESeq2", quietly = TRUE)) {
@@ -301,7 +306,8 @@ setMethod("run_sc_exwas",
         pb_mat <- pb_mat[keep, , drop = FALSE]
 
         if (nrow(pb_mat) == 0) {
-            message("No genes pass filter for ", ct)
+            warning("Skipping ", ct, ": no gene passed expression filtering.",
+                    call. = FALSE)
             next
         }
 
@@ -337,8 +343,8 @@ setMethod("run_sc_exwas",
             res_df$baseMean <- as.numeric(res$baseMean)
             all_results <- c(all_results, list(res_df))
         }, error = function(e) {
-            message("DESeq2 failed for ", ct, ": ",
-                    conditionMessage(e))
+            warning("DESeq2 failed for ", ct, ": ",
+                    conditionMessage(e), call. = FALSE)
         })
     }
 
@@ -602,7 +608,7 @@ setMethod("run_sc_exwas",
             next
         }
         dge <- dge[keep, , keep.lib.sizes = TRUE]
-        dge <- edgeR::calcNormFactors(dge, method = "TMM")
+        dge <- edgeR::normLibSizes(dge, method = "TMM")
 
         fit_result <- tryCatch({
             dge <- edgeR::estimateDisp(
@@ -793,19 +799,16 @@ setMethod("run_sc_exwas",
 
 # -------------------------------------------------------
 # dreamlet backend (internal)
-# Uses variancePartition/dreamlet framework:
+# Uses the variancePartition voom-dream functions:
 #   1. Pseudobulk aggregation per donor x celltype
-#   2. voomWithDreamWeights (precision weights by n_cells)
-#   3. dream() mixed model: ~ exposure + (optional covs)
-#
-# Advantages over DESeq2 pseudobulk:
-#   - Precision weights account for unequal cell counts
-#   - Satterthwaite df for small-sample correction
-#   - Empirical Bayes shrinkage of variance
+#   2. voomWithDreamWeights: precision weights from the mean-variance trend
+#   3. dream(): ~ exposure + covariates. With one observation per donor there
+#      are no random effects, so dream() delegates to limma and the moderated
+#      t statistic uses the residual degrees of freedom.
 # -------------------------------------------------------
 .run_sc_exwas_dreamlet <- function(x, exposure, celltype_col,
     celltypes, sample_col, covariates, min_cells, min_donors,
-    filter_genes, ...) {
+    filter_genes) {
 
     for (pkg in c("variancePartition", "limma", "edgeR")) {
         if (!requireNamespace(pkg, quietly = TRUE))
@@ -899,7 +902,11 @@ setMethod("run_sc_exwas",
             keep <- rowSums(pb_mat > 0) >= min_samples
             pb_mat <- pb_mat[keep, , drop = FALSE]
         }
-        if (nrow(pb_mat) == 0) next
+        if (nrow(pb_mat) == 0) {
+            warning("Skipping ", ct, ": no gene passed expression filtering.",
+                    call. = FALSE)
+            next
+        }
 
         ## Design formula
         form <- stats::reformulate(c("exposure", covariates))
@@ -907,15 +914,15 @@ setMethod("run_sc_exwas",
         tryCatch({
             ## Create DGEList for voom
             dge <- edgeR::DGEList(counts = pb_mat)
-            dge <- edgeR::calcNormFactors(dge)
+            dge <- edgeR::normLibSizes(dge)
 
-            ## voomWithDreamWeights: precision weights from
-            ## mean-variance trend, accounting for n_cells
+            ## voomWithDreamWeights: precision weights from the
+            ## mean-variance trend
             vobj <- variancePartition::voomWithDreamWeights(
                 dge, form, meta_df, plot = FALSE)
 
-            ## dream(): variance-weighted linear model with
-            ## Satterthwaite degrees of freedom
+            ## dream(): no random effects in a one-row-per-donor design,
+            ## so this is a weighted limma fit
             fit <- variancePartition::dream(
                 vobj, form, meta_df)
             fit <- limma::eBayes(fit)
@@ -953,8 +960,8 @@ setMethod("run_sc_exwas",
             all_results <- c(all_results, list(res_df))
 
         }, error = function(e) {
-            message("dreamlet failed for ", ct, ": ",
-                    conditionMessage(e))
+            warning("voom-dream failed for ", ct, ": ",
+                    conditionMessage(e), call. = FALSE)
         })
     }
 

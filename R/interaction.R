@@ -27,25 +27,29 @@ NULL
 #' @param min_donors Integer. Min donors per celltype. Default 5.
 #'
 #' @return A \code{DataFrame} with columns: gene,
-#'   p_interaction (F-test for exposure:celltype term),
+#'   p_interaction (F-test for the exposure-by-cell-type terms),
+#'   df_interaction (numerator degrees of freedom),
 #'   padj_interaction (BH-corrected), n_celltypes, n_donors.
 #'
 #' @details
-#' For each gene, a linear model is fit on stacked pseudobulk
-#' log-CPM across all cell types:
-#' \code{y ~ exposure * celltype + covariates}
+#' For each gene, pseudobulk log-CPM values of all cell types are stacked,
+#' one row per donor and cell type, and two linear models are compared with
+#' an F-test:
+#' \preformatted{
+#' reduced: y ~ donor + celltype + covariates:celltype
+#' full:    y ~ donor + celltype + covariates:celltype + exposure:celltype
+#' }
+#' Donor fixed effects absorb every donor-level quantity, including the
+#' exposure and covariate main effects, and the shared donor component of
+#' expression in different cell types, so the test compares exposure slopes
+#' between cell types through within-donor contrasts rather than treating
+#' cell types from the same donor as independent. Covariate-by-cell-type
+#' terms allow covariate effects to differ between cell types. Donors
+#' observed in only one cell type do not inform the interaction.
 #'
-#' The interaction term \code{exposure:celltype} tests whether
-#' the slope of the exposure-expression relationship differs
-#' between cell types. A significant interaction means the
-#' exposure has a genuinely different effect size in different
-#' cell types -- not just that one p-value is smaller.
-#'
-#' This addresses a pervasive statistical error in the field:
-#' comparing significance levels across cell types is not the
-#' same as testing for a difference (Gelman & Stern 2006,
-#' Nieuwenhuis et al. 2011). Our interaction test provides
-#' the correct approach.
+#' Comparing significance levels across cell types is not the same as
+#' testing for a difference between them (Gelman & Stern 2006,
+#' Nieuwenhuis et al. 2011); this function tests the difference directly.
 #'
 #' @references
 #' Gelman A, Stern H (2006). The difference between
@@ -85,6 +89,11 @@ run_interaction_test <- function(x, exposure,
     exp_data <- slot(x, "exposureData")
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not found")
+    covariates <- as.character(covariates)
+    missing_covariates <- setdiff(covariates, colnames(exp_data))
+    if (length(missing_covariates))
+        stop("Covariate(s) not found in exposureData: ",
+             paste(missing_covariates, collapse = ", "))
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -95,8 +104,10 @@ run_interaction_test <- function(x, exposure,
     if (length(all_cts) < 2L)
         stop("Need >= 2 cell types for interaction test")
 
-    ## Pseudobulk each cell type, collect stacked data
-    stacked <- list()
+    ## Pseudobulk each cell type; keep the design separate from the
+    ## expression values so that gene names cannot collide with it
+    design_rows <- list()
+    expression_blocks <- list()
     for (ct in all_cts) {
         pb_result <- .pseudobulk_aggregate(
             counts_mat, samples, cell_types, ct,
@@ -104,31 +115,40 @@ run_interaction_test <- function(x, exposure,
         if (is.null(pb_result)) next
         if (length(pb_result$valid_donors) < min_donors) next
 
-        log_cpm <- .log_cpm(pb_result$pb_mat)
         valid <- pb_result$valid_donors
-
-        for (d in valid) {
-            stacked <- c(stacked, list(data.frame(
-                donor = d,
-                celltype = ct,
-                exposure = exp_data[d, exposure],
-                t(log_cpm[, d, drop = FALSE]),
-                check.names = FALSE,
-                stringsAsFactors = FALSE)))
-        }
+        design_rows[[ct]] <- data.frame(
+            .donor = valid, .celltype = ct, stringsAsFactors = FALSE)
+        expression_blocks[[ct]] <- .log_cpm(pb_result$pb_mat)[, valid,
+                                                              drop = FALSE]
     }
+    if (length(design_rows) < 2L)
+        stop("Need >= 2 cell types with enough donors for the ",
+             "interaction test")
 
-    if (length(stacked) < 4L)
+    design <- do.call(rbind, design_rows)
+    genes <- Reduce(intersect, lapply(expression_blocks, rownames))
+    expression <- do.call(cbind, lapply(expression_blocks, function(block)
+        block[genes, , drop = FALSE]))
+    design$.exposure <- as.numeric(exp_data[design$.donor, exposure])
+    covariate_columns <- if (length(covariates)) {
+        paste0(".covariate", seq_along(covariates))
+    } else {
+        character()
+    }
+    for (k in seq_along(covariates)) {
+        design[[covariate_columns[k]]] <-
+            as.numeric(exp_data[design$.donor, covariates[k]])
+    }
+    complete <- stats::complete.cases(design)
+    design <- design[complete, , drop = FALSE]
+    expression <- expression[, complete, drop = FALSE]
+    design$.donor <- factor(design$.donor)
+    design$.celltype <- factor(design$.celltype)
+    if (nrow(design) < 4L)
         stop("Not enough valid donor-celltype strata")
 
-    df_all <- do.call(rbind, stacked)
-    genes <- setdiff(colnames(df_all),
-                     c("donor", "celltype", "exposure"))
-
     if (is.null(target_genes)) {
-        gene_vars <- vapply(genes, function(g)
-            stats::var(df_all[[g]], na.rm = TRUE),
-            numeric(1))
+        gene_vars <- apply(expression, 1, stats::var, na.rm = TRUE)
         n_top <- min(50L, length(genes))
         target_genes <- names(sort(gene_vars,
             decreasing = TRUE))[seq_len(n_top)]
@@ -137,35 +157,38 @@ run_interaction_test <- function(x, exposure,
     if (length(target_genes) == 0)
         stop("No target genes found")
 
-    n_cts <- length(unique(df_all$celltype))
-    n_donors <- length(unique(df_all$donor))
+    n_cts <- length(unique(design$.celltype))
+    n_donors <- length(unique(design$.donor))
+    reduced_terms <- c(".donor", ".celltype",
+                       if (length(covariate_columns))
+                           paste0(covariate_columns, ":.celltype"))
+    reduced_formula <- stats::reformulate(reduced_terms, response = ".y")
+    full_formula <- stats::reformulate(
+        c(reduced_terms, ".exposure:.celltype"), response = ".y")
 
-    ## Fit interaction model per gene
+    ## Fit reduced and full models per gene
     results <- lapply(target_genes, function(gene) {
-        df_all$y <- df_all[[gene]]
+        model_data <- design
+        model_data$.y <- as.numeric(expression[gene, ])
 
-        ## Full model with interaction
-        fit_full <- tryCatch(
-            lm(y ~ exposure * celltype, data = df_all),
-            error = function(e) NULL)
-        ## Reduced model without interaction
-        fit_reduced <- tryCatch(
-            lm(y ~ exposure + celltype, data = df_all),
-            error = function(e) NULL)
-
+        fit_full <- tryCatch(lm(full_formula, data = model_data),
+                             error = function(e) NULL)
+        fit_reduced <- tryCatch(lm(reduced_formula, data = model_data),
+                                error = function(e) NULL)
         if (is.null(fit_full) || is.null(fit_reduced))
             return(NULL)
 
         f_test <- tryCatch(
             anova(fit_reduced, fit_full),
             error = function(e) NULL)
-
-        if (is.null(f_test) || nrow(f_test) < 2)
+        if (is.null(f_test) || nrow(f_test) < 2 ||
+                !is.finite(f_test[2, "Df"]) || f_test[2, "Df"] < 1)
             return(NULL)
 
         data.frame(
             gene = gene,
             p_interaction = f_test[2, "Pr(>F)"],
+            df_interaction = as.integer(f_test[2, "Df"]),
             n_celltypes = n_cts,
             n_donors = n_donors,
             stringsAsFactors = FALSE)
@@ -176,6 +199,7 @@ run_interaction_test <- function(x, exposure,
         return(S4Vectors::DataFrame(
             gene = character(),
             p_interaction = numeric(),
+            df_interaction = integer(),
             padj_interaction = numeric(),
             n_celltypes = integer(),
             n_donors = integer()))

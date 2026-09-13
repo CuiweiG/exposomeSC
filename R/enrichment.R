@@ -9,10 +9,7 @@ NULL
 #'
 #' Runs fast gene set enrichment analysis (fgsea) on the
 #' ranked gene list from \code{\link{run_sc_exwas}}, separately
-#' for each cell type. This bridges the gap between
-#' gene-level associations and biological interpretation --
-#' a step that every scRNA-seq exposure paper performs
-#' manually.
+#' for each cell type and exposure.
 #'
 #' @param exwas_result A \code{DataFrame} returned by
 #'   \code{\link{run_sc_exwas}} or \code{\link{run_multi_exwas}}.
@@ -29,9 +26,11 @@ NULL
 #' @param min_size Integer. Minimum gene set size. Default 10.
 #' @param max_size Integer. Maximum gene set size. Default 500.
 #'
-#' @return A \code{DataFrame} with columns: pathway, celltype,
-#'   pval, padj, NES, size, exposure, leadingEdge (semicolon-
-#'   separated).
+#' @return A \code{DataFrame} with the \code{fgsea} columns pathway,
+#'   pval, padj (within cell type and exposure), log2err, ES, NES,
+#'   size and leadingEdge (semicolon-separated), plus celltype,
+#'   exposure and padj_global (Benjamini-Hochberg across all
+#'   cell types and exposures).
 #'
 #' @details
 #' This function requires the \code{fgsea} package
@@ -43,14 +42,17 @@ NULL
 #' the signed square root of the QL F statistic and is not a Wald z statistic.
 #' Results are combined with a final cross-cell-type FDR adjustment.
 #'
-#' This directly addresses a common workflow gap: researchers
-#' routinely extract ExWAS hit genes, then manually run GO/
-#' KEGG enrichment in a separate tool. By integrating
-#' enrichment into the SCEE pipeline, the ranking preserves direction and
-#' within-backend evidence ordering while FDR is handled across cell types.
-#' Statistic magnitudes are not calibrated for comparison across different
-#' backends; use \code{rank_by = "log2FC"} when an effect-size ranking is the
-#' scientific target.
+#' Ranking by the signed statistic preserves direction and
+#' within-backend evidence ordering. Statistic magnitudes are not calibrated
+#' for comparison across different backends; use
+#' \code{rank_by = "log2FC"} when an effect-size ranking is the scientific
+#' target.
+#'
+#' \code{fgsea} estimates p-values by Monte Carlo sampling, so they depend on
+#' the random number generator state. \code{run_gsea()} runs \code{fgsea}
+#' serially, so calling \code{set.seed()} beforehand makes them reproducible.
+#' When a gene appears more than once in a stratum, its largest ranking value
+#' is kept.
 #'
 #' @references
 #' Korotkevich G et al. (2021). Fast gene set enrichment
@@ -62,9 +64,15 @@ NULL
 #'
 #' @export
 #' @examples
-#' # Requires fgsea package and gene sets
-#' # See vignette for full example with MSigDB
-#' showClass("SingleCellExposomeExperiment")
+#' set.seed(1)
+#' genes <- paste0("G", 1:200)
+#' exwas <- S4Vectors::DataFrame(gene = genes, celltype = "Mono",
+#'     exposure = "PM2.5",
+#'     statistic = c(stats::rnorm(20, mean = 3), stats::rnorm(180)))
+#' gene_sets <- list(shifted = genes[1:20], random = sample(genes, 25))
+#' if (requireNamespace("fgsea", quietly = TRUE)) {
+#'     run_gsea(exwas, gene_sets, min_size = 10L)
+#' }
 run_gsea <- function(exwas_result, gene_sets,
                       rank_by = "statistic",
                       min_size = 10L,
@@ -136,7 +144,8 @@ run_gsea <- function(exwas_result, gene_sets,
             fgsea::fgsea(pathways = gene_sets,
                          stats = ranks,
                          minSize = min_size,
-                         maxSize = max_size),
+                         maxSize = max_size,
+                         BPPARAM = BiocParallel::SerialParam()),
             error = function(e) {
                 warning("fgsea failed for ", ct, ": ",
                         conditionMessage(e), call. = FALSE)
