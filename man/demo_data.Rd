@@ -26,8 +26,9 @@ from 20 donors and 3 cell types (Monocyte, NK, T_CD4).
 Genes 1-10 have a simulated PM2.5-dependent expression
 increase in Monocytes.
 
-A CSV file with 20 donors (rows) and 5 environmental
-exposures (PM2.5, NO2, Pb, Cd, BPA). Values simulate
+A CSV file with 20 donors (rows), 5 environmental
+exposures (PM2.5, NO2, Pb, Cd, BPA) and the covariates age
+and sex. Values simulate
 realistic urban air pollution and biomonitoring data.
 }
 \keyword{datasets}

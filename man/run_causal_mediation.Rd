@@ -27,7 +27,8 @@ run_causal_mediation(
 \item{sample_col}{Character. Column with donor IDs.}
 
 \item{genes}{Character vector (optional). Genes to test.
-Default: top 20 by total effect p-value.}
+Default: the 20 genes with the largest absolute Pearson
+correlation between donor log-CPM and the exposure.}
 
 \item{n_sims}{Integer. Monte Carlo simulations for
 mediation CI. Default 1000.}
