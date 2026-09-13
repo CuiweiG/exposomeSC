@@ -31,8 +31,8 @@ NULL
 #' metadata are extracted from the \code{ExposomeSet} and
 #' combined with the SCE to create an SCEE.
 #'
-#' Sample IDs in the ExposomeSet must match entries in
-#' \code{colData(sce)[[sample_col]]}.
+#' Every sample in \code{colData(sce)[[sample_col]]} must be present
+#' in the ExposomeSet; ExposomeSet samples without cells are dropped.
 #'
 #' @references
 #' Hernandez-Ferrer C et al. (2019). Comprehensive study of
@@ -87,6 +87,14 @@ as_scee <- function(exposome_set, sce, sample_col,
             stop("No matching exposures found")
         exp_mat <- exp_mat[, exposures, drop = FALSE]
     }
+
+    ## An exposome cohort usually has more samples than the single-cell
+    ## data; keep the rows for the SCE's samples
+    if (!sample_col %in% colnames(SummarizedExperiment::colData(sce)))
+        stop("'", sample_col, "' not found in colData(sce).")
+    sce_samples <- unique(as.character(
+        SummarizedExperiment::colData(sce)[[sample_col]]))
+    exp_mat <- exp_mat[rownames(exp_mat) %in% sce_samples, , drop = FALSE]
 
     ## Exposure metadata, aligned with the retained exposures
     exp_info <- tryCatch({

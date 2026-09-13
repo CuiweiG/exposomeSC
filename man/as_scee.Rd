@@ -34,8 +34,8 @@ to add single-cell resolution. The exposure matrix and
 metadata are extracted from the \code{ExposomeSet} and
 combined with the SCE to create an SCEE.
 
-Sample IDs in the ExposomeSet must match entries in
-\code{colData(sce)[[sample_col]]}.
+Every sample in \code{colData(sce)[[sample_col]]} must be present
+in the ExposomeSet; ExposomeSet samples without cells are dropped.
 }
 \examples{
 # Requires rexposome package

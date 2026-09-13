@@ -20,9 +20,11 @@ plot_celltype_network(
 \code{"fr"} (Fruchterman-Reingold, default),
 \code{"circle"}, \code{"grid"}, or \code{"bipartite"}.}
 
-\item{color_by}{Character; node coloring scheme.
-\code{"omic_layer"} (default), \code{"stability"},
-or \code{"community"}.}
+\item{color_by}{Character; node colouring scheme.
+\code{"omic_layer"} (default) colours nodes by omic layer,
+\code{"stability"} by the largest selection probability among
+a node's edges (an error when the network has no stability
+scores), and \code{"community"} by Louvain community.}
 
 \item{highlight_cross_omic}{Logical; emphasize
 transcript-metabolite edges. Default TRUE.}

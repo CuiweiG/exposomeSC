@@ -112,6 +112,7 @@ scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 med <- run_mediation(scee, exposure = "E1",
     celltype_col = "cell_type", sample_col = "donor_id",
     mediator_celltype = "Mono", outcome_celltype = "NK",
+    target_genes = paste0("G", 1:5), n_sims = 100L,
     min_cells = 2L)
 head(med)
 }

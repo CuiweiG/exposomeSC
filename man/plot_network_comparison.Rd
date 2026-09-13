@@ -2,7 +2,7 @@
 % Please edit documentation in R/network-plots.R
 \name{plot_network_comparison}
 \alias{plot_network_comparison}
-\title{Side-by-side network comparison across cell types}
+\title{Plot the edges of a network comparison}
 \usage{
 plot_network_comparison(
   comparison,
@@ -12,14 +12,18 @@ plot_network_comparison(
 \arguments{
 \item{comparison}{\code{\linkS4class{NetworkComparison}}.}
 
-\item{highlight}{Character; \code{"differential"} (default),
-\code{"shared"}, or \code{"all"}.}
+\item{highlight}{Character; which edges to plot:
+\code{"differential"} (default), \code{"shared"}, or
+\code{"all"}.}
 }
 \value{
 A \code{ggplot} object.
 }
 \description{
-Visualises differential network edges between cell types.
+Plots, for the selected edge set, how much each edge's partial
+correlation varies across the compared cell types
+(\code{max_diff}), with the per-cell-type edge counts and pairwise
+Jaccard overlap in the subtitle. Up to 50 edges are shown.
 }
 \examples{
 shared_edge <- S4Vectors::DataFrame(
