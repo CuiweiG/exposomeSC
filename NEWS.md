@@ -50,7 +50,8 @@ Initial Bioconductor submission.
   with unregistered coordinates, normalises on the whole transcriptome rather
   than the reported genes, and seeds k-means.
 * `as_scee()` reads the `exp` assay of an `ExposomeSet`; previously it could
-  not extract exposures from one.
+  not extract exposures from one. It keeps the rows for the samples present in
+  the single-cell data, so a larger exposome cohort can be used directly.
 * `simulate_crossomic_network()` ran only with an explicit seed, generated
   transcripts and metabolites independently of the cross-omic edges it
   returned, and ignored `composition_confounding` and `n_cells_per_donor`. The
@@ -131,11 +132,18 @@ Initial Bioconductor submission.
   omic-layer colouring, stability-based edge opacity, and
   bipartite layout options.
 
-* `plot_network_comparison()` produces side-by-side or overlay
-  visualisations of cell-type-specific network differences.
+* `plot_network_comparison()` plots how much each edge's partial
+  correlation varies across the compared cell types, for the edge set
+  chosen with `highlight`, which the function previously ignored.
 
-* `plot_stability_surface()` displays the lambda-pi calibration
-  heatmap for hyperparameter transparency.
+* `plot_stability_surface()` plots the selection probability of the most
+  stable edges. It is not a lambda-by-pi surface, because the result
+  object stores stability at the selected penalty only.
+
+* `plot_celltype_network(color_by = "stability")` colours nodes by the
+  largest selection probability among their edges instead of by omic
+  layer, and the graph theme no longer asks for a font that most
+  systems lack.
 
 * `plot_temporal_dynamics()` tracks edge presence across time
   points with optional node highlighting.

@@ -21,6 +21,12 @@ test_that("as_scee reads the ExposomeSet exposure matrix", {
     scee <- suppressWarnings(as_scee(es, sce, sample_col = "donor_id",
                                      exposures = "NO2"))
     expect_equal(unname(exposureData(scee)[samples, "NO2"]), 11:15)
+    ## Cohort samples without cells are dropped
+    subset_sce <- sce[, SummarizedExperiment::colData(sce)$donor_id %in%
+                          samples[1:3]]
+    scee_subset <- suppressWarnings(as_scee(es, subset_sce,
+                                            sample_col = "donor_id"))
+    expect_setequal(rownames(exposureData(scee_subset)), samples[1:3])
 })
 
 test_that("seurat_to_exposure warns on within-donor variation", {

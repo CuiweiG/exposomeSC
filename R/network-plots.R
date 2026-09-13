@@ -19,9 +19,11 @@ utils::globalVariables(".data")
 #' @param layout Character; graph layout algorithm.
 #'   \code{"fr"} (Fruchterman-Reingold, default),
 #'   \code{"circle"}, \code{"grid"}, or \code{"bipartite"}.
-#' @param color_by Character; node coloring scheme.
-#'   \code{"omic_layer"} (default), \code{"stability"},
-#'   or \code{"community"}.
+#' @param color_by Character; node colouring scheme.
+#'   \code{"omic_layer"} (default) colours nodes by omic layer,
+#'   \code{"stability"} by the largest selection probability among
+#'   a node's edges (an error when the network has no stability
+#'   scores), and \code{"community"} by Louvain community.
 #' @param highlight_cross_omic Logical; emphasize
 #'   transcript-metabolite edges. Default TRUE.
 #' @param label_top Integer; label top N nodes by degree.
@@ -141,6 +143,20 @@ plot_celltype_network <- function(network,
         igraph::V(g)$name %in% top_nodes,
         igraph::V(g)$name, "")
 
+    ## Node stability: the strongest selection probability among a
+    ## node's edges
+    if (color_by == "stability") {
+        if (all(is.na(edges$stability)))
+            stop("color_by = 'stability' requires stability scores; ",
+                 "the network has none.")
+        igraph::V(g)$stability <- vapply(igraph::V(g)$name, function(v) {
+            incident <- edges$node_i == v | edges$node_j == v
+            values <- as.numeric(edges$stability[incident])
+            if (!length(values) || all(is.na(values))) NA_real_ else
+                max(values, na.rm = TRUE)
+        }, numeric(1))
+    }
+
     ## Convert to tidygraph
     tg <- tidygraph::as_tbl_graph(g)
 
@@ -188,7 +204,7 @@ plot_celltype_network <- function(network,
     fill_aes <- switch(color_by,
         omic_layer = ggplot2::aes(fill = .data$omic_layer),
         community  = ggplot2::aes(fill = .data$community),
-        stability  = ggplot2::aes(fill = .data$omic_layer)
+        stability  = ggplot2::aes(fill = .data$stability)
     )
 
     p <- p +
@@ -205,6 +221,10 @@ plot_celltype_network <- function(network,
             values = c(transcript = "#3498DB",
                        metabolite = "#E67E22"),
             name = "Omic layer")
+    } else if (color_by == "stability") {
+        p <- p + ggplot2::scale_fill_gradient(
+            low = "#DEEBF7", high = "#08519C", limits = c(0, 1),
+            name = "Max edge\nstability")
     }
 
     ## Theme
@@ -219,7 +239,9 @@ plot_celltype_network <- function(network,
             network@metadata$n_donors else 0L)
 
     p <- p +
-        ggraph::theme_graph() +
+        ## theme_graph() defaults to Arial Narrow, which most systems do
+        ## not have and which warns for every text element
+        ggraph::theme_graph(base_family = "sans") +
         ggplot2::ggtitle(
             paste0("Cross-omic network: ", network@celltype),
             subtitle = subtitle)
@@ -228,13 +250,17 @@ plot_celltype_network <- function(network,
 }
 
 
-#' Side-by-side network comparison across cell types
+#' Plot the edges of a network comparison
 #'
-#' Visualises differential network edges between cell types.
+#' Plots, for the selected edge set, how much each edge's partial
+#' correlation varies across the compared cell types
+#' (\code{max_diff}), with the per-cell-type edge counts and pairwise
+#' Jaccard overlap in the subtitle. Up to 50 edges are shown.
 #'
 #' @param comparison \code{\linkS4class{NetworkComparison}}.
-#' @param highlight Character; \code{"differential"} (default),
-#'   \code{"shared"}, or \code{"all"}.
+#' @param highlight Character; which edges to plot:
+#'   \code{"differential"} (default), \code{"shared"}, or
+#'   \code{"all"}.
 #'
 #' @return A \code{ggplot} object.
 #'
@@ -300,61 +326,66 @@ plot_network_comparison <- function(comparison,
             ggplot2::ggtitle("No edges to compare"))
     }
 
-    ## Summary bar chart: edges per cell type
-    ct_names <- comparison@summary$celltypes
-    n_edges <- comparison@summary$n_edges
-
-    if (length(n_edges) > 0) {
-        df <- data.frame(
-            celltype = names(n_edges),
-            n_edges = as.integer(n_edges),
-            stringsAsFactors = FALSE)
-
-        p <- ggplot2::ggplot(df, ggplot2::aes(
-            x = stats::reorder(.data$celltype, -.data$n_edges),
-            y = .data$n_edges)) +
-            ggplot2::geom_col(
-                fill = "#3498DB", alpha = 0.8) +
-            ggplot2::geom_text(
-                ggplot2::aes(label = .data$n_edges),
-                vjust = -0.5, size = 4) +
-            ggplot2::labs(
-                title = "Network comparison across cell types",
-                subtitle = sprintf(
-                    "%d shared, %d differential edges",
-                    comparison@summary$n_shared,
-                    comparison@summary$n_differential),
-                x = "Cell type",
-                y = "Number of edges") +
-            ggplot2::theme_minimal(base_size = 14)
-
-        ## Add Jaccard annotations
-        jac <- comparison@summary$jaccard
-        if (length(jac) > 0) {
-            jac_text <- paste(
-                vapply(names(jac), function(nm) {
-                    sprintf("%s: J=%.2f", nm, jac[[nm]])
-                }, character(1)),
-                collapse = "\n")
-            p <- p + ggplot2::annotate(
-                "text", x = Inf, y = Inf,
-                label = jac_text,
-                hjust = 1.1, vjust = 1.1,
-                size = 3, color = "grey40")
-        }
-
-        return(p)
+    ## Edges to plot
+    selected <- switch(highlight,
+        differential = comparison@diff_edges,
+        shared       = comparison@shared_edges,
+        all          = all_edges)
+    if (is.null(selected) || nrow(selected) == 0) {
+        return(ggplot2::ggplot() +
+            ggplot2::theme_void() +
+            ggplot2::ggtitle(paste0("No ", highlight, " edges")))
     }
 
-    ggplot2::ggplot() + ggplot2::theme_void()
+    edge_df <- as.data.frame(selected)
+    edge_df$edge <- paste(edge_df$node_i, edge_df$node_j, sep = " - ")
+    edge_df <- edge_df[order(-edge_df$max_diff), , drop = FALSE]
+    edge_df <- edge_df[seq_len(min(50L, nrow(edge_df))), , drop = FALSE]
+    edge_df$edge <- factor(edge_df$edge, levels = rev(unique(edge_df$edge)))
+
+    ## Subtitle: edge counts per cell type and pairwise Jaccard overlap
+    n_edges <- comparison@summary$n_edges
+    counts_text <- if (length(n_edges)) {
+        paste(sprintf("%s: %d edges", names(n_edges),
+                      as.integer(n_edges)), collapse = "; ")
+    } else {
+        ""
+    }
+    jac <- comparison@summary$jaccard
+    jac_text <- if (length(jac)) {
+        paste(vapply(names(jac), function(nm) {
+            sprintf("%s J=%.2f", nm, jac[[nm]])
+        }, character(1)), collapse = "; ")
+    } else {
+        ""
+    }
+
+    ggplot2::ggplot(edge_df, ggplot2::aes(
+        x = .data$max_diff, y = .data$edge,
+        colour = .data$category)) +
+        ggplot2::geom_point(size = 2.5, alpha = 0.9) +
+        ggplot2::scale_colour_brewer(palette = "Dark2",
+                                     name = "Edge category") +
+        ggplot2::labs(
+            title = sprintf("Network comparison: %s edges", highlight),
+            subtitle = paste(c(counts_text, jac_text)[
+                nzchar(c(counts_text, jac_text))], collapse = " | "),
+            x = paste("Range of partial correlation across",
+                      "networks"),
+            y = NULL) +
+        ggplot2::theme_minimal(base_size = 12) +
+        ggplot2::theme(
+            axis.text.y = ggplot2::element_text(size = 7))
 }
 
 
-#' Stability calibration surface
+#' Edge stability plot
 #'
-#' Displays the lambda-pi calibration heatmap for
-#' hyperparameter transparency, reproducing the StARS
-#' stability surface.
+#' Plots the selection probability of the most stable edges (up to
+#' 50) with a reference line at 0.6. The network object stores
+#' stability at the selected penalty only, so this is not a
+#' lambda-by-pi surface; keep the tuning grid from the estimator if
+#' a calibration surface is required.
 #'
 #' @param network \code{\linkS4class{CelltypeNetworkResult}}
 #'   with \code{stability=TRUE}.
@@ -453,7 +484,7 @@ plot_stability_surface <- function(network) {
         ggplot2::labs(
             title = paste0("Edge stability: ",
                            network@celltype),
-            subtitle = "Dashed line: pi=0.6 threshold",
+            subtitle = "Dashed line: reference at pi = 0.6",
             x = "Stability selection probability",
             y = NULL) +
         ggplot2::theme_minimal(base_size = 12) +
@@ -553,13 +584,6 @@ plot_temporal_dynamics <- function(temporal,
         order(plot_df$status)])
     plot_df$edge <- factor(plot_df$edge,
                             levels = rev(edge_order))
-
-    status_colors <- c(
-        persistent   = "#2ECC71",
-        emerging     = "#3498DB",
-        disappearing = "#E74C3C",
-        transient    = "#F39C12"
-    )
 
     title <- "Temporal edge dynamics"
     if (!is.null(track_node))
