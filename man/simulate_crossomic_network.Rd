@@ -29,65 +29,85 @@ features. Default 30.}
 \item{n_metabolites}{Integer; number of metabolite
 features. Default 10.}
 
-\item{n_cells_per_donor}{Integer; average cells per donor
-(before cell type allocation). Default 200.}
+\item{n_cells_per_donor}{Integer; cells per donor, allocated to cell types
+by the composition. Pseudobulk depth scales with the number of cells.
+Default 200.}
 
 \item{edge_density}{Numeric; proportion of possible edges
-present in the true network. Default 0.1.}
+present in the base network. Default 0.1.}
 
-\item{shared_edge_frac}{Numeric; fraction of edges shared
-across all cell types. Default 0.6.}
+\item{shared_edge_frac}{Numeric; fraction of base-network edges kept by
+cell types 1 and 2, each of which also gains the same number of new
+edges. Default 0.6.}
 
 \item{cross_omic_frac}{Numeric; fraction of edges that
 are cross-omic. Default 0.2.}
 
-\item{exposure_effect}{Numeric; effect size of exposure
-on cell composition and gene expression. Default 0.5.}
+\item{exposure_effect}{Numeric; effect of the exposure on the mean of
+affected features and on composition. Default 0.5.}
 
-\item{composition_confounding}{Logical; simulate
-exposure-driven composition changes. Default TRUE.}
+\item{composition_confounding}{Logical; make the proportions of cell
+types 1 and 2 depend on the exposure. Default TRUE.}
 
-\item{seed}{Integer or NULL; random seed. Default NULL.}
+\item{seed}{Integer or NULL; random seed. The caller's random number
+generator state is restored on return. Default NULL.}
 }
 \value{
 List with:
   \describe{
-    \item{scee_list}{List of mock SCEEs per cell type
-      (simplified for benchmarking).}
-    \item{metabolites}{Metabolite matrix (donors x metabolites).}
+    \item{pseudobulk}{List of count matrices (donors x transcripts), one
+      per cell type.}
+    \item{metabolites}{Metabolite matrix (donors x metabolites), shared by
+      all cell types.}
     \item{exposure}{Named numeric vector of exposure values.}
-    \item{true_networks}{List of true precision matrices
-      per cell type.}
-    \item{true_adjacency}{List of true adjacency matrices
-      per cell type.}
+    \item{composition}{Donor-by-cell-type matrix of proportions.}
+    \item{n_cells}{Donor-by-cell-type matrix of simulated cell numbers.}
+    \item{true_networks}{List of precision matrices, one per cell type,
+      of the latent transcript log-expression and the metabolites
+      conditional on the exposure.}
+    \item{true_adjacency}{List of the corresponding adjacency matrices.}
     \item{celltype_names}{Character vector of cell type names.}
     \item{node_info}{DataFrame of feature metadata.}
     \item{params}{List of simulation parameters.}
   }
 }
 \description{
-Generates realistic multi-omics data with known network
-structure, cell-type heterogeneity, and composition
-confounding. Used for benchmarking edge recovery and
-false positive control.
+Generates donor-level metabolite data and cell-type-specific transcript
+pseudobulk counts whose latent log-expression follows a known Gaussian
+graphical model, with cell-type heterogeneity and optional
+exposure-dependent composition. Intended for benchmarking edge recovery
+and false-positive control.
 }
 \details{
 Simulation design:
 \enumerate{
-  \item Generate a shared "base" precision matrix with
-    block structure (transcript-transcript,
-    metabolite-metabolite, cross-omic).
-  \item For each cell type, create a variant:
-    cell types 1 and 2 share 60\% of edges; cell type 3
-    has unique edges; cell type 4 is a null (no
-    exposure effect on network).
-  \item Generate pseudobulk counts from negative binomial
-    (mimicking real scRNA-seq aggregation).
-  \item Generate metabolite values from multivariate
-    normal with the cell-type-specific covariance.
-  \item If \code{composition_confounding=TRUE}, make
-    cell proportions dependent on exposure, creating
-    spurious bulk-level correlations.
+  \item A sparse positive-definite base precision matrix
+    \eqn{\Theta} is generated over transcripts and metabolites with
+    within-omic and cross-omic edges.
+  \item Cell types 1 and 2 keep a fraction \code{shared_edge_frac} of
+    the base edges and gain as many new edges; cell type 3 has an
+    independently generated precision matrix; cell types 4 and above
+    have no transcript-transcript or cross-omic edges.
+  \item Metabolites are drawn once per donor from a multivariate normal
+    distribution whose precision is the metabolite block of the base
+    matrix, \eqn{P_m}.
+  \item For each cell type, latent transcript log-expression is drawn
+    from its conditional distribution given the metabolites,
+    \eqn{N(-\Theta_{tt}^{-1}\Theta_{tm} m, \Theta_{tt}^{-1})}. The joint
+    precision of transcripts and metabolites is then
+    \eqn{\Theta_{tt}}, \eqn{\Theta_{tm}} and
+    \eqn{P_m + \Theta_{mt}\Theta_{tt}^{-1}\Theta_{tm}}; it is returned in
+    \code{true_networks}, so its metabolite block can contain edges
+    induced by the cross-omic edges.
+  \item The exposure shifts the mean of the first 30\% of metabolites
+    and, in cell types 1 and 2, of the first 20\% of transcripts; it
+    does not change any network.
+  \item Pseudobulk counts are Poisson with mean equal to the number of
+    cells times \eqn{\exp(\text{latent} + 1)}, which makes them
+    overdispersed relative to a Poisson with a fixed mean.
+  \item If \code{composition_confounding = TRUE}, the proportions of
+    cell types 1 and 2 increase with the exposure, so pseudobulk depth
+    varies with the exposure.
 }
 }
 \examples{

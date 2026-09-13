@@ -52,7 +52,8 @@ A \code{data.frame}, one row per gene x cell type: \code{gene},
 }
 \description{
 Fits, per gene, the cell-level model
-\code{y ~ exposure * celltype + covariates + (1 | donor)} and reports
+\code{y ~ exposure * celltype + covariates + (1 | donor) +
+(1 | donor:celltype)} and reports
 cell-type-specific exposure effects. For \code{family = "gaussian"} the
 model is a linear mixed model fitted by \code{lmerTest::lmer} with
 \strong{REML = TRUE} (mandatory), and p-values are referred to a finite
@@ -67,6 +68,16 @@ downward, which shrinks the residual scale and inflates the exposure
 Satterthwaite degrees-of-freedom approximation are both defined only on the
 REML fit. The function therefore forces \code{REML = TRUE} and does not
 expose a switch.
+
+\strong{Random effects.} The exposure varies between donors, so the
+replicates for a cell-type-specific exposure effect are donor-by-cell-type
+units, not cells. The model therefore includes a donor-by-cell-type random
+intercept as well as a donor random intercept; without it, variation shared
+by the cells of one donor and cell type is treated as independent and the
+cell-type-specific tests are anticonservative. With a single cell type the
+model reduces to \code{y ~ exposure + covariates + (1 | donor)}. A variance
+component estimated at zero (a singular fit) is expected when that source
+of variation is absent and is not reported.
 
 \strong{Cell-type-specific effects.} Under treatment contrasts the
 \code{exposure} coefficient is the effect at the reference cell type and each

@@ -174,3 +174,14 @@ NULL
        envir = .experimental_warnings)
     invisible(NULL)
 }
+
+# A misspelled argument absorbed by ... must not silently change an analysis.
+.stop_on_unused_dots <- function(function_name, ...) {
+    n_extra <- ...length()
+    if (!n_extra) return(invisible(NULL))
+    extra_names <- ...names()
+    if (is.null(extra_names)) extra_names <- rep("", n_extra)
+    extra_names[is.na(extra_names) | !nzchar(extra_names)] <- "<unnamed>"
+    stop("Unused argument(s) in ", function_name, "(): ",
+         paste(extra_names, collapse = ", "), ".", call. = FALSE)
+}

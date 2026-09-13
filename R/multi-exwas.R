@@ -22,8 +22,9 @@ NULL
 #' @param min_cells Integer. Default 10.
 #' @param min_donors Integer. Default 5.
 #' @param filter_genes Logical. Default TRUE.
-#' @param ... Additional arguments passed to
-#'   \code{run_sc_exwas}.
+#' @param ... Further arguments of \code{run_sc_exwas}, such as
+#'   \code{method} or \code{celltypes}. An argument that
+#'   \code{run_sc_exwas} does not accept is an error.
 #'
 #' @return A \code{DataFrame} with all results combined and
 #'   \code{padj_all} for global FDR across all tests. The \code{se} and
@@ -63,6 +64,15 @@ run_multi_exwas <- function(x, exposures = NULL,
                              min_donors = 5L,
                              filter_genes = TRUE, ...) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    extra_names <- ...names()
+    if (...length() && (is.null(extra_names) || any(!nzchar(extra_names)))) {
+        stop("Arguments passed through ... to run_sc_exwas() must be named.")
+    }
+    unknown <- setdiff(extra_names, .run_sc_exwas_passthrough)
+    if (length(unknown)) {
+        stop("Unused argument(s) in run_multi_exwas(): ",
+             paste(unknown, collapse = ", "), ".")
+    }
 
     if (is.null(exposures)) {
         exposures <- exposureNames(x)
@@ -150,3 +160,11 @@ run_multi_exwas <- function(x, exposures = NULL,
     out$padj_all <- p.adjust(out$pvalue, method = "BH")
     S4Vectors::DataFrame(out)
 }
+
+# Arguments of the run_sc_exwas() method that run_multi_exwas() does not set
+# itself. A test keeps this list equal to the method's formals.
+.run_sc_exwas_passthrough <- c(
+    "celltypes", "method", "min_group_donors", "filter_min_count",
+    "filter_min_total_count", "filter_method", "filter_min_cpm",
+    "filter_min_donors", "test_features", "robust"
+)

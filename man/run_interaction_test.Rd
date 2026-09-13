@@ -37,7 +37,8 @@ Default 10.}
 }
 \value{
 A \code{DataFrame} with columns: gene,
-  p_interaction (F-test for exposure:celltype term),
+  p_interaction (F-test for the exposure-by-cell-type terms),
+  df_interaction (numerator degrees of freedom),
   padj_interaction (BH-corrected), n_celltypes, n_donors.
 }
 \description{
@@ -48,21 +49,24 @@ affects cell type A but not B" based on separate per-
 celltype p-values (Gelman & Stern 2006).
 }
 \details{
-For each gene, a linear model is fit on stacked pseudobulk
-log-CPM across all cell types:
-\code{y ~ exposure * celltype + covariates}
+For each gene, pseudobulk log-CPM values of all cell types are stacked,
+one row per donor and cell type, and two linear models are compared with
+an F-test:
+\preformatted{
+reduced: y ~ donor + celltype + covariates:celltype
+full:    y ~ donor + celltype + covariates:celltype + exposure:celltype
+}
+Donor fixed effects absorb every donor-level quantity, including the
+exposure and covariate main effects, and the shared donor component of
+expression in different cell types, so the test compares exposure slopes
+between cell types through within-donor contrasts rather than treating
+cell types from the same donor as independent. Covariate-by-cell-type
+terms allow covariate effects to differ between cell types. Donors
+observed in only one cell type do not inform the interaction.
 
-The interaction term \code{exposure:celltype} tests whether
-the slope of the exposure-expression relationship differs
-between cell types. A significant interaction means the
-exposure has a genuinely different effect size in different
-cell types -- not just that one p-value is smaller.
-
-This addresses a pervasive statistical error in the field:
-comparing significance levels across cell types is not the
-same as testing for a difference (Gelman & Stern 2006,
-Nieuwenhuis et al. 2011). Our interaction test provides
-the correct approach.
+Comparing significance levels across cell types is not the same as
+testing for a difference between them (Gelman & Stern 2006,
+Nieuwenhuis et al. 2011); this function tests the difference directly.
 }
 \examples{
 library(SingleCellExperiment); library(S4Vectors)

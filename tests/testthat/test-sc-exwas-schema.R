@@ -229,3 +229,13 @@ test_that("GSEA keeps exposure-specific hypothesis strata separate", {
     expect_setequal(unique(enrichment$exposure), c("E1", "E2"))
     expect_true(all(enrichment$celltype == "Mono"))
 })
+
+test_that("compute_iers validates weights and ranks unrounded scores", {
+    exwas <- data.frame(gene = paste0("G", 1:4),
+                        statistic = c(1, 1 + 1e-9, 3, -2))
+    expect_error(compute_iers(exwas, weights = "adaptive"), "weights")
+    expect_error(compute_iers(exwas, weights = c(1, -1, 1)), "weights")
+    res <- compute_iers(exwas, weights = c(1, 0, 0))
+    expect_false(anyDuplicated(res$IERS_rank) > 0)
+    expect_error(compute_iers(exwas, celltype = "Mono"), "celltype")
+})

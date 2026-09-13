@@ -16,7 +16,9 @@ seurat_to_exposure(seurat_meta, sample_col, exposure_cols)
 exposures.}
 }
 \value{
-A numeric matrix (donors x exposures).
+A numeric matrix (donors x exposures). Each value is the
+  mean over the donor's cells; a warning names columns whose values
+  vary within a donor, and non-numeric columns are an error.
 }
 \description{
 Extracts donor-level metadata from a Seurat object's

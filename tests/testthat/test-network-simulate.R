@@ -10,7 +10,7 @@ test_that("simulate_crossomic_network produces valid output", {
 
     expect_type(sim, "list")
     expect_named(sim, c("pseudobulk", "metabolites", "exposure",
-                        "composition", "true_networks",
+                        "composition", "n_cells", "true_networks",
                         "true_adjacency", "celltype_names",
                         "node_info", "params"))
 
@@ -76,9 +76,10 @@ test_that("true adjacency has expected structure", {
         edge_density = 0.15,
         seed = 99)
 
-    # Cell type 4 (null) should have no off-diagonal edges
+    # Cell type 4 has no transcript-transcript or cross-omic edges; its
+    # metabolite block is the shared metabolite precision
     adj4 <- sim$true_adjacency[[sim$celltype_names[4]]]
-    expect_equal(sum(adj4), 0)
+    expect_equal(sum(adj4[1:15, ]), 0)
 
     # Cell types 1-2 should share edges
     adj1 <- sim$true_adjacency[[sim$celltype_names[1]]]
@@ -86,4 +87,26 @@ test_that("true adjacency has expected structure", {
     # Both should have some edges
     expect_true(sum(adj1) > 0)
     expect_true(sum(adj2) > 0)
+})
+
+test_that("simulate_crossomic_network runs with the default seed", {
+    expect_type(simulate_crossomic_network(n_donors = 10, n_transcripts = 4,
+                                           n_metabolites = 2), "list")
+})
+
+test_that("simulated data follow the returned precision matrix", {
+    sim <- simulate_crossomic_network(n_donors = 4000, n_celltypes = 1,
+        n_transcripts = 6, n_metabolites = 3, edge_density = 0.4,
+        cross_omic_frac = 0.5, exposure_effect = 0,
+        composition_confounding = FALSE, seed = 7)
+    ct <- sim$celltype_names[1]
+    latent <- log(sim$pseudobulk[[ct]] / sim$n_cells[, ct]) - 1
+    ## Poisson noise is small at these depths; compare partial correlations
+    joint <- cbind(latent, sim$metabolites)
+    estimated <- -stats::cov2cor(solve(stats::cov(joint)))
+    truth <- -stats::cov2cor(sim$true_networks[[ct]])
+    diag(estimated) <- diag(truth) <- 0
+    cross <- truth[1:6, 7:9]
+    expect_true(any(cross != 0))
+    expect_lt(max(abs(estimated[1:6, 7:9] - cross)), 0.1)
 })

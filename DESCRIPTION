@@ -34,7 +34,7 @@ Imports:
     stats,
     BiocParallel,
     MASS,
-    edgeR,
+    edgeR (>= 4.0.0),
     limma,
     withr
 Suggests:

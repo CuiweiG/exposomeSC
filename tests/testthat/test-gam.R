@@ -15,9 +15,6 @@ test_that("run_dose_response_gam works", {
     exp_mat <- matrix(rnorm(20), nrow = 10,
         dimnames = list(paste0("D", 1:10), c("E1", "E2")))
 
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
     dr <- run_dose_response_gam(scee, exposure = "E1",
@@ -47,9 +44,6 @@ test_that("GAM LOOCV R² is computed", {
             cell_type = rep(c("Mono", "NK"), 50)))
     exp_mat <- matrix(rnorm(20), nrow = 10,
         dimnames = list(paste0("D", 1:10), c("E1", "E2")))
-
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
 
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 

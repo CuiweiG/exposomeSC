@@ -2,6 +2,70 @@
 
 Initial Bioconductor submission.
 
+## Corrections from technical review
+
+* `run_sc_exwas()` and `run_multi_exwas()` stop on arguments they do not use.
+  A misspelled argument such as `covariats = "age"` previously ran an
+  unadjusted analysis without any message.
+* `run_sc_exwas(method = "dreamlet")` is described accurately: a
+  one-row-per-donor design has no random effects, so `dream()` fits it with
+  limma and the moderated t statistic uses residual degrees of freedom. Cell
+  types skipped by the DESeq2 and voom-dream backends are now reported as
+  warnings rather than messages.
+* `estimate_power()` computed the standard error on the natural-log scale for
+  a log2 effect and omitted the Poisson term, which overstated power (0.996
+  where simulation gave 0.56 for 20 donors, a log2 effect of 0.5, dispersion
+  0.1, a mean count of 100 and 6,000 tests). It
+  now uses `sqrt(1/base_mean + dispersion) / (log(2) * exposure_sd * sqrt(n))`
+  and gains `base_mean`.
+* `run_interaction_test()` ignored `covariates` and treated cell types from
+  the same donor as independent. It now compares exposure slopes between cell
+  types with donor fixed effects and covariate-by-cell-type terms, and reports
+  `df_interaction`.
+* `run_dose_response()` tested the AIC-selected polynomial against the linear
+  model, which overstates the evidence for nonlinearity; `p_nonlinear` is now
+  the pre-specified test of the highest-degree polynomial, named in
+  `nonlinear_model`.
+* `run_dose_response_gam()` compared the linear and GAM fits with a deviance
+  F-test that rejected a truly linear response in 68-75% of simulated data
+  sets at the 5% level. `p_nonlinear` now tests a fully penalised smooth added
+  to a linear term (Wood 2013), which rejected 6-7% in the same simulation.
+* `run_mixture_qgcomp()` returned the intercept p-value as `mixture_pvalue`;
+  it now returns the p-value of the mixture effect. The documentation no longer
+  claims weights or weight intervals from `qgcomp.boot()`, which estimates
+  neither.
+* `run_sc_mixture()` computes weights as documented (mean absolute per-gene
+  coefficients), tolerates tied exposure values, drops donors with missing
+  data, and stops on unknown covariates.
+* `run_mediation()` is experimental and warns once per session, consistent with
+  `run_causal_mediation()`; it and the mixture functions stop on unknown
+  covariates instead of dropping them.
+* `run_sc_exwas_glmm()` adds a donor-by-cell-type random intercept. Without it,
+  cell-type-specific exposure tests rejected up to 13% of null simulations at
+  the 5% level.
+* `run_state_coupling()` tests slope heterogeneity with one multilevel
+  meta-regression that accounts for donors shared between bins, replacing a
+  Cochran Q test that treated bins as independent, and handles tied states.
+* `run_spatial_exwas()` no longer pools k-means regions across tissue sections
+  with unregistered coordinates, normalises on the whole transcriptome rather
+  than the reported genes, and seeds k-means.
+* `as_scee()` reads the `exp` assay of an `ExposomeSet`; previously it could
+  not extract exposures from one.
+* `simulate_crossomic_network()` ran only with an explicit seed, generated
+  transcripts and metabolites independently of the cross-omic edges it
+  returned, and ignored `composition_confounding` and `n_cells_per_donor`. The
+  simulated data now follow the returned precision matrices, and composition
+  sets pseudobulk depth.
+* `compute_iers()` no longer accepts the unimplemented `weights = "adaptive"`
+  and ranks unrounded scores; `run_gsea()` runs `fgsea` serially so that
+  `set.seed()` makes its p-values reproducible; `run_cell_coupling()` drops a
+  confounder that is constant within a donor instead of adding random noise to
+  it; `seurat_to_exposure()` warns when values vary within a donor; and
+  `run_temporal_network()` labels edges present at the first and last time
+  points but not in between as `intermittent`.
+* edgeR normalisation uses `normLibSizes()`, the current name of
+  `calcNormFactors()`.
+
 ## Random number state
 
 * Functions that take a `seed` argument now restore the caller's random

@@ -672,7 +672,7 @@
         ,
         keep.lib.sizes = TRUE
     ]
-    dge <- edgeR::calcNormFactors(dge, method = "TMM")
+    dge <- edgeR::normLibSizes(dge, method = "TMM")
     donor_block <- factor(metadata$donor_id)
     donor_sample_counts <- table(donor_block)
     block_requested <- any(donor_sample_counts > 1L)

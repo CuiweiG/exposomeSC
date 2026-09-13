@@ -12,8 +12,8 @@ NULL
 #' specific dose-response curves, allowing the data to
 #' determine the shape of the exposure-expression
 #' relationship without pre-specifying a polynomial degree.
-#' This is a major improvement over \code{\link{run_dose_response}}
-#' which restricts to polynomial functions.
+#' Unlike \code{\link{run_dose_response}}, the shape is not
+#' restricted to a polynomial.
 #'
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @param exposure Character. Exposure variable name.
@@ -24,8 +24,8 @@ NULL
 #'   test. Default: top 50 most variable.
 #' @param k Integer. Maximum basis dimension for the smooth
 #'   term. Default \code{min(n_donors - 1, 10)}. Higher k
-#'   allows more wiggliness; the GCV/REML penalty
-#'   automatically prevents overfitting.
+#'   allows more wiggliness; the REML smoothing penalty
+#'   limits overfitting.
 #' @param min_cells Integer. Min cells per donor. Default 10.
 #' @param loocv Logical. If \code{TRUE}, compute leave-one-out
 #'   cross-validated R² for the linear and GAM models.
@@ -34,7 +34,9 @@ NULL
 #' @return A \code{DataFrame} with columns: gene, edf
 #'   (effective degrees of freedom for smooth term),
 #'   p_smooth (significance of smooth term vs intercept),
-#'   p_nonlinear (approximate test: is edf > 1?),
+#'   p_nonlinear (approximate test that a fully penalised smooth
+#'   added to a linear exposure term is zero, that is, of
+#'   departure from linearity; see Details),
 #'   AIC_linear, AIC_gam, R2_linear, R2_gam,
 #'   R2_loocv_linear (if loocv=TRUE), R2_loocv_gam,
 #'   deviance_explained, celltype, n_donors.
@@ -48,10 +50,20 @@ NULL
 #' }
 #'
 #' The GAM smooth is estimated using restricted maximum
-#' likelihood (REML), which automatically selects the
-#' smoothness penalty. The effective degrees of freedom (edf)
-#' indicate the complexity: edf ~ 1 means approximately
-#' linear, edf > 2 means substantial nonlinearity.
+#' likelihood (REML), which selects the smoothness penalty.
+#' The effective degrees of freedom (edf) indicate the
+#' complexity: edf close to 1 means approximately linear, and
+#' larger values mean more curvature.
+#'
+#' \code{p_nonlinear} comes from a third model,
+#' \code{y ~ exposure + s(exposure, bs = "tp", m = c(2, 0))},
+#' whose smooth has no unpenalised null space, so the linear
+#' trend is carried by the parametric term and the smooth can
+#' only represent departures from linearity. Its p-value is the
+#' approximate Wald-type test for smooth terms of Wood (2013).
+#' Comparing the linear and GAM fits by an F-test on their
+#' residual deviances is not valid here: the GAM's effective
+#' degrees of freedom are estimated and often close to one.
 #'
 #' Leave-one-out cross-validated R² (loocv) provides an
 #' honest estimate of out-of-sample prediction accuracy,
@@ -64,13 +76,17 @@ NULL
 #'   \item Polynomials impose a global parametric form
 #'   \item GAMs adapt locally -- can capture threshold effects,
 #'     plateaus, U-shapes
-#'   \item Automatic smoothness selection prevents overfitting
+#'   \item Penalised smoothness selection limits overfitting
 #'   \item edf provides an interpretable complexity measure
 #' }
 #'
 #' @references
 #' Wood SN (2017). Generalized Additive Models: An
 #' Introduction with R. 2nd ed. Chapman and Hall/CRC.
+#'
+#' Wood SN (2013). On p-values for smooth components of an
+#' extended generalized additive model. \emph{Biometrika}
+#' 100:221-228. \doi{10.1093/biomet/ass048}
 #'
 #' Vandenberg LN et al. (2012). Hormones and endocrine-
 #' disrupting chemicals: low-dose effects and nonmonotonic
@@ -167,11 +183,13 @@ run_dose_response_gam <- function(x, exposure, celltype,
         edf <- s_gam$s.table[1, "edf"]
         p_smooth <- s_gam$s.table[1, "p-value"]
 
-        ## Approximate test for nonlinearity:
-        ## Compare GAM vs linear via F-test (deviance)
+        ## Departure from linearity: linear term plus a smooth whose
+        ## null space is penalised away (m = c(2, 0))
         p_nonlinear <- tryCatch({
-            aov <- stats::anova(fit_lin, fit_gam, test = "F")
-            aov[2, "Pr(>F)"]
+            fit_departure <- mgcv::gam(
+                y ~ dose + s(dose, k = k, bs = "tp", m = c(2, 0)),
+                data = df, method = "REML")
+            summary(fit_departure)$s.table[1, "p-value"]
         }, error = function(e) NA_real_)
 
         ## R² values

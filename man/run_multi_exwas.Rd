@@ -34,8 +34,9 @@ Default: all exposures in \code{exposureData}.}
 
 \item{filter_genes}{Logical. Default TRUE.}
 
-\item{...}{Additional arguments passed to
-\code{run_sc_exwas}.}
+\item{...}{Further arguments of \code{run_sc_exwas}, such as
+\code{method} or \code{celltypes}. An argument that
+\code{run_sc_exwas} does not accept is an error.}
 }
 \value{
 A \code{DataFrame} with all results combined and

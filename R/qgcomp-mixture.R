@@ -11,10 +11,10 @@ NULL
 #' Wraps \code{qgcomp::qgcomp.noboot()} or
 #' \code{qgcomp::qgcomp.boot()} on pseudobulk data for
 #' cell-type-specific exposure mixture analysis. Unlike
-#' \code{\link{run_sc_mixture}} (simplified screening), this
-#' provides valid confidence intervals, properly separated
-#' positive/negative weights, and formal statistical
-#' inference on the overall mixture effect.
+#' \code{\link{run_sc_mixture}} (simplified screening), it
+#' reports a confidence interval and p-value for the overall
+#' mixture effect and, without bootstrapping, the positive and
+#' negative exposure weights estimated by \pkg{qgcomp}.
 #'
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @param exposures Character vector. Exposure variable names.
@@ -23,7 +23,8 @@ NULL
 #' @param sample_col Character. Column with donor IDs.
 #' @param target_genes Character vector (optional). Genes to
 #'   summarise. Default: top 20 most variable.
-#' @param covariates Character vector (optional).
+#' @param covariates Character vector (optional). Columns of
+#'   \code{exposureData}; an unknown name is an error.
 #' @param q Integer. Number of quantile bins. Default 4.
 #' @param bootstrap Logical. If \code{TRUE}, use
 #'   \code{qgcomp.boot()} for bootstrap confidence intervals.
@@ -35,12 +36,16 @@ NULL
 #' @return A list with components:
 #' \describe{
 #'   \item{positive_weights}{Named numeric. Exposures that
-#'     increase the response, with relative weights.}
+#'     increase the response, with relative weights;
+#'     \code{NULL} when \code{bootstrap = TRUE}, because
+#'     \code{qgcomp.boot()} does not estimate weights.}
 #'   \item{negative_weights}{Named numeric. Exposures that
-#'     decrease the response.}
-#'   \item{mixture_effect}{Overall mixture effect estimate.}
-#'   \item{mixture_ci}{95\% confidence interval.}
-#'   \item{mixture_pvalue}{P-value for overall effect.}
+#'     decrease the response; \code{NULL} when
+#'     \code{bootstrap = TRUE}.}
+#'   \item{mixture_effect}{Overall mixture effect estimate
+#'     (\eqn{\psi}).}
+#'   \item{mixture_ci}{95\% confidence interval for \eqn{\psi}.}
+#'   \item{mixture_pvalue}{P-value for \eqn{\psi}.}
 #'   \item{fit}{The \code{qgcomp} model object (for
 #'     plotting and further analysis).}
 #'   \item{method}{Character: \code{"qgcomp.noboot"} or
@@ -51,22 +56,20 @@ NULL
 #' @details
 #' Quantile g-computation (Keil et al. 2020) estimates the
 #' overall effect of jointly increasing all exposures by one
-#' quantile, while decomposing the effect into positive and
-#' negative contributions. This correctly handles correlated
-#' exposures -- a fundamental challenge in environmental
-#' mixtures research.
+#' quantile, and without bootstrapping decomposes it into
+#' positive and negative contributions. The weights are
+#' interpretable only when the exposure effects are of a
+#' similar shape (Keil et al. 2020).
 #'
-#' The pseudobulk response is the mean log-CPM of target
-#' genes (or a single gene if specified). This is a
-#' population-level summary that properly handles the
-#' donor-level aggregation required by exposome designs.
+#' The pseudobulk response is the mean log-CPM of the target
+#' genes over donors with complete exposure and covariate data.
 #'
 #' \strong{Comparison with \code{run_sc_mixture}:}
 #' \tabular{lll}{
 #'   Feature \tab run_sc_mixture \tab run_mixture_qgcomp \cr
-#'   CI on weights \tab No \tab Yes (asymptotic or bootstrap) \cr
-#'   Pos/neg separation \tab No \tab Yes \cr
-#'   Formal p-value \tab No \tab Yes \cr
+#'   CI for overall effect \tab No \tab Yes (asymptotic or bootstrap) \cr
+#'   Pos/neg weights \tab No \tab Yes (without bootstrap) \cr
+#'   P-value for overall effect \tab No \tab Yes \cr
 #'   Speed \tab Fast \tab Moderate \cr
 #'   Minimum n \tab 5 \tab 10+ recommended \cr
 #' }
@@ -129,9 +132,18 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
     if (is.null(pb_result))
         stop("No valid donors for '", celltype, "'")
 
+    covariates <- as.character(covariates)
+    missing_cov <- setdiff(covariates, colnames(exp_data))
+    if (length(missing_cov) > 0)
+        stop("Covariates not found: ",
+             paste(missing_cov, collapse = ", "))
+
     valid <- pb_result$valid_donors
+    valid <- valid[stats::complete.cases(
+        exp_data[valid, c(exposures, covariates), drop = FALSE])]
     if (length(valid) < 5L)
-        stop("Need >= 5 donors. Found: ", length(valid))
+        stop("Need >= 5 donors with complete exposure data. Found: ",
+             length(valid))
 
     log_cpm <- .log_cpm(pb_result$pb_mat)
 
@@ -153,18 +165,12 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
     for (exp_name in exposures) {
         df[[exp_name]] <- exp_data[valid, exp_name]
     }
-    if (!is.null(covariates)) {
-        for (cov in covariates) {
-            if (cov %in% colnames(exp_data))
-                df[[cov]] <- exp_data[valid, cov]
-        }
+    for (cov in covariates) {
+        df[[cov]] <- exp_data[valid, cov]
     }
 
     ## Build formula
-    rhs <- c(exposures,
-        intersect(covariates, colnames(df)))
-    fml <- as.formula(paste("y ~",
-        paste(rhs, collapse = " + ")))
+    fml <- stats::reformulate(c(exposures, covariates), response = "y")
 
     ## Run qgcomp
     fit <- tryCatch({
@@ -185,8 +191,11 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
     mixture_effect <- fit$psi
     mixture_se <- sqrt(fit$var.psi)
     mixture_ci <- as.numeric(fit$ci)
-    mixture_pval <- if (length(fit$pval) > 0) {
-        fit$pval[1]
+    ## fit$pval follows fit$coef, whose first element is the intercept
+    psi_index <- match("psi1", names(fit$coef))
+    mixture_pval <- if (!is.na(psi_index) &&
+                        length(fit$pval) >= psi_index) {
+        fit$pval[psi_index]
     } else {
         2 * stats::pnorm(abs(mixture_effect / mixture_se),
             lower.tail = FALSE)

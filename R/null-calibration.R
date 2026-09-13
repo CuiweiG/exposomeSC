@@ -186,7 +186,7 @@
     }
 
     dge <- dge[keep, , keep.lib.sizes = TRUE]
-    dge <- edgeR::calcNormFactors(dge, method = "TMM")
+    dge <- edgeR::normLibSizes(dge, method = "TMM")
     retained_features <- rownames(dge$counts)
     retained_host <- retained_features[retained_features %in% host_features]
     if (!length(retained_host)) {

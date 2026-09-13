@@ -95,14 +95,15 @@ NULL
 
 #' Donor offset-pseudobulk negative-binomial sc-ExWAS
 #'
-#' The recommended donor-level test for a donor-level exposure. Per cell type
-#' and per gene, aggregates cells to a donor pseudobulk count and fits a
-#' negative-binomial GLM with a library-size offset
-#' \eqn{\log s_i = \log(\text{donor total counts})}. For an exposure shared by
-#' all of a donor's cells this donor GLM matches the cell-level NB-GLMM in both
-#' point estimate and standard error up to \eqn{O(1/\sqrt{n})} (Lee & Han 2024),
-#' while being far faster and free of the pseudoreplication that inflates
-#' cell-level tests.
+#' A donor-level negative-binomial alternative to \code{\link{run_sc_exwas}}.
+#' Per cell type and per gene, aggregates cells to a donor pseudobulk count and
+#' fits a negative-binomial GLM with a library-size offset
+#' \eqn{\log s_i = \log(\text{donor total counts})}. Lee and Han (2024) report
+#' that pseudobulk models with proper offsets have the same statistical
+#' properties as generalised linear mixed models in single-cell case-control
+#' studies, without the pseudoreplication that inflates cell-level tests.
+#' P-values are Wald tests with an estimated dispersion and can be
+#' anticonservative when there are few donors.
 #'
 #' @param scee A \linkS4class{SingleCellExposomeExperiment}.
 #' @param exposure Character; a donor-level column of \code{exposureData(scee)}.
@@ -234,7 +235,8 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
 #' Cell-level linear mixed model sc-ExWAS with finite-df inference
 #'
 #' Fits, per gene, the cell-level model
-#' \code{y ~ exposure * celltype + covariates + (1 | donor)} and reports
+#' \code{y ~ exposure * celltype + covariates + (1 | donor) +
+#' (1 | donor:celltype)} and reports
 #' cell-type-specific exposure effects. For \code{family = "gaussian"} the
 #' model is a linear mixed model fitted by \code{lmerTest::lmer} with
 #' \strong{REML = TRUE} (mandatory), and p-values are referred to a finite
@@ -249,6 +251,16 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
 #' Satterthwaite degrees-of-freedom approximation are both defined only on the
 #' REML fit. The function therefore forces \code{REML = TRUE} and does not
 #' expose a switch.
+#'
+#' \strong{Random effects.} The exposure varies between donors, so the
+#' replicates for a cell-type-specific exposure effect are donor-by-cell-type
+#' units, not cells. The model therefore includes a donor-by-cell-type random
+#' intercept as well as a donor random intercept; without it, variation shared
+#' by the cells of one donor and cell type is treated as independent and the
+#' cell-type-specific tests are anticonservative. With a single cell type the
+#' model reduces to \code{y ~ exposure + covariates + (1 | donor)}. A variance
+#' component estimated at zero (a singular fit) is expected when that source
+#' of variation is absent and is not reported.
 #'
 #' \strong{Cell-type-specific effects.} Under treatment contrasts the
 #' \code{exposure} coefficient is the effect at the reference cell type and each
@@ -397,15 +409,24 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
         for (cv in covariates) meta[[cv]] <- as.numeric(exp_data[samples, cv])
     cov_rhs <- if (length(covariates))
         paste("+", paste(covariates, collapse = " + ")) else ""
+    multi_celltype <- length(lvls) > 1L
+    re_rhs <- if (multi_celltype) {
+        "+ (1 | donor) + (1 | donor:celltype)"
+    } else {
+        "+ (1 | donor)"
+    }
+    singular_ok <- lme4::.makeCC(action = "ignore", tol = 1e-4)
 
     if (family == "gaussian") {
         Y <- .log_cp10k_cell(counts_mat, genes)            # genes x cells
-        form <- stats::as.formula(paste(
-            "y ~ exposure * celltype", cov_rhs, "+ (1 | donor)"))
+        fixed_rhs <- if (multi_celltype) "exposure * celltype" else "exposure"
+        form <- stats::as.formula(paste("y ~", fixed_rhs, cov_rhs, re_rhs))
+        control <- lme4::lmerControl(check.conv.singular = singular_ok)
 
         one_gene <- function(gi) {
             df <- meta; df$y <- as.numeric(Y[gi, ])
-            fit <- tryCatch(lmerTest::lmer(form, data = df, REML = TRUE),
+            fit <- tryCatch(lmerTest::lmer(form, data = df, REML = TRUE,
+                                           control = control),
                             error = function(e) NULL)
             if (is.null(fit)) return(NULL)
             nm <- names(lme4::fixef(fit))
@@ -448,13 +469,15 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
             meta[[expo_cols[k]]] <- meta$exposure * (meta$celltype == lvls[k])
         full_rhs <- paste("0 + celltype +",
                           paste(expo_cols, collapse = " + "), cov_rhs,
-                          "+ offset(logoff) + (1 | donor)")
+                          "+ offset(logoff)", re_rhs)
         full_form <- stats::as.formula(paste("y ~", full_rhs))
+        control <- lme4::glmerControl(check.conv.singular = singular_ok)
 
         one_gene <- function(gi) {
             df <- meta
             df$y <- as.integer(round(pmax(Yc[gi, ], 0)))
-            full <- tryCatch(lme4::glmer.nb(full_form, data = df),
+            full <- tryCatch(lme4::glmer.nb(full_form, data = df,
+                                            control = control),
                              error = function(e) NULL)
             if (is.null(full)) return(NULL)
             fe <- lme4::fixef(full)
@@ -465,11 +488,15 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
                 beta <- fe[[cn]]
                 se_nat <- if (!is.null(V) && cn %in% rownames(V))
                     sqrt(max(V[cn, cn], 0)) else NA_real_
-                red_rhs <- paste("0 + celltype +",
-                                 paste(setdiff(expo_cols, cn), collapse = " + "),
-                                 cov_rhs, "+ offset(logoff) + (1 | donor)")
+                other_slopes <- setdiff(expo_cols, cn)
+                red_rhs <- paste("0 + celltype",
+                                 if (length(other_slopes))
+                                     paste("+", paste(other_slopes,
+                                                      collapse = " + ")),
+                                 cov_rhs, "+ offset(logoff)", re_rhs)
                 red <- tryCatch(lme4::glmer.nb(
-                    stats::as.formula(paste("y ~", red_rhs)), data = df),
+                    stats::as.formula(paste("y ~", red_rhs)), data = df,
+                    control = control),
                     error = function(e) NULL)
                 if (is.null(red)) {
                     chi <- NA_real_; pv <- NA_real_

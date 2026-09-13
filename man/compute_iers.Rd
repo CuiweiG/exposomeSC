@@ -22,12 +22,12 @@ compute_iers(
 \code{run_cell_coupling}. Optional; if NULL, coupling
 component is skipped.}
 
-\item{celltype}{Character. Cell type to compute IERS for.}
+\item{celltype}{Character. Cell type to compute IERS for; requires
+a \code{celltype} column in \code{exwas}.}
 
-\item{weights}{Numeric vector of length 3: weights for
-sc-ExWAS effect, directness, and coupling rewiring.
-Default \code{c(1, 1, 1)} (equal weights).
-Set to \code{"adaptive"} for cross-validated weights.}
+\item{weights}{Non-negative numeric vector of length 3 with a
+positive sum: weights for sc-ExWAS effect, directness, and
+coupling rewiring. Default \code{c(1, 1, 1)} (equal weights).}
 }
 \value{
 A \code{data.frame} with columns: gene,

@@ -109,3 +109,40 @@ test_that("run_sc_mixture method field is quantile_linear", {
         min_cells = 3L)
     expect_equal(mix$method, "quantile_linear")
 })
+
+test_that("run_sc_mixture weights average absolute per-gene coefficients", {
+    scee <- .make_scee()
+    genes <- paste0("G", 1:3)
+    mix <- run_sc_mixture(scee, exposures = c("E1", "E2"), celltype = "Mono",
+        celltype_col = "cell_type", sample_col = "donor_id",
+        target_genes = genes, min_cells = 3L)
+    cd <- SummarizedExperiment::colData(scee)
+    pb <- exposomeSC:::.pseudobulk_aggregate(
+        SummarizedExperiment::assay(scee, "counts"),
+        as.character(cd$donor_id), as.character(cd$cell_type), "Mono",
+        min_cells = 3L)
+    log_cpm <- exposomeSC:::.log_cpm(pb$pb_mat)
+    e <- exposureData(scee)[pb$valid_donors, c("E1", "E2")]
+    score <- function(v) as.integer(cut(v, unique(stats::quantile(v,
+        seq(0, 1, length.out = 5))), include.lowest = TRUE))
+    q_df <- data.frame(E1 = score(e[, "E1"]), E2 = score(e[, "E2"]))
+    coefs <- t(vapply(genes, function(g)
+        stats::coef(lm(log_cpm[g, pb$valid_donors] ~ E1 + E2, data = q_df))[
+            c("E1", "E2")], numeric(2)))
+    expected <- colMeans(abs(coefs))
+    expect_equal(unname(mix$weights), unname(expected / sum(expected)))
+})
+
+test_that("run_sc_mixture handles tied exposures and rejects unknown covariates", {
+    scee <- .make_scee()
+    exposure_matrix <- exposureData(scee)
+    exposure_matrix[1:6, "E3"] <- 0.01
+    exposureData(scee) <- exposure_matrix
+    mix <- run_sc_mixture(scee, exposures = c("E1", "E3"), celltype = "Mono",
+        celltype_col = "cell_type", sample_col = "donor_id", min_cells = 3L)
+    expect_equal(sum(mix$weights), 1)
+    expect_error(run_sc_mixture(scee, exposures = c("E1", "E2"),
+        celltype = "Mono", celltype_col = "cell_type",
+        sample_col = "donor_id", covariates = "nope", min_cells = 3L),
+        "Covariates not found")
+})
