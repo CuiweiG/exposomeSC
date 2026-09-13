@@ -16,9 +16,6 @@ test_that("run_mixture_qgcomp works", {
         dimnames = list(paste0("D", 1:10),
             c("E1", "E2", "E3")))
 
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
     mix <- run_mixture_qgcomp(scee,
@@ -32,6 +29,11 @@ test_that("run_mixture_qgcomp works", {
     expect_true("mixture_pvalue" %in% names(mix))
     expect_true("mixture_ci" %in% names(mix))
     expect_equal(length(mix$mixture_ci), 2)
+
+    ## The mixture p-value is that of psi, not of the intercept
+    psi_index <- match("psi1", names(mix$fit$coef))
+    expect_equal(mix$mixture_pvalue, mix$fit$pval[psi_index])
+    expect_false(isTRUE(all.equal(mix$mixture_pvalue, mix$fit$pval[1])))
 
     ## Weights should exist
     all_weights <- c(mix$positive_weights,

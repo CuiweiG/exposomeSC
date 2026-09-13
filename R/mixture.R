@@ -26,15 +26,19 @@ NULL
 #' @param target_genes Character vector (optional). Genes to
 #'   test. Default: top 20 most variable genes.
 #' @param covariates Character vector (optional). Additional
-#'   covariates from \code{exposureData}.
-#' @param q Integer. Number of quantile bins. Default 4.
+#'   covariates from \code{exposureData}; a name that is not a
+#'   column of \code{exposureData} is an error.
+#' @param q Integer. Number of quantile bins. Default 4. Tied
+#'   exposure values (for example at a limit of detection) can
+#'   give fewer bins.
 #' @param min_cells Integer. Minimum cells per donor. Default 10.
 #'
 #' @return A \code{list} with components:
 #' \describe{
 #'   \item{weights}{Named numeric vector. Relative contribution
-#'     of each exposure (sums to 1), derived from standardised
-#'     coefficients across target genes.}
+#'     of each exposure (sums to 1): the mean over target genes
+#'     of the absolute coefficients of the quantile-scored
+#'     exposures, normalised.}
 #'   \item{mixture_coef}{Overall mixture coefficient (sum of
 #'     quantile-scored exposure coefficients, averaged across
 #'     target genes).}
@@ -42,8 +46,9 @@ NULL
 #'     effect estimates.}
 #'   \item{method}{Character. Always \code{"quantile_linear"}.}
 #'   \item{celltype}{Character. Cell type analysed.}
-#'   \item{n_donors}{Integer. Donors used in analysis.}
-#'   \item{n_genes}{Integer. Genes analysed.}
+#'   \item{n_donors}{Integer. Donors with complete exposure and
+#'     covariate data used in the analysis.}
+#'   \item{n_genes}{Integer. Genes with a fitted model.}
 #' }
 #'
 #' @details
@@ -52,13 +57,16 @@ NULL
 #' quantile sum regression (Carrico et al. 2015). The approach:
 #'
 #' \enumerate{
-#'   \item Exposures are scored into quantile bins (1 to \code{q}).
+#'   \item Donors with a missing exposure or covariate are
+#'     removed, and exposures are scored into quantile bins
+#'     (1 to \code{q}; fewer when quantiles are tied).
 #'   \item For each target gene, a linear model is fit on
 #'     pseudobulk log-CPM with all quantile-scored exposures
-#'     as predictors.
-#'   \item Weights are derived from the absolute standardised
-#'     coefficients of the quantile-scored model, averaged
-#'     across target genes, then normalised to sum to 1.
+#'     and covariates as predictors.
+#'   \item Weights are the absolute exposure coefficients,
+#'     averaged across target genes and normalised to sum to 1.
+#'     Because every exposure is on the same quantile scale,
+#'     the coefficients are directly comparable.
 #' }
 #'
 #' \strong{Limitations:}
@@ -116,6 +124,12 @@ run_sc_mixture <- function(x, exposures, celltype,
         stop("Exposures not found: ",
              paste(missing_exp, collapse = ", "))
     }
+    covariates <- as.character(covariates)
+    missing_cov <- setdiff(covariates, colnames(exp_data))
+    if (length(missing_cov) > 0) {
+        stop("Covariates not found: ",
+             paste(missing_cov, collapse = ", "))
+    }
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -133,19 +147,22 @@ run_sc_mixture <- function(x, exposures, celltype,
     }
 
     valid <- pb_result$valid_donors
+    complete <- stats::complete.cases(
+        exp_data[valid, c(exposures, covariates), drop = FALSE])
+    valid <- valid[complete]
     pb <- pb_result$pb_mat
 
     if (length(valid) < 5L) {
         stop("Need >= 5 donors with ", min_cells,
-             "+ cells for '", celltype, "'. Found: ",
-             length(valid))
+             "+ cells and complete exposure data for '", celltype,
+             "'. Found: ", length(valid))
     }
 
     ## Log-CPM via shared utility
     log_cpm <- .log_cpm(pb)
 
     if (is.null(target_genes)) {
-        gene_vars <- apply(log_cpm, 1, stats::var)
+        gene_vars <- apply(log_cpm[, valid, drop = FALSE], 1, stats::var)
         n_top <- min(20L, nrow(pb))
         target_genes <- names(sort(gene_vars,
                                     decreasing = TRUE))[
@@ -157,80 +174,63 @@ run_sc_mixture <- function(x, exposures, celltype,
         stop("No target genes found in expression matrix")
     }
 
-    ## Quantile-score exposures (same scale for both per-gene
-    ## and overall models -- fixes prior inconsistency)
+    ## Quantile-score exposures on one shared scale; tied quantiles
+    ## (for example at a detection limit) give fewer bins
     exp_sub <- exp_data[valid, exposures, drop = FALSE]
-    exp_q <- apply(exp_sub, 2, function(col) {
-        as.integer(cut(col,
-            breaks = quantile(col,
-                probs = seq(0, 1, length.out = q + 1)),
-            include.lowest = TRUE))
-    })
-    colnames(exp_q) <- exposures
-
-    ## Build predictor data frame (quantile-scored)
-    pred_df <- as.data.frame(exp_q)
-    if (!is.null(covariates)) {
-        for (cov in covariates) {
-            if (cov %in% colnames(exp_data)) {
-                pred_df[[cov]] <- exp_data[valid, cov]
-            }
+    exp_q <- vapply(exposures, function(name) {
+        values <- exp_sub[, name]
+        breaks <- unique(stats::quantile(
+            values, probs = seq(0, 1, length.out = q + 1)))
+        if (length(breaks) < 2L) {
+            stop("Exposure '", name, "' does not vary among the ",
+                 "analysed donors.")
         }
+        as.integer(cut(values, breaks = breaks, include.lowest = TRUE))
+    }, integer(length(valid)))
+    exp_q <- matrix(exp_q, nrow = length(valid),
+                    dimnames = list(valid, exposures))
+
+    ## Build predictor data frame (quantile-scored exposures and
+    ## covariates on their original scale)
+    pred_df <- as.data.frame(exp_q)
+    for (cov in covariates) {
+        pred_df[[cov]] <- exp_data[valid, cov]
     }
 
-    pred_names <- c(exposures,
-                    intersect(covariates, colnames(pred_df)))
-    formula_str <- paste("y ~",
-        paste(pred_names, collapse = " + "))
-    fml <- stats::as.formula(formula_str)
+    fml <- stats::reformulate(c(exposures, covariates), response = "y")
 
     ## Per-gene: fit quantile-scored linear model
-    gene_results <- lapply(target_genes, function(gene) {
-        y <- log_cpm[gene, valid]
-        df <- data.frame(y = y, pred_df)
+    gene_fits <- lapply(target_genes, function(gene) {
+        df <- data.frame(y = log_cpm[gene, valid], pred_df,
+                         check.names = FALSE)
 
         fit <- tryCatch(lm(fml, data = df),
                          error = function(e) NULL)
         if (is.null(fit)) return(NULL)
 
-        cf <- coef(fit)
-        exp_coefs <- cf[exposures]
+        exp_coefs <- stats::coef(fit)[exposures]
         exp_coefs[is.na(exp_coefs)] <- 0
-
-        data.frame(
-            gene = gene,
-            mixture_effect = sum(exp_coefs),
-            stringsAsFactors = FALSE)
+        list(gene = gene, coefficients = exp_coefs)
     })
-    gene_results <- do.call(rbind,
-        Filter(Negate(is.null), gene_results))
+    gene_fits <- Filter(Negate(is.null), gene_fits)
 
-    ## Compute weights from the SAME quantile-scored model,
-    ## using mean expression across target genes per donor
-    y_mean <- colMeans(log_cpm[target_genes, valid,
-                                drop = FALSE])
-    overall_df <- data.frame(y = y_mean, pred_df)
-    overall_fit <- tryCatch(lm(fml, data = overall_df),
-                             error = function(e) NULL)
-
-    weights <- if (!is.null(overall_fit)) {
-        cf <- coef(overall_fit)[exposures]
-        cf[is.na(cf)] <- 0
-        abs_cf <- abs(cf)
-        if (sum(abs_cf) > 0) abs_cf / sum(abs_cf) else
+    if (length(gene_fits)) {
+        coefficient_matrix <- do.call(rbind, lapply(gene_fits,
+            function(fit) fit$coefficients))
+        gene_results <- data.frame(
+            gene = vapply(gene_fits, function(fit) fit$gene, character(1)),
+            mixture_effect = rowSums(coefficient_matrix),
+            stringsAsFactors = FALSE)
+        mean_abs <- colMeans(abs(coefficient_matrix))
+        weights <- if (sum(mean_abs) > 0) mean_abs / sum(mean_abs) else
             rep(1 / length(exposures), length(exposures))
+        mixture_coef <- mean(gene_results$mixture_effect)
     } else {
-        rep(1 / length(exposures), length(exposures))
+        gene_results <- NULL
+        weights <- rep(NA_real_, length(exposures))
+        mixture_coef <- NA_real_
     }
     names(weights) <- exposures
-
-    ## Overall mixture coefficient
-    mixture_coef <- if (!is.null(gene_results) &&
-                        nrow(gene_results) > 0) {
-        mean(gene_results$mixture_effect, na.rm = TRUE)
-    } else {
-        NA_real_
-    }
 
     list(
         weights = weights,
@@ -238,7 +238,7 @@ run_sc_mixture <- function(x, exposures, celltype,
         method = "quantile_linear",
         celltype = celltype,
         n_donors = length(valid),
-        n_genes = length(target_genes),
+        n_genes = length(gene_fits),
         gene_results = if (!is.null(gene_results))
             S4Vectors::DataFrame(gene_results) else
             S4Vectors::DataFrame()

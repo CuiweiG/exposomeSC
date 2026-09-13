@@ -47,7 +47,8 @@ utils::globalVariables(c("yi", "vi"))
 #'   \eqn{1.06 / (n - q - 3)}. \code{"bootstrap"} resamples
 #'   cells within each donor to compute empirical variance,
 #'   which is more accurate for small cell counts or
-#'   non-normal data but slower.
+#'   non-normal data but slower. The bootstrap uses the random
+#'   number generator, so set a seed for reproducible variances.
 #' @param n_boot Integer. Number of bootstrap replicates
 #'   per donor when \code{var_method = "bootstrap"}.
 #'   Default 200.
@@ -62,7 +63,9 @@ utils::globalVariables(c("yi", "vi"))
 #'     \item{I2}{Heterogeneity percentage.}
 #'     \item{mean_r}{Mean partial correlation across donors.}
 #'     \item{mean_n_cells}{Mean cells per donor.}
-#'     \item{n_confounders}{Number of variables partialed out.}
+#'     \item{n_confounders}{Number of conditioning variables
+#'       requested (library sizes plus confounders); variables
+#'       constant within a donor are dropped for that donor.}
 #'   }
 #'
 #' @details
@@ -80,7 +83,8 @@ utils::globalVariables(c("yi", "vi"))
 #' \deqn{z_d = \text{arctanh}(r_d), \quad
 #'   \text{Var}(z_d) \approx 1.06 / (n_d - q - 3)}
 #' where \eqn{q} is the number of conditioning variables
-#' (2 + length of \code{confounders}). The factor 1.06
+#' (2 + length of \code{confounders}, less any that are constant
+#' within the donor and therefore dropped). The factor 1.06
 #' corrects for the efficiency loss of rank-based correlation
 #' (Fieller et al. 1957).
 #'
@@ -306,13 +310,8 @@ run_cell_coupling <- function(scee,
                 ## Add confounders if specified
                 if (!is.null(conf_data)) {
                     for (cv in confounders) {
-                        cv_vals <- conf_data[[cv]][d_idx]
-                        if (sd(cv_vals, na.rm = TRUE) < 1e-10) {
-                            ## No variance in confounder for this donor;
-                            ## use a small jitter to avoid singular matrix
-                            cv_vals <- cv_vals + rnorm(length(cv_vals), 0, 1e-8)
-                        }
-                        dat[[cv]] <- rank(cv_vals, na.last = "keep")
+                        dat[[cv]] <- rank(conf_data[[cv]][d_idx],
+                                          na.last = "keep")
                     }
                     ## Remove rows with NA confounders
                     complete <- complete.cases(dat)
@@ -321,13 +320,25 @@ run_cell_coupling <- function(scee,
                     n_d <- nrow(dat)
                 }
 
-                pc <- tryCatch(
-                    ppcor::pcor(dat, method = "spearman"),
-                    error = function(e) NULL)
-                if (is.null(pc)) next
+                ## A conditioning variable that is constant within this
+                ## donor carries no information and would make the partial
+                ## correlation singular, so it is dropped for this donor
+                conditioning <- setdiff(names(dat), c("gene", "protein"))
+                constant <- conditioning[vapply(dat[conditioning],
+                    function(v) isTRUE(sd(v) < 1e-10), logical(1))]
+                if (length(constant))
+                    dat <- dat[, setdiff(names(dat), constant), drop = FALSE]
+                q_d <- ncol(dat) - 2L
 
-                ## r_partial is [1,2] (gene-protein)
-                r_p <- pc$estimate[1, 2]
+                r_p <- if (q_d == 0L) {
+                    stats::cor(dat$gene, dat$protein, method = "spearman")
+                } else {
+                    pc <- tryCatch(
+                        ppcor::pcor(dat, method = "spearman"),
+                        error = function(e) NULL)
+                    if (is.null(pc)) NA_real_ else pc$estimate[1, 2]
+                }
+                if (!is.finite(r_p)) next
                 r_clamped <- max(min(r_p, 0.999), -0.999)
                 z_val <- atanh(r_clamped)
 
@@ -341,11 +352,17 @@ run_cell_coupling <- function(scee,
                         if (sd(dat_b$gene) < 1e-10 ||
                             sd(dat_b$protein) < 1e-10)
                             return(NA_real_)
-                        pc_b <- tryCatch(
-                            ppcor::pcor(dat_b, method = "spearman"),
-                            error = function(e) NULL)
-                        if (is.null(pc_b)) return(NA_real_)
-                        r_b <- pc_b$estimate[1, 2]
+                        r_b <- if (q_d == 0L) {
+                            stats::cor(dat_b$gene, dat_b$protein,
+                                       method = "spearman")
+                        } else {
+                            pc_b <- tryCatch(
+                                ppcor::pcor(dat_b, method = "spearman"),
+                                error = function(e) NULL)
+                            if (is.null(pc_b)) NA_real_ else
+                                pc_b$estimate[1, 2]
+                        }
+                        if (!is.finite(r_b)) return(NA_real_)
                         r_b <- max(min(r_b, 0.999), -0.999)
                         atanh(r_b)
                     }, numeric(1))
@@ -354,7 +371,7 @@ run_cell_coupling <- function(scee,
                     v_val <- var(boot_z)
                 } else {
                     ## Asymptotic: 1.06 / (n - q - 3)
-                    v_val <- 1.06 / (n_d - n_conf - 3)
+                    v_val <- 1.06 / (n_d - q_d - 3)
                 }
                 if (v_val <= 0 || !is.finite(v_val)) next
 

@@ -41,14 +41,15 @@ A \code{data.frame}, one row per gene x cell type:
   \code{padj} across all strata. Rows ordered by \code{padj}.
 }
 \description{
-The recommended donor-level test for a donor-level exposure. Per cell type
-and per gene, aggregates cells to a donor pseudobulk count and fits a
-negative-binomial GLM with a library-size offset
-\eqn{\log s_i = \log(\text{donor total counts})}. For an exposure shared by
-all of a donor's cells this donor GLM matches the cell-level NB-GLMM in both
-point estimate and standard error up to \eqn{O(1/\sqrt{n})} (Lee & Han 2024),
-while being far faster and free of the pseudoreplication that inflates
-cell-level tests.
+A donor-level negative-binomial alternative to \code{\link{run_sc_exwas}}.
+Per cell type and per gene, aggregates cells to a donor pseudobulk count and
+fits a negative-binomial GLM with a library-size offset
+\eqn{\log s_i = \log(\text{donor total counts})}. Lee and Han (2024) report
+that pseudobulk models with proper offsets have the same statistical
+properties as generalised linear mixed models in single-cell case-control
+studies, without the pseudoreplication that inflates cell-level tests.
+P-values are Wald tests with an estimated dispersion and can be
+anticonservative when there are few donors.
 }
 \note{
 Report empirical calibration from a donor-permutation null, with the

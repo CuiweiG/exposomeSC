@@ -1,9 +1,6 @@
 # tests/testthat/test-below-lod.R
 
 test_that("exposure_impute_lod works with lod_sqrt2", {
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     set.seed(42)
     mat <- matrix(rlnorm(200), nrow = 40, ncol = 5,
         dimnames = list(paste0("S", 1:40),
@@ -25,9 +22,6 @@ test_that("exposure_impute_lod works with lod_sqrt2", {
 })
 
 test_that("multiple imputation returns M datasets", {
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     set.seed(42)
     mat <- matrix(rlnorm(200), nrow = 40, ncol = 5,
         dimnames = list(paste0("S", 1:40),
@@ -47,9 +41,6 @@ test_that("multiple imputation returns M datasets", {
 })
 
 test_that("ROS imputation gives values below LOD", {
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     set.seed(42)
     mat <- matrix(rlnorm(200), nrow = 40, ncol = 5,
         dimnames = list(paste0("S", 1:40),
@@ -66,9 +57,6 @@ test_that("ROS imputation gives values below LOD", {
 })
 
 test_that("ROS uses Blom positions and lognormal fit", {
-    for (f in list.files("../../R", full.names = TRUE))
-        source(f, local = TRUE)
-
     set.seed(123)
     ## Generate lognormal data with known parameters
     n <- 100

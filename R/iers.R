@@ -16,11 +16,11 @@ NULL
 #' @param coupling A \code{data.frame} from
 #'   \code{run_cell_coupling}. Optional; if NULL, coupling
 #'   component is skipped.
-#' @param celltype Character. Cell type to compute IERS for.
-#' @param weights Numeric vector of length 3: weights for
-#'   sc-ExWAS effect, directness, and coupling rewiring.
-#'   Default \code{c(1, 1, 1)} (equal weights).
-#'   Set to \code{"adaptive"} for cross-validated weights.
+#' @param celltype Character. Cell type to compute IERS for; requires
+#'   a \code{celltype} column in \code{exwas}.
+#' @param weights Non-negative numeric vector of length 3 with a
+#'   positive sum: weights for sc-ExWAS effect, directness, and
+#'   coupling rewiring. Default \code{c(1, 1, 1)} (equal weights).
 #'
 #' @return A \code{data.frame} with columns: gene,
 #'   score_exwas, score_direct, score_coupling, IERS,
@@ -69,8 +69,17 @@ compute_iers <- function(exwas, erd = NULL, coupling = NULL,
         "association-statistic"
     )
 
+    if (!is.numeric(weights) || length(weights) != 3L ||
+            any(!is.finite(weights)) || any(weights < 0) ||
+            sum(weights) <= 0) {
+        stop("weights must be three non-negative numbers with a ",
+             "positive sum.")
+    }
+
     ## Filter to celltype if specified
-    if (!is.null(celltype) && "celltype" %in% colnames(exwas_df)) {
+    if (!is.null(celltype)) {
+        if (!"celltype" %in% colnames(exwas_df))
+            stop("celltype was supplied but exwas has no celltype column.")
         exwas_df <- exwas_df[exwas_df$celltype == celltype, ]
     }
 
@@ -121,14 +130,6 @@ compute_iers <- function(exwas, erd = NULL, coupling = NULL,
         s3_rank <- rank(max_rewiring) / length(max_rewiring)
     }
 
-    ## Adaptive weights via leave-one-out if requested
-    if (identical(weights, "adaptive")) {
-        ## Use equal weights for now (CV needs outcome)
-        weights <- c(1, 1, 1)
-        message("Adaptive weights: using equal (1,1,1). ",
-            "CV requires external validation set.")
-    }
-
     w <- weights / sum(weights)
 
     ## Compute IERS
@@ -136,14 +137,13 @@ compute_iers <- function(exwas, erd = NULL, coupling = NULL,
 
     out <- data.frame(
         gene = genes,
-        score_exwas = round(s1_rank, 4),
-        score_direct = round(s2_rank, 4),
-        score_coupling = round(s3_rank, 4),
-        IERS = round(iers, 4),
+        score_exwas = s1_rank,
+        score_direct = s2_rank,
+        score_coupling = s3_rank,
+        IERS = iers,
         stringsAsFactors = FALSE)
     out$IERS_rank <- rank(-out$IERS)
-    out$IERS_percentile <- round(
-        100 * rank(out$IERS) / nrow(out), 1)
+    out$IERS_percentile <- 100 * rank(out$IERS) / nrow(out)
     out <- out[order(out$IERS_rank), ]
     rownames(out) <- NULL
     out

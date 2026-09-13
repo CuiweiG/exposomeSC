@@ -32,7 +32,8 @@ run_sc_exwas(x, ...)
 \arguments{
 \item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
 
-\item{...}{Additional arguments.}
+\item{...}{Must be empty. Any further argument is an error, so that a
+misspelled argument name cannot silently change the analysis.}
 
 \item{exposure}{Character. Name of the exposure variable
 (column in \code{exposureData}).}
@@ -65,8 +66,11 @@ dreamlet backends retain genes detected in at least 20\% of donors.}
 empirical-Bayes dispersion shrinkage. \code{"DESeq2"} (and its retained
 alias \code{"pseudobulk"}) uses DESeq2 on aggregated counts.
 \code{"dreamlet"} uses variancePartition's
-voom-dream pipeline with precision weights and
-Satterthwaite degrees of freedom; it does not call the
+\code{voomWithDreamWeights()} and \code{dream()} with precision
+weights from the mean-variance trend. Pseudobulk data have one
+observation per donor and the model has no random effects, so
+\code{dream()} fits it with limma and the moderated t statistic uses
+the residual degrees of freedom; it does not call the
 \pkg{dreamlet} package.}
 
 \item{min_group_donors}{Integer. For a binary exposure, minimum complete

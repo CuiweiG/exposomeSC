@@ -35,7 +35,8 @@ gene expression.}
 \item{target_genes}{Character vector (optional). Genes to
 test. Default: top 30 most variable.}
 
-\item{covariates}{Character vector (optional).}
+\item{covariates}{Character vector (optional). Columns of
+\code{exposureData}; an unknown name is an error.}
 
 \item{n_sims}{Integer. Number of simulations for confidence
 intervals (Imai et al. method). Default 1000.}
@@ -52,15 +53,17 @@ A \code{DataFrame} with columns: gene,
   mediator_celltype, outcome_celltype, n_donors.
 }
 \description{
-Tests whether an exposure affects gene expression
-directly or indirectly through changes in cell type
-composition. This causal decomposition addresses a
-fundamental question in single-cell exposomics: does
-the exposure alter gene expression within existing cell
-types (direct effect), or does it shift cell type
-proportions (mediated/indirect effect)?
+Decomposes the association between an exposure and gene
+expression in one cell type into a part that runs through
+the proportion of another cell type and a remainder.
 }
 \details{
+This function is experimental and warns once per session. The
+decomposition has a causal interpretation only under
+sequential ignorability, which the data cannot verify, and
+cell-type proportions are compositional.
+
+
 The causal model is:
 \preformatted{
 Exposure -> Cell proportion (mediator) -> Gene expression

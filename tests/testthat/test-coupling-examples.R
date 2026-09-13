@@ -23,6 +23,12 @@ test_that("run_state_coupling returns one row per populated state bin", {
         n_bins = 3L, min_cells_per_bin = 10L, min_donors = 10L)
     expect_s3_class(res, "data.frame")
     expect_equal(nrow(res), 3L)
+    slope <- attr(res, "slope_heterogeneity")
+    expect_s3_class(slope, "data.frame")
+    expect_true(is.finite(slope$pvalue))
+    expect_error(run_state_coupling(scee, gene = "Gene1", protein = "Prot1",
+        exposure = "nope", celltype = "T", state_col = "pseudotime"),
+        "not in exposureData")
 })
 
 test_that("run_causal_mediation runs on a two-cell-type container", {

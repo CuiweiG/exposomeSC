@@ -8,13 +8,14 @@ NULL
 
 #' Mediation analysis: exposure through cell composition
 #'
-#' Tests whether an exposure affects gene expression
-#' directly or indirectly through changes in cell type
-#' composition. This causal decomposition addresses a
-#' fundamental question in single-cell exposomics: does
-#' the exposure alter gene expression within existing cell
-#' types (direct effect), or does it shift cell type
-#' proportions (mediated/indirect effect)?
+#' Decomposes the association between an exposure and gene
+#' expression in one cell type into a part that runs through
+#' the proportion of another cell type and a remainder.
+#'
+#' This function is experimental and warns once per session. The
+#' decomposition has a causal interpretation only under
+#' sequential ignorability, which the data cannot verify, and
+#' cell-type proportions are compositional.
 #'
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @param exposure Character. Exposure variable name.
@@ -26,7 +27,8 @@ NULL
 #'   gene expression.
 #' @param target_genes Character vector (optional). Genes to
 #'   test. Default: top 30 most variable.
-#' @param covariates Character vector (optional).
+#' @param covariates Character vector (optional). Columns of
+#'   \code{exposureData}; an unknown name is an error.
 #' @param n_sims Integer. Number of simulations for confidence
 #'   intervals (Imai et al. method). Default 1000.
 #' @param min_cells Integer. Default 10.
@@ -110,11 +112,21 @@ run_mediation <- function(x, exposure,
 
     if (!requireNamespace("mediation", quietly = TRUE))
         stop("Package 'mediation' required. ",
-             "install.packages('mediation')")
+             "BiocManager::install('mediation')")
+    .warn_experimental("run_mediation", paste0(
+        "run_mediation() is experimental: the decomposition is causal ",
+        "only under sequential ignorability, which the data cannot ",
+        "verify, and cell-type proportions are compositional. This ",
+        "warning is shown once per session."))
 
     exp_data <- slot(x, "exposureData")
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not found")
+    covariates <- as.character(covariates)
+    missing_cov <- setdiff(covariates, colnames(exp_data))
+    if (length(missing_cov))
+        stop("Covariates not found: ",
+             paste(missing_cov, collapse = ", "))
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -170,17 +182,17 @@ run_mediation <- function(x, exposure,
         exposure = exp_data[valid, exposure],
         mediator = prop_mediator[valid],
         stringsAsFactors = FALSE)
-    if (!is.null(covariates)) {
-        for (cov in covariates) {
-            if (cov %in% colnames(exp_data))
-                df[[cov]] <- exp_data[valid, cov]
-        }
+    for (cov in covariates) {
+        df[[cov]] <- exp_data[valid, cov]
     }
+    df <- df[stats::complete.cases(df), , drop = FALSE]
+    valid <- df$donor
+    if (length(valid) < 8L)
+        stop("Need >= 8 donors with complete data for mediation. Found: ",
+             length(valid))
 
-    cov_str <- if (!is.null(covariates) &&
-                   any(covariates %in% colnames(df))) {
-        paste("+", paste(intersect(covariates, colnames(df)),
-            collapse = " + "))
+    cov_str <- if (length(covariates)) {
+        paste("+", paste(covariates, collapse = " + "))
     } else ""
 
     results <- lapply(target_genes, function(gene) {
@@ -227,6 +239,10 @@ run_mediation <- function(x, exposure,
             stringsAsFactors = FALSE)
     })
 
+    n_failed <- sum(vapply(results, is.null, logical(1)))
+    if (n_failed > 0L)
+        warning("Mediation models could not be fitted for ", n_failed,
+                " of ", length(results), " genes.", call. = FALSE)
     out <- do.call(rbind, Filter(Negate(is.null), results))
     if (is.null(out) || nrow(out) == 0) {
         return(S4Vectors::DataFrame(

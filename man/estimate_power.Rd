@@ -11,6 +11,7 @@ estimate_power(
   n_celltypes = 5L,
   alpha = 0.05,
   dispersion = 0.1,
+  base_mean = 100,
   exposure_sd = 1
 )
 }
@@ -27,13 +28,15 @@ multiple testing correction). Default 5000.}
 \item{n_celltypes}{Integer. Number of cell types tested.
 Default 5.}
 
-\item{alpha}{Numeric. Significance level after BH
-correction. Default 0.05.}
+\item{alpha}{Numeric. Family-wise significance level; the per-test level
+is \code{alpha / (n_genes * n_celltypes)}. Default 0.05.}
 
-\item{dispersion}{Numeric. DESeq2-like dispersion
-parameter. Default 0.1 (typical for pseudobulk with
->= 20 cells per donor). Higher dispersion = more noise
-= less power.}
+\item{dispersion}{Numeric. Negative-binomial dispersion \eqn{\phi} of
+donor pseudobulk counts, whose variance is \eqn{\mu + \phi\mu^2}.
+Default 0.1.}
+
+\item{base_mean}{Numeric. Mean donor pseudobulk count \eqn{\mu} of the
+gene. Default 100; \code{Inf} gives the large-count limit.}
 
 \item{exposure_sd}{Numeric. Standard deviation of the
 exposure variable across donors. Default 1
@@ -41,31 +44,27 @@ exposure variable across donors. Default 1
 }
 \value{
 A \code{DataFrame} with columns: n_donors, power,
-  effect_size, n_tests, alpha_adjusted, dispersion.
+  effect_size, n_tests, alpha_adjusted, dispersion, base_mean.
 }
 \description{
-Estimates statistical power for detecting an exposure
-effect at the pseudobulk level, or computes the minimum
-number of donors needed to achieve a target power. This
-is essential for study design -- single-cell studies are
-expensive, and researchers need to know whether their
-planned sample size is adequate \emph{before} collecting
-data.
+Approximates the power to detect a donor-level exposure effect on one gene
+in one cell type at the pseudobulk level, for a range of donor numbers.
 }
 \details{
-Power is computed analytically using a normal
-approximation to the Wald test used by DESeq2. The
-effective per-test alpha is Bonferroni-adjusted for the
-total number of tests (\code{n_genes * n_celltypes}).
-This is conservative relative to BH, so the true power
-under BH will be somewhat higher.
+For a negative-binomial GLM with a log link, the large-sample standard
+error of the exposure coefficient on the \eqn{\log_2} scale is
+\deqn{SE = \frac{\sqrt{1/\mu + \phi}}{\log(2)\, s_x \sqrt{n}},}
+where \eqn{s_x} is \code{exposure_sd} and \eqn{n} the number of donors.
+Power is that of a two-sided Wald test at the Bonferroni per-test level.
+The approximation treats the dispersion as known and uses the normal
+distribution, so it is optimistic for small numbers of donors; simulate
+from the planned design when an accurate figure matters. Bonferroni is
+conservative relative to Benjamini-Hochberg control of the false
+discovery rate.
 
-The key insight: pseudobulk sc-ExWAS has the same
-statistical power as a bulk RNA-seq study with n=donors
--- the thousands of cells increase precision of per-donor
-estimates but do \emph{not} increase the effective sample
-size for donor-level inference. This function makes that
-reality explicit for study planners.
+Pseudobulk inference has donors, not cells, as its independent units.
+More cells per donor raise \eqn{\mu} and so shrink the \eqn{1/\mu} term,
+but they do not increase \eqn{n}.
 }
 \examples{
 pw <- estimate_power(n_donors = seq(10, 50, by = 10),
