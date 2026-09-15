@@ -16,7 +16,12 @@ compute_iers(
 \item{exwas}{A \code{DataFrame} from \code{run_sc_exwas}.}
 
 \item{erd}{Optional \code{data.frame} with columns \code{gene} and
-\code{pct_compositional}. If NULL, the ERD component is skipped.}
+\code{pct_compositional}, the percentage of the gene's exposure
+effect attributed to cell-type composition. No exposomeSC function
+produces this table: \code{run_decomposed_exwas()} has been removed
+and the developmental interventional decomposition reports a
+different quantity, so it has to be supplied by the caller. If NULL,
+the directness component is skipped.}
 
 \item{coupling}{A \code{data.frame} from
 \code{run_cell_coupling}. Optional; if NULL, coupling
@@ -35,9 +40,9 @@ A \code{data.frame} with columns: gene,
   IERS_rank, IERS_percentile.
 }
 \description{
-Combines sc-ExWAS, ERD, and cell coupling results into
-a single per-gene score that captures the multi-scale
-exposure response.
+Combines sc-ExWAS results with an optional exposure-response
+decomposition and optional cell coupling results into a single
+per-gene score that captures the multi-scale exposure response.
 }
 \details{
 The IERS for gene \eqn{g} is:
