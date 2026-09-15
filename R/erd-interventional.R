@@ -153,8 +153,8 @@ mediational_evalue_ci <- function(rr, lower, upper) {
 #' to a tissue-level mixture. Its estimator, resampling and identification have
 #' not been validated for that contextual estimand either, so its direct and
 #' indirect effects and E-values are not for abundance or confirmatory claims.
-#' It is kept, with its tests, while a replacement estimand is developed; call
-#' it as \code{exposomeSC:::run_erd_interventional()}.
+#' It is kept, with its tests, for development while a replacement estimand is
+#' worked out, and is not part of the package interface.
 #'
 #' @param scee A \linkS4class{SingleCellExposomeExperiment}.
 #' @param exposure Character; column of \code{exposureData(scee)} (donor-level).

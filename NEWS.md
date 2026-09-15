@@ -195,7 +195,7 @@ Initial Bioconductor submission.
   contextual pathway rather than an abundance contribution, and its estimator,
   resampling and identification have not been validated. A function in that
   state should not sit in the public interface. It stays in the package, with
-  its tests, as `exposomeSC:::run_erd_interventional()`.
+  its tests, for development.
 
 ## Dose-response and interaction
 
