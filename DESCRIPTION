@@ -70,7 +70,6 @@ biocViews: SingleCell, GeneExpression, DifferentialExpression,
 URL: https://github.com/CuiweiG/exposomeSC
 BugReports: https://github.com/CuiweiG/exposomeSC/issues
 Encoding: UTF-8
-LazyData: false
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Collate:
