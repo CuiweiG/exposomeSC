@@ -146,6 +146,13 @@ mediational_evalue_ci <- function(rr, lower, upper) {
 #' interventional indirect effect (cell-composition-driven), on the rate-ratio
 #' scale, by counterfactual g-computation with a compositional ILR mediator.
 #'
+#' This is a developmental function and is not exported. Its outcome is a
+#' within-cell-type rate, which cannot identify the contribution of cell-type
+#' abundance to a tissue mixture, so its direct and indirect effects and
+#' E-values must not be read causally or used for confirmatory claims. It is
+#' kept, and tested, so the estimand it was built around can be revisited; call
+#' it as \code{exposomeSC:::run_erd_interventional()}.
+#'
 #' @param scee A \linkS4class{SingleCellExposomeExperiment}.
 #' @param exposure Character; column of \code{exposureData(scee)} (donor-level).
 #' @param celltype Character; the target cell type whose expression is the
@@ -178,7 +185,7 @@ mediational_evalue_ci <- function(rr, lower, upper) {
 #'   95\% CIs, proportion mediated, per-effect mediational E-values (point and
 #'   CI-limit), the closed-form cross-check, finite-resampling p-values, and
 #'   optional within-call BH values.
-#' @export
+#' @keywords internal
 run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
                                     sample_col = "donor_id", covariates = NULL,
                                      target_genes = NULL, contrast = c(1, 0),

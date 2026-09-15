@@ -190,6 +190,11 @@ Initial Bioconductor submission.
   are removed. The coefficient contrast they were built on does not identify a
   direct, indirect or cell-abundance-mediated effect, and an expression log2
   fold change does not determine the risk ratio an E-value needs.
+* `run_erd_interventional()` is no longer exported. It shares the
+  within-cell-type rate outcome of the removed functions, so its direct and
+  indirect effects cannot be read causally, and a developmental function with
+  that limitation should not sit in the public interface. It stays in the
+  package, with its tests, as `exposomeSC:::run_erd_interventional()`.
 
 ## Dose-response and interaction
 

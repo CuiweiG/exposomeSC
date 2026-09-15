@@ -119,8 +119,9 @@ require `setwd()`.
 have been removed. The earlier ERD outcome was a within-cell-type expression
 rate and could not identify the mechanical contribution of cell-type abundance
 to a tissue mixture, so its direct/indirect labels and mediational E-values did
-not support causal or abundance claims. `run_erd_interventional()` is retained
-as a developmental interface and is not for confirmatory interpretation.
+not support causal or abundance claims. `run_erd_interventional()` is kept as
+an unexported developmental function and is not for confirmatory
+interpretation.
 
 Network comparison, network mediation, causal mediation, interventional ERD and IERS
 are experimental pending estimator, resampling, selection and
