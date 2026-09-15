@@ -146,11 +146,14 @@ mediational_evalue_ci <- function(rr, lower, upper) {
 #' interventional indirect effect (cell-composition-driven), on the rate-ratio
 #' scale, by counterfactual g-computation with a compositional ILR mediator.
 #'
-#' This is a developmental function and is not exported. Its outcome is a
-#' within-cell-type rate, which cannot identify the contribution of cell-type
-#' abundance to a tissue mixture, so its direct and indirect effects and
-#' E-values must not be read causally or used for confirmatory claims. It is
-#' kept, and tested, so the estimand it was built around can be revisited; call
+#' This is a developmental function and is not exported. Its outcome is the
+#' within-cell-type expression rate, so its indirect effect can reflect at most
+#' a contextual pathway, in which composition is associated with expression
+#' inside the target cell type, and not the contribution of cell-type abundance
+#' to a tissue-level mixture. Its estimator, resampling and identification have
+#' not been validated for that contextual estimand either, so its direct and
+#' indirect effects and E-values are not for abundance or confirmatory claims.
+#' It is kept, with its tests, while a replacement estimand is developed; call
 #' it as \code{exposomeSC:::run_erd_interventional()}.
 #'
 #' @param scee A \linkS4class{SingleCellExposomeExperiment}.
