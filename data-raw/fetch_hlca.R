@@ -18,10 +18,10 @@
 ##   smoking_ord  : never=0, former=1, active=2   (ordinal alternative)
 ## Covariates: age (years), sex (female=0/male=1), BMI (kept, may be NA).
 ##
-## STATUS: executed against the pinned local asset. Re-run after changes to the
-## S4 container or provenance fields, then regenerate the input manifest.
-## Windows: no fork; large matrix read on-disk via use_hdf5, realised to a
-##   sparse dgCMatrix only for the retained (non-missing-smoking) cells.
+## Re-run after a change to the S4 container or to the provenance fields, and
+## regenerate the input manifest with it.
+## The matrix is read into memory as a sparse dgCMatrix (see USE_HDF5 below,
+## which stays FALSE), and subset to the cells with a smoking status.
 
 ## ------------------------- configuration --------------------------------
 .script_file <- function() {
