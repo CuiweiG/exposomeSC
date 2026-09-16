@@ -19,15 +19,15 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Status
+# Scope
 
-This document specifies interpretation and execution contracts; it does not
-transcribe numerical benchmark results. A content-addressed full simulation
-bundle exists, but the estimand-aligned comparator gate remains open because
-the frozen library lacks several proposed packages and the negative-binomial
-random-intercept extension has not been executed. Earlier fixed performance,
-runtime, superiority and replication claims are withdrawn. Reportable values
-must be extracted from authenticated R objects rather than copied here.
+This vignette sets out the protocol for evaluating sc-ExWAS inference by
+simulation: which methods can be compared, how data must be generated, which
+metrics are reported and what a frozen benchmark release has to contain. It
+runs two small examples, a complete-null calibration check and a power
+approximation, so that the mechanics can be seen; it reports no benchmark
+result, and the package makes no quantitative calibration, power, speed or
+superiority claim until a frozen release does.
 
 # Match each method to its estimand
 
@@ -70,6 +70,69 @@ Pilot and smoke runs estimate engineering cost only. Every formal replicate
 must retain its seed, fit diagnostics, complete-family call summaries, code and
 input contracts, runtime and checksum. Resume logic re-authenticates completed
 files before reuse, and a failed fit cannot be recoded as no call.
+
+## A complete-null check in miniature
+
+The simulation below has the shape of a null replicate: donor-level
+biological variation in the counts, an exposure drawn independently of them,
+so that every null hypothesis is true, and the default pipeline run on the
+result. Five replicates of 20 donors, 60 genes and two cell types run in a
+few seconds; a formal run uses far more of each and keeps every replicate's
+seed and receipt.
+
+```{r null-simulation}
+library(exposomeSC)
+
+simulate_null <- function(seed, n_donors = 20L, n_genes = 60L,
+                          cells_per_donor = 30L,
+                          celltypes = c("Monocyte", "NK")) {
+    set.seed(seed)
+    donors <- sprintf("D%02d", seq_len(n_donors))
+    cell_donor <- rep(rep(donors, each = cells_per_donor),
+                      times = length(celltypes))
+    cell_type <- rep(celltypes, each = n_donors * cells_per_donor)
+    donor_effect <- matrix(stats::rnorm(n_genes * n_donors, sd = 0.3),
+                           n_genes, dimnames = list(NULL, donors))
+    mu <- 8 * exp(donor_effect[, cell_donor])
+    counts <- matrix(stats::rnbinom(length(mu), mu = mu, size = 10),
+        nrow = n_genes,
+        dimnames = list(paste0("G", seq_len(n_genes)),
+                        paste0("c", seq_along(cell_donor))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(cell_id = colnames(counts),
+            donor_id = cell_donor, cell_type = cell_type))
+    ## drawn independently of the counts: every null is true
+    design <- cbind(exposure = stats::rnorm(n_donors),
+                    age = round(stats::runif(n_donors, 30, 70)))
+    rownames(design) <- donors
+    build_scee(sce, design, sample_col = "donor_id")
+}
+
+null_replicate <- function(seed) {
+    fit <- run_sc_exwas(simulate_null(seed), exposure = "exposure",
+        covariates = "age", celltype_col = "cell_type",
+        sample_col = "donor_id", min_cells = 5L)
+    c(tests = nrow(fit),
+      calls = sum(fit$padj_global < 0.05, na.rm = TRUE),
+      raw_p_below_0.05 = mean(fit$pvalue < 0.05, na.rm = TRUE))
+}
+
+replicates <- t(vapply(1001:1005, null_replicate, numeric(3)))
+replicates
+```
+
+Under the complete null the family-wise any-call indicator is
+`any(calls > 0)` per replicate, and the fraction of raw p-values below 0.05
+should sit near 0.05:
+
+```{r null-summary}
+c(any_call_rate = mean(replicates[, "calls"] > 0),
+  mean_raw_p_below_0.05 = mean(replicates[, "raw_p_below_0.05"]))
+```
+
+Five replicates cannot bound a rejection rate; the protocol asks for
+independent replicates in the hundreds, with Wilson intervals over them.
 
 # Simulation data-generating mechanisms
 
@@ -115,6 +178,25 @@ rejection-rate intervals are calculated over independent simulation or
 bootstrap replicates. Failed fits remain failures; they are not recoded as no
 call.
 
+## A power approximation for planning
+
+`estimate_power()` gives the large-sample power of the pseudobulk Wald test
+for one gene in one cell type at the Bonferroni per-test level, from the
+donor count, the log2 effect per unit exposure, the negative-binomial
+dispersion and the mean pseudobulk count. It treats the dispersion as known
+and is optimistic for small donor numbers; it is a planning aid, and the
+simulation above is the check.
+
+```{r power}
+estimate_power(n_donors = c(20, 40, 80, 160), effect_size = 0.5,
+               n_genes = 5000, n_celltypes = 5,
+               dispersion = 0.1, base_mean = 100)
+```
+
+Donors, not cells, are the independent units: more cells per donor raise the
+mean count and shrink its term in the standard error, but they do not add to
+`n_donors`.
+
 # Comparator alignment
 
 The executed expression comparisons are donor-pseudobulk edgeR,
@@ -159,9 +241,10 @@ calibration, power, speed or superiority claim.
 
 # Developmental ERD assessment
 
-The legacy ERD APIs are excluded from confirmatory benchmarking. Their earlier
+The removed decomposition interfaces and the developmental
+`run_erd_interventional()` are excluded from confirmatory benchmarking. Their
 within-type-rate outcome did not identify the abundance contribution described
-by the old direct/indirect labels. The redesigned molecular-contribution
+by the former direct/indirect labels. The redesigned molecular-contribution
 estimand must first be implemented, then tested under pure abundance,
 within-type expression, combined, contextual, null and misspecified scenarios.
 No mediational E-value is reported without a derivation valid for that exact
