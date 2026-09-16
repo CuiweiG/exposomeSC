@@ -19,7 +19,18 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Scope
+# Installation
+
+```{r install, eval=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("exposomeSC")
+
+# Development version from GitHub:
+BiocManager::install("CuiweiG/exposomeSC")
+```
+
+# Introduction
 
 This vignette sets out the protocol for evaluating sc-ExWAS inference by
 simulation: which methods can be compared, how data must be generated, which
