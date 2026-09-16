@@ -75,7 +75,7 @@ run_multi_exwas <- function(x, exposures = NULL,
     }
 
     if (is.null(exposures)) {
-        exposures <- exposureNames(x)
+        exposures <- exposureVariables(x)
     }
     if (!is.character(exposures) || !length(exposures) ||
             anyNA(exposures) || any(!nzchar(exposures)) ||

@@ -58,7 +58,7 @@ scee <- build_scee(
     sample_col = "donor_id"
 )
 
-study_terms <- grep("^study_", exposureNames(scee), value = TRUE)
+study_terms <- grep("^study_", exposureVariables(scee), value = TRUE)
 fit <- run_sc_exwas(
     scee,
     exposure = "smoking_ever",

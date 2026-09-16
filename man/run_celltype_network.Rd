@@ -17,6 +17,7 @@ run_celltype_network(
   nlambda_w = 15L,
   nlambda_b = 15L,
   subsample_ratio = 0.8,
+  rep_num = 20L,
   min_cells = 10L,
   top_var_genes = NULL,
   lambda_w = 0.3,
@@ -37,7 +38,8 @@ the network for.}
 identifying cell types. Default \code{"cell_type"}.}
 
 \item{sample_col}{Character or NULL. Column for donor IDs.
-If NULL, inferred from \code{sampleMap}.}
+If NULL, taken from the object's cell-to-sample map
+(see \code{\link{cellSampleMap}}).}
 
 \item{exposure}{Character or NULL; exposure variable to
 condition on (regressed out). Default NULL.}
@@ -50,8 +52,12 @@ covariates. Default NULL.}
 collaborative graphical lasso with block-calibrated
 penalties (Albanese et al. 2024).}
 
-\item{stability}{Logical; use stability selection via
-XStARS for robust edge selection. Default TRUE.}
+\item{stability}{Logical; for \code{method = "coglasso"}, whether
+to return the edge-level selection frequencies from XStARS in
+\code{stability_scores}. The coglasso penalties are chosen by
+XStARS either way. \code{block_glasso} uses the fixed penalties
+\code{lambda_w} and \code{lambda_b}, performs no stability
+selection and ignores this argument. Default TRUE.}
 
 \item{nlambda_w}{Integer; within-omic lambda grid size.
 Default 15.}
@@ -59,8 +65,13 @@ Default 15.}
 \item{nlambda_b}{Integer; between-omic lambda grid size.
 Default 15.}
 
-\item{subsample_ratio}{Numeric; proportion of samples for
-stability selection subsamples. Default 0.8.}
+\item{subsample_ratio}{Numeric strictly between 0 and 1;
+proportion of donors drawn in each XStARS subsample, passed to
+\code{coglasso::xstars()} as \code{stars_subsample_ratio}.
+Default 0.8.}
+
+\item{rep_num}{Integer, at least 2; number of XStARS subsamples.
+Default 20, as in \code{coglasso::xstars()}.}
 
 \item{min_cells}{Integer; minimum cells per pseudobulk
 sample. Default 10.}

@@ -21,10 +21,10 @@ NULL
 #'     dimnames = list(paste0("D", 1:4), c("PM2.5", "age")))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 #'
-#' exposureNames(scee)
+#' exposureVariables(scee)
 #' exposureData(scee)
 #' exposureInfo(scee)
-#' head(sampleMap(scee))
+#' head(cellSampleMap(scee))
 #'
 #' ## Replace the exposure matrix, here rescaling PM2.5
 #' exp_new <- exposureData(scee)
@@ -47,16 +47,16 @@ setGeneric("exposureInfo", function(x)
 #' @return A \code{DataFrame}.
 #' @export
 #' @rdname SCEE-accessors
-setGeneric("sampleMap", function(x)
-    standardGeneric("sampleMap"))
+setGeneric("cellSampleMap", function(x)
+    standardGeneric("cellSampleMap"))
 
 #' Get exposure variable names
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @return Character vector.
 #' @export
 #' @rdname SCEE-accessors
-setGeneric("exposureNames", function(x)
-    standardGeneric("exposureNames"))
+setGeneric("exposureVariables", function(x)
+    standardGeneric("exposureVariables"))
 
 #' Replace exposure data matrix
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.

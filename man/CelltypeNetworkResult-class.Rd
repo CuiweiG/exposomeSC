@@ -28,8 +28,10 @@ precision (inverse covariance) matrix.}
 \item{\code{adjacency_matrix}}{Numeric matrix. Binary edge indicators
 (1 = edge present, 0 = absent).}
 
-\item{\code{stability_scores}}{Numeric matrix. Edge-level stability
-selection probabilities (0-1). Empty if stability=FALSE.}
+\item{\code{stability_scores}}{Numeric matrix. Edge-level selection
+frequencies (0-1) across the XStARS subsamples at the selected
+penalties, for coglasso networks built with \code{stability = TRUE}.
+Empty otherwise.}
 
 \item{\code{node_info}}{\code{DataFrame}. Maps each node (row/col
 index) to its omic layer ("transcript" or "metabolite"),

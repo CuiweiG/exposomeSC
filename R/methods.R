@@ -17,12 +17,12 @@ setMethod("exposureInfo", "SingleCellExposomeExperiment",
 
 #' @rdname SCEE-accessors
 #' @export
-setMethod("sampleMap", "SingleCellExposomeExperiment",
+setMethod("cellSampleMap", "SingleCellExposomeExperiment",
     function(x) slot(x, "sampleMap"))
 
 #' @rdname SCEE-accessors
 #' @export
-setMethod("exposureNames", "SingleCellExposomeExperiment",
+setMethod("exposureVariables", "SingleCellExposomeExperiment",
     function(x) colnames(slot(x, "exposureData")))
 
 #' @rdname SCEE-accessors

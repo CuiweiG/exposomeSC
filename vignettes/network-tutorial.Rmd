@@ -6,7 +6,7 @@ output:
   rmarkdown::html_vignette:
     toc: true
 vignette: >
-  %\VignetteIndexEntry{Exploratory cross-omic network inference}
+  %\VignetteIndexEntry{Exploratory cross-omic network inference with exposomeSC}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,7 +16,9 @@ knitr::opts_chunk$set(
     collapse = TRUE,
     comment = "#>",
     warning = FALSE,
-    message = FALSE
+    message = FALSE,
+    fig.width = 7,
+    fig.height = 4.5
 )
 ```
 
@@ -49,28 +51,75 @@ single-cell counts are aggregated within donor and cell type before network
 estimation; donor-level metabolite rows are then aligned by identifier. Do not
 match rows by position.
 
-```{r build-network, eval=FALSE}
-library(exposomeSC)
+The examples below use a small simulated data set so that the vignette runs in
+seconds: 24 donors, monocytes and B cells, 12 genes and 4 donor-level
+metabolites. In monocytes four genes move with the exposure, and one metabolite
+tracks it.
 
-# `scee` is a validated SingleCellExposomeExperiment.
-# `metabolites` has donors in rows and metabolites in columns.
+```{r example-data}
+has_coglasso <- requireNamespace("coglasso", quietly = TRUE)
+has_plot_packages <- all(vapply(c("ggplot2", "igraph", "ggraph", "tidygraph"),
+    requireNamespace, logical(1), quietly = TRUE))
+
+set.seed(2026)
+donors <- sprintf("D%02d", 1:24)
+celltypes <- c("Monocyte", "B cell")
+cell_donor <- rep(rep(donors, each = 20), times = length(celltypes))
+cell_type <- rep(celltypes, each = length(donors) * 20)
+pm25 <- stats::setNames(stats::rnorm(length(donors)), donors)
+
+counts <- matrix(stats::rpois(12 * length(cell_donor), 15), nrow = 12,
+    dimnames = list(paste0("G", 1:12), paste0("c", seq_along(cell_donor))))
+in_mono <- cell_type == "Monocyte"
+for (gene in 1:4) {
+    effect <- c(0.6, 0.6, -0.6, -0.6)[gene]
+    counts[gene, in_mono] <- stats::rpois(sum(in_mono),
+        15 * exp(effect * pm25[cell_donor[in_mono]]))
+}
+sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = counts),
+    colData = S4Vectors::DataFrame(cell_id = colnames(counts),
+        donor_id = cell_donor, cell_type = cell_type))
+
+donor_data <- cbind(PM2.5 = pm25,
+    age = round(stats::runif(length(donors), 30, 70)),
+    sex = rep(0:1, length.out = length(donors)))
+rownames(donor_data) <- donors
+scee <- build_scee(sce, donor_data, sample_col = "donor_id")
+
+metabolites <- matrix(stats::rnorm(length(donors) * 4), ncol = 4,
+    dimnames = list(donors, paste0("M", 1:4)))
+metabolites[, "M1"] <- metabolites[, "M1"] + 1.2 * pm25
+```
+
+```{r build-network, eval=has_coglasso}
 mono_net <- run_celltype_network(
     scee,
     metabolites = metabolites,
     celltype = "Monocyte",
-    celltype_col = "ann_level_3",
-    exposure = "smoking_ever",
+    sample_col = "donor_id",
     covariates = c("age", "sex"),
     method = "coglasso",
     stability = TRUE,
-    top_var_genes = 100L
+    nlambda_w = 3L,
+    nlambda_b = 3L,
+    rep_num = 5L
 )
 ```
 
-This abbreviated call does not reproduce the HLCA primary model. In a
-multistudy application, study and other prespecified design terms must be
-included consistently, and the feature-selection rule must be recorded before
-network fitting.
+The exposure is deliberately left out of this model. The four exposure genes
+and M1 share its signal, so the network is expected to connect them; any other
+edge is a false positive, which 24 donors can produce even under stability
+selection. Adding `exposure = "PM2.5"` regresses the exposure out of both
+matrices before estimation, and that module is no longer expected: the network
+then describes dependence the exposure does not explain. Which of the two is
+the scientific question has to be settled before fitting.
+
+The tuning grid and the number of XStARS subsamples are deliberately small
+here; the defaults are a 15 by 15 grid and 20 subsamples. These calls do not
+reproduce the HLCA primary model. In a multistudy application, study and other
+prespecified design terms must be included consistently, and the
+feature-selection rule must be recorded before network fitting.
 
 # Collaborative graphical lasso
 
@@ -80,7 +129,7 @@ stability. The complete tuning grid, resample identifiers, edge-selection
 frequencies and final penalty must be retained; a network plot alone is not an
 adequate result record.
 
-```{r inspect-network, eval=FALSE}
+```{r inspect-network, eval=has_coglasso && has_plot_packages}
 mono_net
 plot_stability_surface(mono_net)
 plot_celltype_network(
@@ -98,12 +147,26 @@ adequate donor support in every network. Apparent differences can result from
 unequal measurement error or selection stability rather than a true change in
 conditional association.
 
-```{r compare-networks, eval=FALSE}
+```{r compare-networks, eval=has_coglasso && has_plot_packages}
+bcell_net <- run_celltype_network(
+    scee,
+    metabolites = metabolites,
+    celltype = "B cell",
+    sample_col = "donor_id",
+    covariates = c("age", "sex"),
+    method = "coglasso",
+    stability = TRUE,
+    nlambda_w = 3L,
+    nlambda_b = 3L,
+    rep_num = 5L
+)
+
 comparison <- run_comparative_network(
     mono_net,
     bcell_net,
     method = "descriptive"
 )
+comparison
 
 plot_network_comparison(comparison)
 ```
@@ -121,15 +184,19 @@ estimation. This is a two-stage exploratory procedure. Selecting and estimating
 on the same donors can exaggerate stability and effect size; nested resampling,
 sample splitting or independent validation is required for confirmatory use.
 
-```{r exposure-network, eval=FALSE}
-smoking_net <- run_exposure_network(
+```{r exposure-network}
+exposure_net <- run_exposure_network(
     scee,
     metabolites,
     celltype = "Monocyte",
-    exposure = "smoking_ever",
+    exposure = "PM2.5",
+    sample_col = "donor_id",
+    covariates = c("age", "sex"),
     selection_method = "univariate",
-    fdr_threshold = 0.05
+    fdr_threshold = 0.05,
+    network_method = "block_glasso"
 )
+exposure_net
 ```
 
 # Longitudinal networks
@@ -139,19 +206,30 @@ Repeated measurements must remain linked to their donor, and an apparent
 emerging or disappearing edge is descriptive unless its uncertainty has been
 assessed under an appropriate longitudinal resampling scheme.
 
-```{r temporal-network, eval=FALSE}
+```{r temporal-network, eval=has_plot_packages}
+metabolites_follow_up <- metabolites
+metabolites_follow_up[, "M2"] <- metabolites_follow_up[, "M2"] + 1.5 * pm25
+
 temporal <- run_temporal_network(
-    scee_list = list(baseline = scee_baseline, follow_up = scee_follow_up),
+    scee_list = list(baseline = scee, follow_up = scee),
     metabolites_list = list(
-        baseline = metabolites_baseline,
+        baseline = metabolites,
         follow_up = metabolites_follow_up
     ),
     celltype = "Monocyte",
-    method = "coglasso"
+    sample_col = "donor_id",
+    covariates = c("age", "sex"),
+    method = "block_glasso",
+    stability = FALSE
 )
+temporal
 
 plot_temporal_dynamics(temporal)
 ```
+
+The follow-up here reuses the baseline cells with one changed metabolite, so
+the example shows the mechanics of edge tracking rather than a longitudinal
+design.
 
 # Mediation terminology
 

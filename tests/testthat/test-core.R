@@ -32,15 +32,15 @@ test_that("build_scee constructs valid SCEE", {
     expect_s4_class(scee, "SingleCellExperiment")
     expect_equal(ncol(exposureData(scee)), 3L)
     expect_equal(nrow(exposureData(scee)), 5L)
-    expect_equal(nrow(sampleMap(scee)), 100L)
+    expect_equal(nrow(cellSampleMap(scee)), 100L)
     expect_true(validObject(scee))
 })
 
 test_that("accessors work", {
     scee <- .make_test_scee()
-    expect_equal(exposureNames(scee), c("PM2.5", "Pb", "BPA"))
+    expect_equal(exposureVariables(scee), c("PM2.5", "Pb", "BPA"))
     expect_s4_class(exposureInfo(scee), "DataFrame")
-    expect_s4_class(sampleMap(scee), "DataFrame")
+    expect_s4_class(cellSampleMap(scee), "DataFrame")
 })
 
 test_that("show method works", {

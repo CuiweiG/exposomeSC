@@ -4,6 +4,40 @@ Initial Bioconductor submission.
 
 ## Corrections from technical review
 
+* `run_celltype_network(method = "coglasso")` selected its penalties twice.
+  It built the path with `coglasso::bs()`, which already runs its own
+  selection, then ran XStARS again on the result and discarded the first
+  selection. It now builds the path with
+  `coglasso::coglasso()` and selects once. `run_exposure_network()` had the
+  same pattern and is fixed the same way.
+* `subsample_ratio` never reached XStARS: it was converted into a repetition
+  count, `ceiling(1 / (1 - subsample_ratio))`, so the default 0.8 meant five
+  subsamples of coglasso's default size. It is now passed as
+  `stars_subsample_ratio`, and the number of subsamples is the new argument
+  `rep_num` (default 20, as in coglasso).
+* `stability_scores` held XStARS's single variability figure for the whole
+  selected model, as a one-by-one matrix, where the class documents
+  edge-level selection probabilities. It now holds the edge-level selection
+  frequencies at the selected penalties; the variability figure, the selected
+  penalties and the subsampling settings are kept in `metadata$selection`.
+  `plot_stability_surface()` had been drawing an empty plot for every
+  coglasso network as a result. The documentation of `stability` now says
+  what it does: it controls whether those frequencies are returned, not
+  whether XStARS runs, and `block_glasso` ignores it.
+* `plot_celltype_network()` drew edges that could not be seen, with the
+  absolute partial precision, typically a few hundredths, used directly as
+  opacity. It labelled the edge-type legend by position, so a network with
+  only cross-omic edges was labelled "Within-omic"; and it described any
+  network without stored edge counts as having no cross-omic edges. Opacity
+  is now scaled to a visible range, labels are matched by name, and the
+  subtitle counts the edges drawn.
+* The accessors `sampleMap()` and `exposureNames()` are renamed
+  `cellSampleMap()` and `exposureVariables()`. Both names were already
+  exported as S4 generics by current Bioconductor packages,
+  MultiAssayExperiment and rexposome, so whichever package was attached
+  last masked the other and the masked generic failed on the other's
+  objects. `as_scee()` bridges from rexposome, so its own workflow loads
+  both. The slot keeps its name, and objects built earlier remain valid.
 * `run_sc_exwas()` and `run_multi_exwas()` stop on arguments they do not use.
   A misspelled argument such as `covariats = "age"` previously ran an
   unadjusted analysis without any message.
@@ -172,7 +206,7 @@ Initial Bioconductor submission.
   exposure metadata, and cell-to-donor mapping.
 * `build_scee()` constructs integrated containers.
 * Accessors: `exposureData()`, `exposureInfo()`,
-  `sampleMap()`, `exposureNames()` with replacement methods.
+  `cellSampleMap()`, `exposureVariables()` with replacement methods.
 * `[` subsetting preserves exposure data.
 
 ## Cell-type-specific ExWAS

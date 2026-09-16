@@ -61,6 +61,40 @@ test_that("plot functions handle empty networks gracefully", {
     expect_s3_class(p, "gg")
 })
 
+test_that("plot_celltype_network draws visible, correctly labelled edges", {
+    skip_if_not_installed("ggplot2")
+    skip_if_not_installed("ggraph")
+    skip_if_not_installed("igraph")
+    skip_if_not_installed("tidygraph")
+
+    features <- c("G1", "G2", "M1")
+    precision <- diag(3)
+    ## partial precisions of the size real networks produce
+    precision[1, 3] <- precision[3, 1] <- -0.04
+    precision[2, 3] <- precision[3, 2] <- 0.03
+    adjacency <- (precision != 0) * 1L
+    diag(adjacency) <- 0L
+    dimnames(precision) <- dimnames(adjacency) <- list(features, features)
+    net <- new("CelltypeNetworkResult",
+        precision_matrix = precision,
+        adjacency_matrix = adjacency,
+        stability_scores = matrix(nrow = 0, ncol = 0),
+        node_info = S4Vectors::DataFrame(feature = features,
+            omic_layer = c("transcript", "transcript", "metabolite")),
+        celltype = "Test", method = "precomputed",
+        metadata = list(n_donors = 10L))
+
+    plot <- plot_celltype_network(net, layout = "circle")
+    built <- ggplot2::ggplot_build(plot)
+    edge_layer <- built$data[[1]]
+    expect_true(all(edge_layer$edge_alpha >= 0.35 - 1e-8))
+    ## both edges are cross-omic, so that is the only label shown
+    colour_scale <- built$plot$scales$get_scales("edge_colour")
+    expect_identical(as.character(colour_scale$get_labels()), "Cross-omic")
+    ## the subtitle counts the edges drawn, even without stored counts
+    expect_match(plot$labels$subtitle, "2 edges (2 cross-omic)", fixed = TRUE)
+})
+
 test_that("plot_stability_surface handles no stability", {
     skip_if_not_installed("ggplot2")
     library(S4Vectors)

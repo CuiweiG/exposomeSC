@@ -21,7 +21,8 @@ NULL
 #' @param celltype_col Character; column in \code{colData}
 #'   identifying cell types. Default \code{"cell_type"}.
 #' @param sample_col Character or NULL. Column for donor IDs.
-#'   If NULL, inferred from \code{sampleMap}.
+#'   If NULL, taken from the object's cell-to-sample map
+#'   (see \code{\link{cellSampleMap}}).
 #' @param exposure Character or NULL; exposure variable to
 #'   condition on (regressed out). Default NULL.
 #' @param covariates Character vector or NULL; adjustment
@@ -30,14 +31,22 @@ NULL
 #'   \code{"block_glasso"}. The coglasso method uses
 #'   collaborative graphical lasso with block-calibrated
 #'   penalties (Albanese et al. 2024).
-#' @param stability Logical; use stability selection via
-#'   XStARS for robust edge selection. Default TRUE.
+#' @param stability Logical; for \code{method = "coglasso"}, whether
+#'   to return the edge-level selection frequencies from XStARS in
+#'   \code{stability_scores}. The coglasso penalties are chosen by
+#'   XStARS either way. \code{block_glasso} uses the fixed penalties
+#'   \code{lambda_w} and \code{lambda_b}, performs no stability
+#'   selection and ignores this argument. Default TRUE.
 #' @param nlambda_w Integer; within-omic lambda grid size.
 #'   Default 15.
 #' @param nlambda_b Integer; between-omic lambda grid size.
 #'   Default 15.
-#' @param subsample_ratio Numeric; proportion of samples for
-#'   stability selection subsamples. Default 0.8.
+#' @param subsample_ratio Numeric strictly between 0 and 1;
+#'   proportion of donors drawn in each XStARS subsample, passed to
+#'   \code{coglasso::xstars()} as \code{stars_subsample_ratio}.
+#'   Default 0.8.
+#' @param rep_num Integer, at least 2; number of XStARS subsamples.
+#'   Default 20, as in \code{coglasso::xstars()}.
 #' @param min_cells Integer; minimum cells per pseudobulk
 #'   sample. Default 10.
 #' @param top_var_genes Integer or NULL; restrict to top N
@@ -142,6 +151,7 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
                                   nlambda_w = 15L,
                                   nlambda_b = 15L,
                                   subsample_ratio = 0.8,
+                                  rep_num = 20L,
                                   min_cells = 10L,
                                   top_var_genes = NULL,
                                   lambda_w = 0.3,
@@ -157,6 +167,16 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 
     method <- match.arg(method)
     stopifnot(is.matrix(metabolites))
+    if (method == "coglasso") {
+        if (!is.numeric(subsample_ratio) || length(subsample_ratio) != 1L ||
+            is.na(subsample_ratio) || subsample_ratio <= 0 ||
+            subsample_ratio >= 1)
+            stop("'subsample_ratio' must be a single number strictly ",
+                 "between 0 and 1.")
+        if (!is.numeric(rep_num) || length(rep_num) != 1L ||
+            is.na(rep_num) || rep_num < 2 || rep_num != round(rep_num))
+            stop("'rep_num' must be a single whole number of at least 2.")
+    }
 
     ## --- Assemble cross-omic data ---
     assembled <- .assemble_crossomic(
@@ -190,19 +210,24 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
             stop("Package 'coglasso' required for method='coglasso'. ",
                  "Install with: install.packages('coglasso')")
 
-        ## coglasso requires data matrix and block indicator
-        cg_result <- coglasso::bs(
+        ## Build the penalty path once. coglasso::bs() would also run its
+        ## own selection (xestars by default), which the XStARS step below
+        ## would then repeat and overwrite.
+        cg_path <- coglasso::coglasso(
             X,
             p = assembled$n_transcripts,
             nlambda_w = nlambda_w,
-            nlambda_b = nlambda_b
+            nlambda_b = nlambda_b,
+            verbose = FALSE
         )
 
-        ## Select best model via XStARS
+        ## Select the penalties by XStARS, with the subsampling requested
         cg_stars <- coglasso::xstars(
-            cg_result,
-            rep_num = ceiling(1 / (1 - subsample_ratio)),
-            stars_thresh = 0.1
+            cg_path,
+            stars_thresh = 0.1,
+            stars_subsample_ratio = subsample_ratio,
+            rep_num = as.integer(rep_num),
+            verbose = FALSE
         )
 
         ## Extract precision and adjacency
@@ -211,15 +236,23 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
         adjacency <- as.matrix(cg_stars$sel_adj)
         diag(adjacency) <- 0L
 
-        ## Stability scores (variability from XStARS)
-        stab_mat <- if (stability && !is.null(cg_stars$sel_variability)) {
-            tryCatch(
-                as.matrix(cg_stars$sel_variability),
-                error = function(e) matrix(nrow = 0, ncol = 0)
-            )
+        ## Edge-level selection frequencies across the XStARS subsamples
+        ## at the selected penalties (a symmetric feature-by-feature
+        ## matrix in [0, 1]). sel_variability is a single number describing
+        ## the whole selected model, so it goes to the metadata instead.
+        stab_mat <- if (stability && !is.null(cg_stars$merge)) {
+            as.matrix(cg_stars$merge)
         } else {
             matrix(nrow = 0, ncol = 0)
         }
+        selection <- list(
+            subsample_ratio   = subsample_ratio,
+            rep_num           = as.integer(rep_num),
+            selected_lambda_w = cg_stars$sel_lambda_w,
+            selected_lambda_b = cg_stars$sel_lambda_b,
+            selected_c        = cg_stars$sel_c,
+            stars_variability = cg_stars$sel_variability
+        )
 
     } else {
         ## block_glasso fallback
@@ -230,6 +263,7 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
         precision <- bg$wi
         adjacency <- bg$adj
         stab_mat <- matrix(nrow = 0, ncol = 0)
+        selection <- list(lambda_w = lambda_w, lambda_b = lambda_b)
     }
 
     ## Name dimensions
@@ -263,7 +297,8 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
             edge_counts    = edge_counts,
             donors         = assembled$donors,
             nlambda_w      = nlambda_w,
-            nlambda_b      = nlambda_b
+            nlambda_b      = nlambda_b,
+            selection      = selection
         )
     )
 }
@@ -505,13 +540,14 @@ run_exposure_network <- function(scee, metabolites, celltype,
         use_coglasso <- FALSE
     }
     if (use_coglasso) {
-        cg_result <- coglasso::bs(
+        cg_path <- coglasso::coglasso(
             sel_X,
             p = n_tx_sel,
             nlambda_w = 10L,
-            nlambda_b = 10L
+            nlambda_b = 10L,
+            verbose = FALSE
         )
-        cg_stars <- coglasso::xstars(cg_result)
+        cg_stars <- coglasso::xstars(cg_path, verbose = FALSE)
         precision <- as.matrix(cg_stars$sel_icov)
         adjacency <- as.matrix(cg_stars$sel_adj)
         diag(adjacency) <- 0L

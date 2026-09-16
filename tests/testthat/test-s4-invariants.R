@@ -32,14 +32,14 @@ test_that("sampleMap requires a complete ordered one-to-one cell mapping", {
     expect_error(methods::validObject(scee), "missing required column")
 
     scee <- .make_scee_invariant()
-    duplicate_map <- sampleMap(scee)
+    duplicate_map <- cellSampleMap(scee)
     duplicate_map$cell_id[[2]] <- duplicate_map$cell_id[[1]]
     methods::slot(scee, "sampleMap") <- duplicate_map
     expect_error(methods::validObject(scee), "must be unique")
 
     scee <- .make_scee_invariant()
-    reversed_map <- sampleMap(scee)[
-        rev(seq_len(nrow(sampleMap(scee)))),
+    reversed_map <- cellSampleMap(scee)[
+        rev(seq_len(nrow(cellSampleMap(scee)))),
         ,
         drop = FALSE
     ]
@@ -51,10 +51,10 @@ test_that("cell subsetting preserves sampleMap order and rejects duplicates", {
     scee <- .make_scee_invariant()
     selected <- c(8L, 2L, 7L, 1L)
     subset <- scee[, selected]
-    expect_identical(as.character(sampleMap(subset)$cell_id), colnames(subset))
+    expect_identical(as.character(cellSampleMap(subset)$cell_id), colnames(subset))
     expect_identical(
         rownames(exposureData(subset)),
-        unique(as.character(sampleMap(subset)$sample_id))
+        unique(as.character(cellSampleMap(subset)$sample_id))
     )
     expect_true(methods::validObject(subset))
 
@@ -65,7 +65,7 @@ test_that("cell subsetting preserves sampleMap order and rejects duplicates", {
 
     empty <- scee[, FALSE]
     expect_equal(ncol(empty), 0L)
-    expect_equal(nrow(sampleMap(empty)), 0L)
+    expect_equal(nrow(cellSampleMap(empty)), 0L)
     expect_equal(nrow(exposureData(empty)), 0L)
     expect_true(methods::validObject(empty))
 })

@@ -6,7 +6,7 @@ output:
   rmarkdown::html_vignette:
     toc: true
 vignette: >
-  %\VignetteIndexEntry{exposomeSC quick start}
+  %\VignetteIndexEntry{exposomeSC quick start: donor-pseudobulk smoking association}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -78,7 +78,7 @@ scee <- build_scee(
 )
 
 methods::validObject(scee)
-exposureNames(scee)
+exposureVariables(scee)
 ```
 
 For a multistudy atlas, construct the study indicators and nonlinear age terms

@@ -190,7 +190,10 @@ plot_celltype_network <- function(network,
             ggraph::scale_edge_color_manual(
                 values = c("FALSE" = "grey60",
                            "TRUE" = "#E74C3C"),
-                labels = c("Within-omic", "Cross-omic"),
+                ## named, so that a network with only one kind of edge
+                ## is not labelled with the other kind's name
+                labels = c("FALSE" = "Within-omic",
+                           "TRUE" = "Cross-omic"),
                 name = "Edge type")
     } else {
         p <- p + ggraph::geom_edge_link(
@@ -199,6 +202,10 @@ plot_celltype_network <- function(network,
             color = "grey50",
             show.legend = FALSE)
     }
+    ## Absolute partial precisions are typically a few hundredths; used
+    ## directly as opacity they draw edges that cannot be seen
+    p <- p + ggraph::scale_edge_alpha_continuous(range = c(0.35, 1),
+                                                 guide = "none")
 
     ## Node aesthetics
     fill_aes <- switch(color_by,
@@ -227,14 +234,13 @@ plot_celltype_network <- function(network,
             name = "Max edge\nstability")
     }
 
-    ## Theme
-    ec <- network@metadata$edge_counts
+    ## Theme. The counts come from the edges drawn, so that a network
+    ## without stored edge counts is not described as having no
+    ## cross-omic edges.
     subtitle <- sprintf(
         "%d edges (%d cross-omic) | %d donors",
-        if (!is.null(ec)) ec$total else sum(
-            network@adjacency_matrix[
-                upper.tri(network@adjacency_matrix)] != 0),
-        if (!is.null(ec)) ec$cross_omic else 0L,
+        nrow(edges),
+        sum(as.logical(edges$cross_omic)),
         if (!is.null(network@metadata$n_donors))
             network@metadata$n_donors else 0L)
 
@@ -425,8 +431,8 @@ plot_stability_surface <- function(network) {
 
     stab <- network@stability_scores
     if (nrow(stab) == 0) {
-        message("[exposomeSC] No stability scores available. ",
-                "Re-run with stability=TRUE.")
+        message("[exposomeSC] No stability scores available: they are ",
+                "produced only by method = \"coglasso\" with stability = TRUE.")
         return(ggplot2::ggplot() +
             ggplot2::theme_void() +
             ggplot2::ggtitle("No stability data available"))

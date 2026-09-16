@@ -25,7 +25,7 @@ test_that("subsetting by genes preserves exposure data", {
     expect_equal(nrow(sub), 10L)
     expect_equal(ncol(sub), 10L)
     expect_equal(nrow(exposureData(sub)), 2L)
-    expect_equal(nrow(sampleMap(sub)), 10L)
+    expect_equal(nrow(cellSampleMap(sub)), 10L)
 })
 
 test_that("subsetting by cells updates sampleMap", {
@@ -34,7 +34,7 @@ test_that("subsetting by cells updates sampleMap", {
     sub <- scee[, 1:5]
     expect_s4_class(sub, "SingleCellExposomeExperiment")
     expect_equal(ncol(sub), 5L)
-    expect_equal(nrow(sampleMap(sub)), 5L)
+    expect_equal(nrow(cellSampleMap(sub)), 5L)
     ## Only D1 should remain in exposureData
     expect_equal(nrow(exposureData(sub)), 1L)
     expect_equal(rownames(exposureData(sub)), "D1")

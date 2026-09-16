@@ -70,6 +70,50 @@ test_that("run_celltype_network works with block_glasso", {
     expect_output(show(net), "CelltypeNetworkResult")
 })
 
+test_that("coglasso networks return edge-level selection frequencies", {
+    skip_if_not_installed("coglasso")
+    skip_if_not_installed("SingleCellExperiment")
+
+    set.seed(7)
+    donor_ids <- paste0("D", seq_len(20))
+    donors <- rep(donor_ids, each = 20)
+    counts <- matrix(stats::rpois(20 * length(donors), 10), nrow = 20,
+        dimnames = list(paste0("G", seq_len(20)),
+                        paste0("c", seq_along(donors))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(
+            cell_id = colnames(counts), donor_id = donors,
+            cell_type = "Mono"))
+    scee <- build_scee(sce,
+        matrix(stats::rnorm(20), ncol = 1,
+               dimnames = list(donor_ids, "PM2.5")),
+        sample_col = "donor_id")
+    metab <- matrix(stats::rnorm(20 * 4), nrow = 20,
+        dimnames = list(donor_ids, paste0("M", seq_len(4))))
+    build <- function(...) run_celltype_network(scee, metab,
+        celltype = "Mono", sample_col = "donor_id", method = "coglasso",
+        nlambda_w = 3L, nlambda_b = 3L, top_var_genes = 6L, ...)
+
+    net <- build(rep_num = 4L, subsample_ratio = 0.7)
+    stab <- net@stability_scores
+    p <- nrow(net@precision_matrix)
+    ## one frequency per pair of features, not a single summary number
+    expect_equal(dim(stab), c(p, p))
+    expect_identical(dimnames(stab), dimnames(net@precision_matrix))
+    expect_true(isSymmetric(unname(stab)))
+    expect_true(all(stab >= 0 & stab <= 1))
+    ## each frequency is a count out of rep_num subsamples
+    expect_true(all(abs(stab * 4 - round(stab * 4)) < 1e-8))
+    expect_equal(net@metadata$selection$rep_num, 4L)
+    expect_equal(net@metadata$selection$subsample_ratio, 0.7)
+    expect_length(net@metadata$selection$stars_variability, 1L)
+
+    expect_equal(nrow(build(rep_num = 4L, stability = FALSE)@stability_scores), 0L)
+    expect_error(build(subsample_ratio = 1), "subsample_ratio")
+    expect_error(build(rep_num = 1), "rep_num")
+})
+
 test_that("CelltypeNetworkResult S4 class validation", {
     # Empty object
     net <- new("CelltypeNetworkResult")

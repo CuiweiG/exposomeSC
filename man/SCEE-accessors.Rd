@@ -3,14 +3,14 @@
 \name{exposureData}
 \alias{exposureData}
 \alias{exposureInfo}
-\alias{sampleMap}
-\alias{exposureNames}
+\alias{cellSampleMap}
+\alias{exposureVariables}
 \alias{exposureData<-}
 \alias{exposureInfo<-}
 \alias{exposureData,SingleCellExposomeExperiment-method}
 \alias{exposureInfo,SingleCellExposomeExperiment-method}
-\alias{sampleMap,SingleCellExposomeExperiment-method}
-\alias{exposureNames,SingleCellExposomeExperiment-method}
+\alias{cellSampleMap,SingleCellExposomeExperiment-method}
+\alias{exposureVariables,SingleCellExposomeExperiment-method}
 \alias{exposureData<-,SingleCellExposomeExperiment-method}
 \alias{exposureInfo<-,SingleCellExposomeExperiment-method}
 \title{Access exposure data matrix}
@@ -19,9 +19,9 @@ exposureData(x)
 
 exposureInfo(x)
 
-sampleMap(x)
+cellSampleMap(x)
 
-exposureNames(x)
+exposureVariables(x)
 
 exposureData(x) <- value
 
@@ -31,9 +31,9 @@ exposureInfo(x) <- value
 
 \S4method{exposureInfo}{SingleCellExposomeExperiment}(x)
 
-\S4method{sampleMap}{SingleCellExposomeExperiment}(x)
+\S4method{cellSampleMap}{SingleCellExposomeExperiment}(x)
 
-\S4method{exposureNames}{SingleCellExposomeExperiment}(x)
+\S4method{exposureVariables}{SingleCellExposomeExperiment}(x)
 
 \S4method{exposureData}{SingleCellExposomeExperiment}(x) <- value
 
@@ -78,10 +78,10 @@ exp_mat <- matrix(c(12, 25, 8, 30, 45, 32, 67, 51), nrow = 4,
     dimnames = list(paste0("D", 1:4), c("PM2.5", "age")))
 scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
-exposureNames(scee)
+exposureVariables(scee)
 exposureData(scee)
 exposureInfo(scee)
-head(sampleMap(scee))
+head(cellSampleMap(scee))
 
 ## Replace the exposure matrix, here rescaling PM2.5
 exp_new <- exposureData(scee)
