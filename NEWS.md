@@ -2,7 +2,7 @@
 
 Initial Bioconductor submission.
 
-## Corrections from technical review
+## Corrections made before submission
 
 * `run_celltype_network(method = "coglasso")` selected its penalties twice.
   It built the path with `coglasso::bs()`, which already runs its own

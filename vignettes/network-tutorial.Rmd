@@ -260,8 +260,8 @@ network model does not supply evidence for a composition-mediated pathway.
 Every reported network should retain input hashes, donor inclusion, feature
 definitions, preprocessing, covariate design, tuning grid, random seeds,
 resampling output, software versions and the exact object used for plotting.
-No HLCA network result is claimed here; numerical outputs remain pending a
-prespecified, frozen analysis.
+The examples above run on simulated data and report no result from a real
+cohort.
 
 # References
 

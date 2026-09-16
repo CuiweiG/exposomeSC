@@ -183,8 +183,8 @@ its own. We also require a stable feature definition, adequate support, an
 identifiable design, sensitivity to annotation and sampling choices,
 empirical-null calibration, and influence assessment.
 
-**Result values are pending frozen outputs.** This vignette contains no
-discovery count, effect estimate or biological conclusion.
+The object built above is synthetic, so the fit illustrates the interface and
+carries no biological conclusion.
 
 # Repeated samples and composition
 

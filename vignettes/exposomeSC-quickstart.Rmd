@@ -146,8 +146,8 @@ The reporting adjustment is recomputed across each complete prespecified
 gene-by-cell-type family, so do not infer that family from this abbreviated
 example.
 
-**Numerical results are pending frozen outputs.** No discovery count,
-calibration statistic or biological conclusion is embedded in this vignette.
+The counts above are small and synthetic, so the table shows the shape of the
+result and carries no biological conclusion.
 
 # Sensitivity analyses
 
