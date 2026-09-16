@@ -83,3 +83,15 @@ expression into an interventional direct effect (within-composition) and an
 interventional indirect effect (cell-composition-driven), on the rate-ratio
 scale, by counterfactual g-computation with a compositional ILR mediator.
 }
+\details{
+This is a developmental function and is not exported. Its outcome is the
+within-cell-type expression rate, so its indirect effect can reflect at most
+a contextual pathway, in which composition is associated with expression
+inside the target cell type, and not the contribution of cell-type abundance
+to a tissue-level mixture. Its estimator, resampling and identification have
+not been validated for that contextual estimand either, so its direct and
+indirect effects and E-values are not for abundance or confirmatory claims.
+It is kept, with its tests, for development while a replacement estimand is
+worked out, and is not part of the package interface.
+}
+\keyword{internal}

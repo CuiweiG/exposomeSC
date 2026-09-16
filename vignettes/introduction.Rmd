@@ -190,8 +190,8 @@ interpretation is made.
 
 # Developmental decomposition interfaces
 
-`run_decomposed_exwas()` has been removed. `run_erd_interventional()` is
-retained as a developmental interface and is not for confirmatory
+`run_decomposed_exwas()` has been removed. `run_erd_interventional()` is kept
+as an unexported developmental function and is not for confirmatory
 interpretation. The earlier within-type-rate outcome cannot identify the
 mechanical contribution of cell-type abundance to a tissue mixture, so former
 direct/indirect labels and ERD E-values must not be used for causal or abundance

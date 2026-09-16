@@ -190,6 +190,12 @@ Initial Bioconductor submission.
   are removed. The coefficient contrast they were built on does not identify a
   direct, indirect or cell-abundance-mediated effect, and an expression log2
   fold change does not determine the risk ratio an E-value needs.
+* `run_erd_interventional()` is no longer exported. Its outcome is the
+  within-cell-type expression rate, so its indirect effect is at most a
+  contextual pathway rather than an abundance contribution, and its estimator,
+  resampling and identification have not been validated. A function in that
+  state should not sit in the public interface. It stays in the package, with
+  its tests, for development.
 
 ## Dose-response and interaction
 

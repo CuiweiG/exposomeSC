@@ -156,10 +156,11 @@ quality control and annotation.
 
 # Legacy decomposition interfaces
 
-`run_decomposed_exwas()` has been removed, and `run_erd_interventional()` is a
-developmental interface that is not for confirmatory interpretation. The former
-direct/indirect labels and E-values do not establish a causal pathway or an
-abundance contribution. A replacement estimand is under development.
+`run_decomposed_exwas()` has been removed, and `run_erd_interventional()` is an
+unexported developmental function that is not for confirmatory interpretation.
+The former direct/indirect labels and E-values do not establish a causal
+pathway or an abundance contribution. A replacement estimand is under
+development.
 
 # Full reproducible analysis
 
