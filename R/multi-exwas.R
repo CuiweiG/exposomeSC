@@ -46,16 +46,12 @@ NULL
 #' exp_mat <- matrix(rnorm(15), nrow = 5,
 #'     dimnames = list(paste0("D", 1:5), c("E1", "E2", "E3")))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
-#' \donttest{
-#' if (requireNamespace("edgeR", quietly = TRUE)) {
-#'     multi <- run_multi_exwas(scee,
-#'         exposures = c("E1", "E2"),
-#'         celltype_col = "cell_type",
-#'         sample_col = "donor_id",
-#'         min_cells = 5L, min_donors = 3L)
-#'     head(multi)
-#' }
-#' }
+#' multi <- run_multi_exwas(scee,
+#'     exposures = c("E1", "E2"),
+#'     celltype_col = "cell_type",
+#'     sample_col = "donor_id",
+#'     min_cells = 5L, min_donors = 3L)
+#' head(multi)
 run_multi_exwas <- function(x, exposures = NULL,
                              celltype_col = "cell_type",
                              sample_col = "donor_id",

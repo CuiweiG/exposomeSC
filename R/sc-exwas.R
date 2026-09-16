@@ -133,14 +133,10 @@ NULL
 #' exp_mat <- matrix(rnorm(15), nrow = 5,
 #'     dimnames = list(paste0("D", 1:5), c("E1", "E2", "E3")))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
-#' \donttest{
-#' if (requireNamespace("edgeR", quietly = TRUE)) {
-#'     result <- run_sc_exwas(scee, exposure = "E1",
-#'         celltype_col = "cell_type", sample_col = "donor_id",
-#'         min_cells = 5L)
-#'     head(result)
-#' }
-#' }
+#' result <- run_sc_exwas(scee, exposure = "E1",
+#'     celltype_col = "cell_type", sample_col = "donor_id",
+#'     min_cells = 5L)
+#' head(result)
 setMethod("run_sc_exwas",
     "SingleCellExposomeExperiment",
     function(x, exposure, celltype_col, celltypes = NULL,
@@ -535,7 +531,8 @@ setMethod("run_sc_exwas",
         }
         if (length(group_counts) && any(group_counts < min_group_donors)) {
             warning(
-                "Skipping ", celltype, ": binary exposure group has fewer than ",
+                "Skipping ", celltype,
+                ": binary exposure group has fewer than ",
                 min_group_donors, " complete donors.",
                 call. = FALSE
             )
@@ -544,7 +541,8 @@ setMethod("run_sc_exwas",
 
         design_full <- stats::model.matrix(design_formula, data = design_data)
         protected <- match(c("(Intercept)", "exposure"), colnames(design_full))
-        if (anyNA(protected) || qr(design_full[, protected, drop = FALSE])$rank < 2L) {
+        if (anyNA(protected) ||
+                qr(design_full[, protected, drop = FALSE])$rank < 2L) {
             warning(
                 "Skipping ", celltype,
                 ": the exposure is not identifiable.",
@@ -671,7 +669,8 @@ setMethod("run_sc_exwas",
         ## glmQLFTest reports a quasi-likelihood F statistic, not a Wald
         ## statistic, and does not provide a coefficient standard error.
         ## Retain a signed square root only as a directional ranking statistic;
-        ## it must never be inverted to manufacture an SE or confidence interval.
+        ## it must never be inverted to manufacture an SE or confidence
+        ## interval.
         standard_error <- rep(NA_real_, nrow(result))
         result_data <- data.frame(
             gene = rownames(result),
@@ -685,8 +684,10 @@ setMethod("run_sc_exwas",
             logCPM = result$logCPM,
             exposure = exposure,
             n_donors = length(donors),
-            n_unexposed = if (length(group_counts)) unname(group_counts[[1]]) else NA_integer_,
-            n_exposed = if (length(group_counts)) unname(group_counts[[2]]) else NA_integer_,
+            n_unexposed = if (length(group_counts))
+                unname(group_counts[[1]]) else NA_integer_,
+            n_exposed = if (length(group_counts))
+                unname(group_counts[[2]]) else NA_integer_,
             min_cells = min(donor_cells),
             median_cells = stats::median(donor_cells),
             method = if (isTRUE(robust)) {

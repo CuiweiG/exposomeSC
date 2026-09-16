@@ -36,19 +36,12 @@
 NULL
 
 # ---- Parallel backend ---------------------------------------------------
-# PSOCK workers (SnowParam) behave the same on Windows, macOS and Linux.
-# Workers are capped at detectCores() - 4 and at most 48, to stay well within
-# R's limit on open connections, and at 2 when _R_CHECK_LIMIT_CORES_ is set.
-# Returns NULL (serial fallback) when BiocParallel is unavailable.
-.snow_param <- function(seed = 20260703L) {
-    if (!requireNamespace("BiocParallel", quietly = TRUE)) return(NULL)
-    cores <- parallel::detectCores()
-    if (is.na(cores)) cores <- 1L
-    nw <- min(cores - 4L, 48L)
-    if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) nw <- min(nw, 2L)
-    BiocParallel::SnowParam(workers = max(1L, nw), type = "SOCK",
-                            RNGseed = seed)
-}
+# Both entry points run serially unless the caller asks for otherwise: the
+# default BPPARAM is SerialParam(), so nothing here starts a worker process on
+# its own. Examples, vignettes and tests must use at most two cores, and a
+# default scaled to the host's core count would breach that on a large
+# machine. A caller who wants parallel gene fits passes an explicit param,
+# for example BiocParallel::SnowParam(workers = 2L).
 
 # bplapply when a BiocParallel param is supplied, else a serial lapply.
 .bpapply <- function(X, FUN, BPPARAM) {
@@ -113,9 +106,11 @@ NULL
 #'   \code{exposureData} (numeric), added as GLM main effects.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{scee}).
-#' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes;
-#'   defaults to a PSOCK \code{SnowParam}. Pass \code{NULL} on a
-#'   platform without \code{BiocParallel} to run serially.
+#' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes.
+#'   Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
+#'   started unless one is asked for; pass, for example,
+#'   \code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.
+#'   Pass \code{NULL} to fall back to a plain \code{lapply}.
 #'
 #' @return A \code{data.frame}, one row per gene x cell type:
 #'   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
@@ -176,7 +171,7 @@ NULL
 run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
                                     sample_col = "donor_id",
                                     covariates = NULL, target_genes = NULL,
-                                    BPPARAM = NULL) {
+                                    BPPARAM = BiocParallel::SerialParam()) {
     stopifnot(methods::is(scee, "SingleCellExposomeExperiment"))
     if (!requireNamespace("MASS", quietly = TRUE))
         stop("Package 'MASS' is required for the negative-binomial GLM")
@@ -193,7 +188,6 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
     samples <- as.character(cd[[sample_col]])
     cell_types <- as.character(cd[[celltype_col]])
     celltypes <- sort(unique(cell_types))
-    if (is.null(BPPARAM)) BPPARAM <- .snow_param()
 
     ## The donor offset absorbs library-size differences, so we keep the
     ## per-donor cell threshold permissive (1) rather than silently dropping
@@ -210,7 +204,7 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
             return(NULL)
         }
         pb_mat <- agg$pb_mat
-        logoff <- log(pmax(colSums(pb_mat), 1))          # log donor total counts
+        logoff <- log(pmax(colSums(pb_mat), 1))  # log donor total counts
         A <- as.numeric(exp_data[donors, exposure])
         X <- if (length(covariates))
             as.data.frame(exp_data[donors, covariates, drop = FALSE]) else NULL
@@ -218,7 +212,8 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
                  else intersect(target_genes, rownames(pb_mat))
         if (!length(genes)) return(NULL)
 
-        est <- .pb_fit_celltype(pb_mat, A, logoff, covariates, X, genes, BPPARAM)
+        est <- .pb_fit_celltype(pb_mat, A, logoff, covariates, X, genes,
+                                BPPARAM)
         data.frame(gene = genes, celltype = ct,
                    log2FC = est[, "log2FC"], se = est[, "se"],
                    statistic = est[, "statistic"], pvalue = est[, "pvalue"],
@@ -296,8 +291,10 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
 #'   donors).
 #' @param family \code{"gaussian"} (LMM on cell-level \eqn{\log_2} CP10k,
 #'   default) or \code{"nbinom"} (negative-binomial GLMM on cell counts).
-#' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes;
-#'   defaults to a PSOCK \code{SnowParam}.
+#' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes.
+#'   Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
+#'   started unless one is asked for; pass, for example,
+#'   \code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.
 #'
 #' @return A \code{data.frame}, one row per gene x cell type: \code{gene},
 #'   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic} (Satterthwaite
@@ -370,7 +367,7 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
                               covariates = NULL, target_genes = NULL,
                               ddf = c("Satterthwaite", "Kenward-Roger"),
                               family = c("gaussian", "nbinom"),
-                              BPPARAM = NULL) {
+                              BPPARAM = BiocParallel::SerialParam()) {
     stopifnot(methods::is(scee, "SingleCellExposomeExperiment"))
     ddf <- match.arg(ddf); family <- match.arg(family)
     if (!requireNamespace("lmerTest", quietly = TRUE))
@@ -397,7 +394,6 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
     genes <- if (is.null(target_genes)) rownames(scee)
              else intersect(target_genes, rownames(scee))
     if (!length(genes)) stop("No target genes present in scee")
-    if (is.null(BPPARAM)) BPPARAM <- .snow_param()
 
     ## shared cell-level design (donor, cell type, exposure, covariates) ----
     ct_f <- factor(cell_types)
@@ -436,7 +432,8 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
                 L["exposure"] <- 1
                 if (ct != lvls[1]) {
                     ix <- paste0("exposure:celltype", ct)
-                    if (!ix %in% nm) return(NULL)   # interaction aliased/dropped
+                    # interaction aliased/dropped
+                    if (!ix %in% nm) return(NULL)
                     L[ix] <- 1
                 }
                 tst <- tryCatch(
@@ -481,7 +478,8 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
                              error = function(e) NULL)
             if (is.null(full)) return(NULL)
             fe <- lme4::fixef(full)
-            V <- tryCatch(as.matrix(stats::vcov(full)), error = function(e) NULL)
+            V <- tryCatch(as.matrix(stats::vcov(full)),
+                          error = function(e) NULL)
             rows <- lapply(seq_along(lvls), function(k) {
                 cn <- expo_cols[k]
                 if (!cn %in% names(fe)) return(NULL)
@@ -499,11 +497,18 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
                     control = control),
                     error = function(e) NULL)
                 if (is.null(red)) {
-                    chi <- NA_real_; pv <- NA_real_
+                    chi <- NA_real_
+                    pv <- NA_real_
                 } else {
-                    an <- tryCatch(stats::anova(red, full), error = function(e) NULL)
-                    if (is.null(an)) { chi <- NA_real_; pv <- NA_real_ }
-                    else { chi <- an[["Chisq"]][2]; pv <- an[["Pr(>Chisq)"]][2] }
+                    an <- tryCatch(stats::anova(red, full),
+                                   error = function(e) NULL)
+                    if (is.null(an)) {
+                        chi <- NA_real_
+                        pv <- NA_real_
+                    } else {
+                        chi <- an[["Chisq"]][2]
+                        pv <- an[["Pr(>Chisq)"]][2]
+                    }
                 }
                 ## glmer.nb uses a natural-log link -> rescale to log2.
                 data.frame(gene = genes[gi], celltype = lvls[k],

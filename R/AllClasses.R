@@ -10,7 +10,7 @@ NULL
 #' SingleCellExposomeExperiment: Container for single-cell
 #' exposome data
 #'
-#' Extends \code{\link[SingleCellExperiment:SingleCellExperiment-class]{SingleCellExperiment}} with
+#' Extends \code{\link[SingleCellExperiment]{SingleCellExperiment}} with
 #' sample-level environmental exposure measurements and a
 #' sample-to-cell mapping. This enables cell-type-specific
 #' exposome-wide association studies (sc-ExWAS).
@@ -105,8 +105,9 @@ setValidity("SingleCellExposomeExperiment", function(object) {
                 as.character(ei$exposure),
                 colnames(ed)
             )) {
-            msg <- c(msg,
-                "exposureInfo$exposure must match colnames(exposureData) in order")
+            msg <- c(msg, paste0(
+                "exposureInfo$exposure must match ",
+                "colnames(exposureData) in order"))
         }
     }
 

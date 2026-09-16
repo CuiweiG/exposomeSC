@@ -94,13 +94,13 @@ NULL
 #' exp_mat <- matrix(rnorm(30), nrow = 10,
 #'     dimnames = list(paste0("D", 1:10), c("E1", "E2", "E3")))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
-#' \donttest{
-#' mix <- run_mixture_qgcomp(scee,
-#'     exposures = c("E1", "E2", "E3"),
-#'     celltype = "Mono", celltype_col = "cell_type",
-#'     sample_col = "donor_id", min_cells = 3L)
-#' mix$positive_weights
-#' mix$negative_weights
+#' if (requireNamespace("qgcomp", quietly = TRUE)) {
+#'     mix <- run_mixture_qgcomp(scee,
+#'         exposures = c("E1", "E2", "E3"),
+#'         celltype = "Mono", celltype_col = "cell_type",
+#'         sample_col = "donor_id", min_cells = 3L)
+#'     mix$positive_weights
+#'     mix$negative_weights
 #' }
 run_mixture_qgcomp <- function(x, exposures, celltype,
                                 celltype_col = "cell_type",

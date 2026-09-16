@@ -111,11 +111,12 @@ sce <- SingleCellExperiment(assays = list(counts = counts),
 exp_mat <- matrix(rnorm(20), nrow = 10,
     dimnames = list(paste0("D", 1:10), c("E1", "E2")))
 scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
-\donttest{
-dr <- run_dose_response_gam(scee, exposure = "E1",
-    celltype = "Mono", celltype_col = "cell_type",
-    sample_col = "donor_id", min_cells = 3L)
-head(dr)
+if (requireNamespace("mgcv", quietly = TRUE)) {
+    dr <- run_dose_response_gam(scee, exposure = "E1",
+        celltype = "Mono", celltype_col = "cell_type",
+        sample_col = "donor_id", min_cells = 3L,
+        target_genes = paste0("G", 1:3))
+    head(dr)
 }
 }
 \references{

@@ -117,7 +117,8 @@ simulate_crossomic_network <- function(
     met <- n_transcripts + seq_len(n_metabolites)
     ct_names <- paste0("CellType_", LETTERS[seq_len(n_celltypes)])
     donor_ids <- paste0("D", seq_len(n_donors))
-    feature_names <- c(paste0("gene_", tx), paste0("metab_", seq_len(n_metabolites)))
+    feature_names <- c(paste0("gene_", tx),
+                       paste0("metab_", seq_len(n_metabolites)))
 
     ## --- Generate exposure ---
     exposure <- setNames(rnorm(n_donors), donor_ids)
@@ -197,7 +198,8 @@ simulate_crossomic_network <- function(
         joint[tx, tx] <- theta[tx, tx]
         joint[tx, met] <- theta_tm
         joint[met, tx] <- t(theta_tm)
-        joint[met, met] <- met_precision + t(theta_tm) %*% theta_tt_inv %*% theta_tm
+        joint[met, met] <- met_precision +
+            t(theta_tm) %*% theta_tt_inv %*% theta_tm
         joint[abs(joint) < 1e-12] <- 0
         true_prec[[ct]] <- joint
         true_adj[[ct]] <- .precision_to_adjacency(joint)

@@ -28,7 +28,8 @@ exposures with single-cell resolution gene expression.
 
 \describe{
   \item{\code{\link{run_causal_mediation}}}{Model-based exploratory
-    mediation calculations requiring user-supplied identification assumptions}
+    mediation calculations requiring user-supplied identification
+    assumptions}
 }
 }
 

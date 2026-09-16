@@ -41,16 +41,18 @@ It is an adjusted observational contrast, not a causal effect.
 
 # Prepare a validated container
 
-`sce` must contain a raw integer `counts` assay and `colData` columns identifying
-donor and cell type. `donor_design` must be numeric, have one row per donor and
-use the same donor identifiers as its row names.
+`sce` must contain a raw integer `counts` assay and `colData` columns
+identifying donor and cell type. `donor_design` must be numeric, have one
+row per donor and use the same donor identifiers as its row names.
 
 ```{r build}
 library(exposomeSC)
 
-# A deterministic, deliberately small demonstration object. The full
-# analysis uses the pinned HLCA inputs described below, not these synthetic
-# counts.
+# A small simulated demonstration object. Cells within a donor share a
+# donor-level offset, which is the dependence donor pseudobulk exists to
+# handle; Gene1 is given a 2.5-fold increase in exposed AT2 cells. The full
+# analysis uses the pinned HLCA inputs described below, not these counts.
+set.seed(20260916L)
 donor_ids <- paste0("D", seq_len(12L))
 smoking_ever <- rep(c(0, 1), each = 6L)
 cell_donor <- rep(donor_ids, each = 24L)
@@ -60,16 +62,22 @@ cell_type <- rep(
 )
 gene_ids <- paste0("Gene", seq_len(12L))
 cell_ids <- paste0("cell", seq_along(cell_donor))
-counts <- outer(
-    seq_along(gene_ids),
-    seq_along(cell_ids),
-    function(gene, cell) 3L + ((11L * gene + 7L * cell) %% 8L)
+
+donor_offset <- matrix(
+    stats::rnorm(length(gene_ids) * length(donor_ids), sd = 0.35),
+    nrow = length(gene_ids),
+    dimnames = list(gene_ids, donor_ids)
 )
 exposed_at2 <- smoking_ever[match(cell_donor, donor_ids)] == 1 &
     cell_type == "AT2"
-counts[1L, exposed_at2] <- counts[1L, exposed_at2] + 4L
+cell_mean <- exp(log(25) + donor_offset[, cell_donor])
+cell_mean[1L, ] <- cell_mean[1L, ] * ifelse(exposed_at2, 2.5, 1)
+counts <- matrix(
+    stats::rnbinom(length(cell_mean), mu = as.vector(cell_mean), size = 8),
+    nrow = length(gene_ids),
+    dimnames = list(gene_ids, cell_ids)
+)
 storage.mode(counts) <- "integer"
-dimnames(counts) <- list(gene_ids, cell_ids)
 
 sce <- SingleCellExperiment::SingleCellExperiment(
     assays = list(counts = counts),
@@ -146,8 +154,10 @@ The reporting adjustment is recomputed across each complete prespecified
 gene-by-cell-type family, so do not infer that family from this abbreviated
 example.
 
-The counts above are small and synthetic, so the table shows the shape of the
-result and carries no biological conclusion.
+Gene1 in AT2 cells heads the table, which is the one effect the simulation
+plants. The counts are simulated and the cohort is a dozen donors, so this
+shows that the workflow recovers a planted effect and carries no biological
+conclusion.
 
 # Sensitivity analyses
 

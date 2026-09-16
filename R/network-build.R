@@ -56,13 +56,16 @@ NULL
 #'   block_glasso method. Default 0.3.
 #' @param lambda_b Numeric; between-block penalty for
 #'   block_glasso method. Default 0.5.
-#' @param precomputed_network Optional; a pre-estimated network
-#'   to wrap into a CelltypeNetworkResult without re-estimation.
-#'   Accepts: (1) a tempoNet \code{StableNetwork} object,
-#'   (2) a named list with \code{adjacency} (binary matrix),
+#' @param precomputed_network Optional named list holding a
+#'   pre-estimated network to wrap into a CelltypeNetworkResult
+#'   without re-estimation, with elements \code{adjacency} (binary
+#'   matrix, required), \code{precision} (numeric matrix, optional),
 #'   \code{stability} (numeric matrix, optional),
-#'   \code{precision} (numeric matrix, optional), and
-#'   \code{feature_names} (character vector).
+#'   \code{feature_names} (character vector, optional; taken from
+#'   the column names of \code{adjacency} when absent), and either
+#'   \code{block_sizes} (a named vector giving the size of each omic
+#'   block) or \code{feature_blocks} (a character vector labelling
+#'   each feature), both optional.
 #'   When provided, \code{metabolites}, \code{method},
 #'   \code{stability}, and lambda parameters are ignored.
 #'   The \code{scee} is still required for metadata extraction.
@@ -160,7 +163,7 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 
     stopifnot(is(scee, "SingleCellExposomeExperiment"))
 
-    ## --- Handle precomputed network (tempoNet / list) ---
+    ## --- Handle precomputed network (named list) ---
     if (!is.null(precomputed_network)) {
         return(.wrap_precomputed(precomputed_network, celltype))
     }
@@ -601,42 +604,27 @@ run_exposure_network <- function(scee, metabolites, celltype,
 
 #' @keywords internal
 .wrap_precomputed <- function(net, celltype) {
-    ## Accept tempoNet StableNetwork or plain list
-    if (is(net, "StableNetwork")) {
-        adj   <- as.matrix(net@adjacency)
-        prec  <- as.matrix(net@precision)
-        stab  <- as.matrix(net@stability_scores)
-        fnames <- colnames(adj)
-        if (is.null(fnames)) fnames <- paste0("F", seq_len(ncol(adj)))
-        ## Infer block structure if available
-        if (!is.null(net@block_sizes) && length(net@block_sizes) > 0) {
-            blk <- rep(names(net@block_sizes), net@block_sizes)
-        } else {
-            blk <- rep("unknown", length(fnames))
-        }
-    } else if (is.list(net)) {
-        if (is.null(net$adjacency))
-            stop("precomputed_network list must have '$adjacency'.",
-                 call. = FALSE)
-        adj  <- as.matrix(net$adjacency)
-        prec <- if (!is.null(net$precision))
-            as.matrix(net$precision) else matrix(NA_real_, nrow(adj), ncol(adj))
-        stab <- if (!is.null(net$stability))
-            as.matrix(net$stability) else matrix(nrow = 0, ncol = 0)
-        fnames <- if (!is.null(net$feature_names))
-            net$feature_names else colnames(adj)
-        if (is.null(fnames)) fnames <- paste0("F", seq_len(ncol(adj)))
-        ## Block info
-        if (!is.null(net$block_sizes)) {
-            blk <- rep(names(net$block_sizes), net$block_sizes)
-        } else if (!is.null(net$feature_blocks)) {
-            blk <- net$feature_blocks
-        } else {
-            blk <- rep("unknown", length(fnames))
-        }
+    if (!is.list(net))
+        stop("precomputed_network must be a list with $adjacency.",
+             call. = FALSE)
+    if (is.null(net$adjacency))
+        stop("precomputed_network list must have '$adjacency'.",
+             call. = FALSE)
+    adj  <- as.matrix(net$adjacency)
+    prec <- if (!is.null(net$precision))
+        as.matrix(net$precision) else matrix(NA_real_, nrow(adj), ncol(adj))
+    stab <- if (!is.null(net$stability))
+        as.matrix(net$stability) else matrix(nrow = 0, ncol = 0)
+    fnames <- if (!is.null(net$feature_names))
+        net$feature_names else colnames(adj)
+    if (is.null(fnames)) fnames <- paste0("F", seq_len(ncol(adj)))
+    ## Block info
+    if (!is.null(net$block_sizes)) {
+        blk <- rep(names(net$block_sizes), net$block_sizes)
+    } else if (!is.null(net$feature_blocks)) {
+        blk <- net$feature_blocks
     } else {
-        stop("precomputed_network must be a StableNetwork or a list ",
-             "with $adjacency.", call. = FALSE)
+        blk <- rep("unknown", length(fnames))
     }
 
     p <- length(fnames)
@@ -667,8 +655,7 @@ run_exposure_network <- function(scee, metabolites, celltype,
         metadata         = list(
             n_features = p,
             n_edges    = n_edges,
-            source     = if (is(net, "StableNetwork"))
-                "tempoNet" else "list"
+            source     = "list"
         )
     )
 }

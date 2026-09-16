@@ -86,7 +86,8 @@ setMethod("[", "SingleCellExposomeExperiment",
                 if (length(retained_donors) > 0) {
                     keep <- match(retained_donors, rownames(ed))
                     if (anyNA(keep)) {
-                        stop("Retained sample IDs are missing from exposureData.")
+                        stop("Retained sample IDs are missing from ",
+                             "exposureData.")
                     }
                     ed <- ed[keep, , drop = FALSE]
                 } else {

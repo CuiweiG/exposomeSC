@@ -56,7 +56,8 @@ utils::globalVariables(".data")
 #'     metadata = list(n_donors = 20L)
 #' )
 #' plot_packages <- c("igraph", "ggraph", "ggplot2", "tidygraph")
-#' if (all(vapply(plot_packages, requireNamespace, logical(1), quietly = TRUE))) {
+#' if (all(vapply(plot_packages, requireNamespace,
+#'         logical(1), quietly = TRUE))) {
 #'     network_plot <- plot_celltype_network(
 #'         network,
 #'         layout = "circle",

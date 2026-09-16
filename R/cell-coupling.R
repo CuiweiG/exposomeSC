@@ -253,9 +253,10 @@ run_cell_coupling <- function(scee,
     }
 
     n_pairs <- length(genes) * length(proteins)
-    message(sprintf(
-        "[exposomeSC] Cell coupling: %s, %d genes x %d proteins = %d pairs, %d confounders",
-        celltype, length(genes), length(proteins), n_pairs, n_conf))
+    fmt <- paste0("[exposomeSC] Cell coupling: %s, %d genes x %d proteins ",
+                  "= %d pairs, %d confounders")
+    message(sprintf(fmt, celltype, length(genes), length(proteins),
+                    n_pairs, n_conf))
 
     ## Build meta-regression formula
     meta_formula <- as.formula("~ donor_exp")

@@ -66,21 +66,20 @@ The principal calibration protocol is a fixed-design negative-binomial
 parametric bootstrap. The observed exposure and nuisance design, donor and
 sample support, offsets, expression-support family and feature-by-cell-type
 keys remain fixed; counts are generated under a reduced model with a zero
-exposure coefficient, after which the frozen edgeR pipeline is rerun. The
+exposure coefficient, after which the same edgeR pipeline is rerun. The
 result is a conditional plug-in diagnostic for that exact generator and family,
 not proof of strong FDR control under arbitrary mixtures of true and false null
 hypotheses.
 
-The earlier within-study smoking-label shuffle is retained only as an
-observational stress audit. Smoking was not randomised, and its conditional
-exchangeability is not established. It is therefore ineligible as the formal
-calibration, irrespective of how thoroughly its accepted permutations are
-audited.
+Permuting the exposure labels within a study is a stress audit, not a
+calibration. An observational exposure was not randomised and its conditional
+exchangeability cannot be assumed, so no amount of auditing of the accepted
+permutations makes the resulting rate a guarantee.
 
-Pilot and smoke runs estimate engineering cost only. Every formal replicate
-must retain its seed, fit diagnostics, complete-family call summaries, code and
-input contracts, runtime and checksum. Resume logic re-authenticates completed
-files before reuse, and a failed fit cannot be recoded as no call.
+A calibration run is worth keeping only if it can be repeated: each replicate
+should retain its seed, its fit diagnostics, the call summary over the whole
+family, the package and input versions it ran on, and its run time. A failed
+fit stays a failure and cannot be recoded as no call.
 
 ## A complete-null check in miniature
 
@@ -210,20 +209,33 @@ mean count and shrink its term in the standard error, but they do not add to
 
 # Comparator alignment
 
-The executed expression comparisons are donor-pseudobulk edgeR,
-sample-pseudobulk donor-blocked voom and a deliberately naive cell-level
-negative control. `muscat`, `dreamlet`, `variancePartition`, `MAST`, `DESeq2`,
-`glmmTMB` and `nebula` are absent from the frozen library and must not be named
-as executed. A sample-pseudobulk negative-binomial donor-random-intercept
-extension using installed `lme4` is a protocol until a fixed manifest, resource
-pilot and complete-family formal run pass. Method labels must describe the
-actual fitted model rather than a wrapper package. Composition methods are
-assessed only against composition truth.
+`run_sc_exwas()` offers four backends, and a comparison is only meaningful
+between backends that target the same estimand. `"edgeR"` is the default and
+fits a robust quasi-likelihood model to donor pseudobulk; it reports a signed
+square root of the F statistic and no coefficient standard error. `"DESeq2"`,
+with `"pseudobulk"` as its alias, gives a Wald test on the same donor
+pseudobulk. `"dreamlet"` applies variancePartition's
+`voomWithDreamWeights()` and `dream()` without a random effect, which is a
+moderated *t* test; it does not call the dreamlet package, so the label
+voom-dream describes it better.
 
-For a targeted model evaluation, `test_features` fixes the reported family while the
-full feature matrix remains available for library sizes, normalisation and
-dispersion estimation. A missing or unsupported requested feature is reported
-as not estimable; the family must not shrink silently.
+Two exported functions leave donor pseudobulk. `run_sc_exwas_glmm()` fits a
+cell-level mixed model with a donor random intercept, either a linear model
+with Satterthwaite or Kenward-Roger degrees of freedom, or a negative-binomial
+`lme4::glmer.nb` fit tested by likelihood ratio. `run_sc_exwas_pb_offset()`
+fits a donor-level count model with an offset. Both target a conditional
+cell-level mean, not the donor-aggregated contrast, so their coefficients are
+not interchangeable with the pseudobulk ones.
+
+A cell-level test that ignores the donor is a negative control, not a
+comparator. Method labels should describe the model that was fitted rather
+than the wrapper package it came from, and composition methods are assessed
+only against composition truth.
+
+For a targeted model evaluation, `test_features` fixes the reported family
+while the full feature matrix remains available for library sizes,
+normalisation and dispersion estimation. A missing or unsupported requested
+feature is reported as not estimable; the family must not shrink silently.
 
 # Multiplicity
 

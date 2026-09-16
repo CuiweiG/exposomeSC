@@ -298,10 +298,10 @@ run_network_mediation <- function(scee, metabolites, celltype,
     res_df$p_adjusted <- p.adjust(res_df$p_value,
                                    method = adjust)
 
-    message(sprintf(
-        "[exposomeSC] Network mediation: %d paths tested, %d significant (FDR<0.05)",
-        nrow(res_df),
-        sum(res_df$p_adjusted < 0.05, na.rm = TRUE)))
+    fmt <- paste0("[exposomeSC] Network mediation: %d paths tested, ",
+                  "%d significant (FDR<0.05)")
+    message(sprintf(fmt, nrow(res_df),
+                    sum(res_df$p_adjusted < 0.05, na.rm = TRUE)))
 
     S4Vectors::DataFrame(res_df)
 }

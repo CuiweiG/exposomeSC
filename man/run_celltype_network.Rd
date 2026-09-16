@@ -86,13 +86,16 @@ block_glasso method. Default 0.3.}
 \item{lambda_b}{Numeric; between-block penalty for
 block_glasso method. Default 0.5.}
 
-\item{precomputed_network}{Optional; a pre-estimated network
-to wrap into a CelltypeNetworkResult without re-estimation.
-Accepts: (1) a tempoNet \code{StableNetwork} object,
-(2) a named list with \code{adjacency} (binary matrix),
+\item{precomputed_network}{Optional named list holding a
+pre-estimated network to wrap into a CelltypeNetworkResult
+without re-estimation, with elements \code{adjacency} (binary
+matrix, required), \code{precision} (numeric matrix, optional),
 \code{stability} (numeric matrix, optional),
-\code{precision} (numeric matrix, optional), and
-\code{feature_names} (character vector).
+\code{feature_names} (character vector, optional; taken from
+the column names of \code{adjacency} when absent), and either
+\code{block_sizes} (a named vector giving the size of each omic
+block) or \code{feature_blocks} (a character vector labelling
+each feature), both optional.
 When provided, \code{metabolites}, \code{method},
 \code{stability}, and lambda parameters are ignored.
 The \code{scee} is still required for metadata extraction.}

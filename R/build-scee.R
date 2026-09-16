@@ -12,7 +12,7 @@ NULL
 #' Combines a \code{SingleCellExperiment} with sample-level
 #' exposure measurements into a unified container for sc-ExWAS.
 #'
-#' @param sce A \code{\link[SingleCellExperiment:SingleCellExperiment-class]{SingleCellExperiment}}.
+#' @param sce A \code{\link[SingleCellExperiment]{SingleCellExperiment}}.
 #' @param exposure_matrix Numeric matrix. Rows = samples,
 #'   columns = exposure variables, with unique row and column names.
 #'   The row names must be exactly the sample IDs in

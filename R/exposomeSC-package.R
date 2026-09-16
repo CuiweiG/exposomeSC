@@ -19,7 +19,8 @@
 #' @section Experimental and legacy association utilities:
 #' \describe{
 #'   \item{\code{\link{run_causal_mediation}}}{Model-based exploratory
-#'     mediation calculations requiring user-supplied identification assumptions}
+#'     mediation calculations requiring user-supplied identification
+#'     assumptions}
 #' }
 #'
 #' @section Dose-response and mixtures:

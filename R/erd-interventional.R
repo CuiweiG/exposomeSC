@@ -202,7 +202,8 @@ run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
                                      seed = 20260703L,
                                      BPPARAM = NULL) {
     for (p in c("MASS", "SummarizedExperiment", "SingleCellExperiment")) {
-        if (!requireNamespace(p, quietly = TRUE)) stop("Package ", p, " required")
+        if (!requireNamespace(p, quietly = TRUE))
+            stop("Package ", p, " required")
     }
     adjust <- match.arg(adjust)
     if (!is.numeric(contrast) || length(contrast) != 2L ||
@@ -317,12 +318,14 @@ run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
     # one-off closure that computes all-gene effects on a (possibly bootstrap)
     # index set of donors; returns genes x 3 matrix of RRs (+ closed form).
     est_fun <- function(idx, rng_off) {
-        Ab <- A[idx]; Xb <- X[idx, , drop = FALSE]; Mb <- M_all[idx, , drop = FALSE]
+        Ab <- A[idx]
+        Xb <- X[idx, , drop = FALSE]
+        Mb <- M_all[idx, , drop = FALSE]
         logoffb <- logoff[idx]
         # mediator model: M ~ A + X (multivariate Gaussian), one shared fit
         Dm <- data.frame(Ab = Ab, Xb)
         mm_fit <- stats::lm(Mb ~ ., data = Dm)
-        etaA <- stats::coef(mm_fit)["Ab", ]                # (D-1) exposure slope
+        etaA <- stats::coef(mm_fit)["Ab", ]    # (D-1) exposure slope
         Sig <- stats::cov(stats::residuals(mm_fit))
         Lchol <- chol(Sig + diag(1e-8, ncoord))
         # pre-draw joint ILR mediator values under a and a* (shared over genes)
@@ -347,7 +350,8 @@ run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
         form <- paste("y ~ A +", paste(colnames(Mb), collapse = " + "))
         if (interaction) form <- paste(form, "+",
             paste0("A:", colnames(Mb), collapse = " + "))
-        if (ncol(Xb)) form <- paste(form, "+", paste(colnames(Xb), collapse = " + "))
+        if (ncol(Xb)) form <- paste(form, "+",
+            paste(colnames(Xb), collapse = " + "))
         form <- stats::as.formula(paste(form, "+ offset(logoff)"))
         for (g in seq_along(target_genes)) {
             odat$y <- pb[g, idx]
@@ -363,7 +367,8 @@ run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
             eff <- .gcomp_effects(cf, a, as, Md_a, Md_as, Xrep, ncoord)
             # closed-form cross-check (additive working model)
             thetaA <- cf[["A"]]
-            thetaM <- vapply(seq_len(ncoord), function(k) cf[[paste0("M", k)]], 0)
+            thetaM <- vapply(seq_len(ncoord),
+                function(k) cf[[paste0("M", k)]], 0)
             res[g, ] <- c(eff, exp(thetaA), exp(sum(thetaM * etaA)))
         }
         res
@@ -433,8 +438,10 @@ run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
     }
     out <- data.frame(
         gene = target_genes, celltype = celltype,
-        IDE_RR = point[, "IDE_RR"], IDE_lcl = ide_ci[, 1], IDE_ucl = ide_ci[, 2],
-        IIE_RR = point[, "IIE_RR"], IIE_lcl = iie_ci[, 1], IIE_ucl = iie_ci[, 2],
+        IDE_RR = point[, "IDE_RR"],
+        IDE_lcl = ide_ci[, 1], IDE_ucl = ide_ci[, 2],
+        IIE_RR = point[, "IIE_RR"],
+        IIE_lcl = iie_ci[, 1], IIE_ucl = iie_ci[, 2],
         OE_RR = point[, "OE_RR"],
         prop_mediated = (point[, "IDE_RR"] * (point[, "IIE_RR"] - 1)) /
             (point[, "IDE_RR"] * point[, "IIE_RR"] - 1),
@@ -467,11 +474,17 @@ run_erd_interventional <- function(scee, exposure, celltype, celltype_col,
     rr_bound <- 100
     bad_ide <- !is.finite(out$IDE_RR) | abs(log(out$IDE_RR)) > log(rr_bound)
     bad_iie <- !is.finite(out$IIE_RR) | abs(log(out$IIE_RR)) > log(rr_bound)
-    out$IDE_RR[bad_ide] <- NA; out$IDE_lcl[bad_ide] <- NA; out$IDE_ucl[bad_ide] <- NA
-    out$evalue_IDE[bad_ide] <- NA; out$evalue_IDE_ci[bad_ide] <- NA
+    out$IDE_RR[bad_ide] <- NA
+    out$IDE_lcl[bad_ide] <- NA
+    out$IDE_ucl[bad_ide] <- NA
+    out$evalue_IDE[bad_ide] <- NA
+    out$evalue_IDE_ci[bad_ide] <- NA
     out$p_IDE[bad_ide] <- NA
-    out$IIE_RR[bad_iie] <- NA; out$IIE_lcl[bad_iie] <- NA; out$IIE_ucl[bad_iie] <- NA
-    out$evalue_IIE[bad_iie] <- NA; out$evalue_IIE_ci[bad_iie] <- NA
+    out$IIE_RR[bad_iie] <- NA
+    out$IIE_lcl[bad_iie] <- NA
+    out$IIE_ucl[bad_iie] <- NA
+    out$evalue_IIE[bad_iie] <- NA
+    out$evalue_IIE_ci[bad_iie] <- NA
     out$p_IIE[bad_iie] <- NA
     out$OE_RR[bad_ide | bad_iie] <- NA
     out$prop_mediated[bad_ide | bad_iie] <- NA

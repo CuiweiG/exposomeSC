@@ -11,7 +11,7 @@ run_sc_exwas_pb_offset(
   sample_col = "donor_id",
   covariates = NULL,
   target_genes = NULL,
-  BPPARAM = NULL
+  BPPARAM = BiocParallel::SerialParam()
 )
 }
 \arguments{
@@ -29,9 +29,11 @@ run_sc_exwas_pb_offset(
 \item{target_genes}{Character; genes to test (default: all rows of
 \code{scee}).}
 
-\item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes;
-defaults to a PSOCK \code{SnowParam}. Pass \code{NULL} on a
-platform without \code{BiocParallel} to run serially.}
+\item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes.
+Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
+started unless one is asked for; pass, for example,
+\code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.
+Pass \code{NULL} to fall back to a plain \code{lapply}.}
 }
 \value{
 A \code{data.frame}, one row per gene x cell type:

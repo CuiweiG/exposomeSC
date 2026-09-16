@@ -114,6 +114,83 @@ test_that("coglasso networks return edge-level selection frequencies", {
     expect_error(build(rep_num = 1), "rep_num")
 })
 
+test_that("a precomputed network is accepted as a named list", {
+    skip_if_not_installed("SingleCellExperiment")
+    skip_if_not_installed("S4Vectors")
+
+    set.seed(11)
+    donor_ids <- paste0("D", seq_len(6L))
+    donors <- rep(donor_ids, each = 5L)
+    cell_ids <- paste0("c", seq_along(donors))
+    counts <- matrix(stats::rpois(4L * length(cell_ids), 10), nrow = 4L,
+        dimnames = list(paste0("G", seq_len(4L)), cell_ids))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(
+            cell_id = cell_ids, donor_id = donors, cell_type = "Mono"))
+    scee <- build_scee(sce,
+        matrix(stats::rnorm(6L), ncol = 1L,
+               dimnames = list(donor_ids, "PM2.5")),
+        sample_col = "donor_id")
+
+    adj <- matrix(0L, 3L, 3L)
+    adj[1L, 2L] <- adj[2L, 1L] <- 1L
+    adj[2L, 3L] <- adj[3L, 2L] <- 1L
+    prec <- diag(3L)
+    prec[1L, 2L] <- prec[2L, 1L] <- -0.4
+    precomputed <- list(
+        adjacency = adj,
+        precision = prec,
+        stability = matrix(0.5, 3L, 3L),
+        feature_names = c("G1", "G2", "M1"),
+        feature_blocks = c("transcript", "transcript", "metabolite"))
+
+    expect_message(
+        run_celltype_network(scee, celltype = "Mono",
+                             precomputed_network = precomputed),
+        "Wrapping precomputed network")
+    net <- suppressMessages(
+        run_celltype_network(scee, celltype = "Mono",
+                             precomputed_network = precomputed))
+
+    expect_s4_class(net, "CelltypeNetworkResult")
+    expect_equal(net@celltype, "Mono")
+    expect_equal(net@method, "precomputed")
+    expect_equal(net@metadata$source, "list")
+    expect_equal(net@metadata$n_features, 3L)
+    ## two undirected edges, counted once each
+    expect_equal(net@metadata$n_edges, 2L)
+    expect_identical(net@node_info$feature, c("G1", "G2", "M1"))
+    expect_identical(net@node_info$omic,
+                     c("transcript", "transcript", "metabolite"))
+    expect_identical(dimnames(net@adjacency_matrix),
+                     list(c("G1", "G2", "M1"), c("G1", "G2", "M1")))
+    expect_identical(dimnames(net@precision_matrix),
+                     dimnames(net@adjacency_matrix))
+    ## metabolites and the estimation settings are not consulted
+    expect_identical(
+        suppressMessages(run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = precomputed, method = "coglasso")),
+        net)
+
+    ## optional elements may be omitted
+    minimal <- suppressMessages(run_celltype_network(scee, celltype = "Mono",
+        precomputed_network = list(adjacency = adj)))
+    expect_equal(nrow(minimal@stability_scores), 0L)
+    expect_true(all(is.na(minimal@precision_matrix)))
+    expect_identical(minimal@node_info$feature, paste0("F", seq_len(3L)))
+    expect_identical(minimal@node_info$omic, rep("unknown", 3L))
+
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+                             precomputed_network = list(precision = prec)),
+        "\\$adjacency")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+                             precomputed_network = seq_len(3L)),
+        "must be a list")
+})
+
 test_that("CelltypeNetworkResult S4 class validation", {
     # Empty object
     net <- new("CelltypeNetworkResult")

@@ -142,7 +142,8 @@
     }
     counts <- as.matrix(counts)
     if (is.null(rownames(counts)) || is.null(colnames(counts)) ||
-            anyDuplicated(rownames(counts)) || anyDuplicated(colnames(counts))) {
+            anyDuplicated(rownames(counts)) ||
+            anyDuplicated(colnames(counts))) {
         stop("counts must have unique gene and donor dimnames.")
     }
     if (any(!is.finite(counts)) || any(counts < 0)) {

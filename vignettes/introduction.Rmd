@@ -76,8 +76,11 @@ columns before the object is built.
 ```{r build}
 library(exposomeSC)
 
-# A small deterministic object makes the vignette executable. It illustrates
-# the data contract only; it is not used for the HLCA results.
+# A small simulated object makes the vignette executable. Cells within a
+# donor share a donor-level offset, and Gene1 is raised 2.5-fold in exposed
+# AT2 cells. It illustrates the data contract only; it is not used for the
+# HLCA results.
+set.seed(20260916L)
 donor_ids <- paste0("D", seq_len(12L))
 smoking_ever <- rep(c(0, 1), each = 6L)
 cell_donor <- rep(donor_ids, each = 24L)
@@ -87,16 +90,21 @@ cell_type <- rep(
 )
 gene_ids <- paste0("Gene", seq_len(12L))
 cell_ids <- paste0("cell", seq_along(cell_donor))
-counts <- outer(
-    seq_along(gene_ids),
-    seq_along(cell_ids),
-    function(gene, cell) 3L + ((11L * gene + 7L * cell) %% 8L)
+donor_offset <- matrix(
+    stats::rnorm(length(gene_ids) * length(donor_ids), sd = 0.35),
+    nrow = length(gene_ids),
+    dimnames = list(gene_ids, donor_ids)
 )
 exposed_at2 <- smoking_ever[match(cell_donor, donor_ids)] == 1 &
     cell_type == "AT2"
-counts[1L, exposed_at2] <- counts[1L, exposed_at2] + 4L
+cell_mean <- exp(log(25) + donor_offset[, cell_donor])
+cell_mean[1L, ] <- cell_mean[1L, ] * ifelse(exposed_at2, 2.5, 1)
+counts <- matrix(
+    stats::rnbinom(length(cell_mean), mu = as.vector(cell_mean), size = 8),
+    nrow = length(gene_ids),
+    dimnames = list(gene_ids, cell_ids)
+)
 storage.mode(counts) <- "integer"
-dimnames(counts) <- list(gene_ids, cell_ids)
 
 sce <- SingleCellExperiment::SingleCellExperiment(
     assays = list(counts = counts),
@@ -125,13 +133,19 @@ methods::validObject(scee)
 exposureVariables(scee)
 ```
 
+`exposureVariables()` lists every column of the donor design, so the age term
+appears alongside the exposure. Which column is the exposure, and which are
+adjustments, is set in the call to `run_sc_exwas()` below.
+
 # Canonical donor-pseudobulk model
 
 The implemented primary backend uses robust edgeR quasi-likelihood inference.
 Expression support is fixed independently of the smoking labels, and the
 complete target-cell-type transcriptome remains available for library-size and
-normalisation calculations after filtering. The HLCA analysis adjusts for a
-three-degree-of-freedom natural spline in age, sex and source study.
+normalisation calculations after filtering. Adjustment terms are supplied
+through `covariates`, as columns of the donor design; a nonlinear age term or a
+multistudy indicator set is built before the object is created, never derived
+from the observed exposure effects.
 
 ```{r primary-model}
 fit <- run_sc_exwas(
@@ -155,10 +169,10 @@ fit <- run_sc_exwas(
 head(fit[order(fit$padj_global, fit$pvalue), ])
 ```
 
-The exact analysis is not reconstructed from this abbreviated call. A complete
-analysis also builds the spline and study terms, verifies immutable inputs,
-classifies features, checks the design, records code identity and writes
-outputs atomically.
+The call above is deliberately short. An analysis meant for reporting also
+builds its adjustment terms, records the input and code versions it ran on,
+inspects the design for rank and separation problems, and states the feature
+family before the model is fitted.
 
 # Multiplicity and output interpretation
 
@@ -166,7 +180,8 @@ The primary feature family comprises the annotation-defined, exposure-blind
 support-filtered host-expression transcriptome. Benjamini--Hochberg adjustment
 is applied across its complete realised tested gene-by-cell-type family. The
 host category is externally annotated; the realised tested universe also
-depends on the frozen donor-support rule in the HLCA data. Immune-receptor and residual-annotation
+depends on the donor-support rule, which is fixed before fitting.
+Immune-receptor and residual-annotation
 features are retained as separate secondary or exploratory audits; their
 adjusted values are not merged into the primary family after looking at the
 results.
@@ -224,8 +239,8 @@ Sikkema *et al.* (2023):
 
 Every reportable result must retain the verified input hashes, ordered code
 manifest, model parameters, design diagnostics, session information and output
-hashes. Figures and tables read frozen result objects; numerical values are not
-transcribed into display code.
+hashes. Figures and tables should read the stored result objects rather than
+have numerical values transcribed into display code.
 
 # Session information
 

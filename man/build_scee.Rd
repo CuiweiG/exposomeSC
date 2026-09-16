@@ -7,7 +7,7 @@
 build_scee(sce, exposure_matrix, sample_col, exposure_info = NULL)
 }
 \arguments{
-\item{sce}{A \code{\link[SingleCellExperiment:SingleCellExperiment-class]{SingleCellExperiment}}.}
+\item{sce}{A \code{\link[SingleCellExperiment]{SingleCellExperiment}}.}
 
 \item{exposure_matrix}{Numeric matrix. Rows = samples,
 columns = exposure variables, with unique row and column names.

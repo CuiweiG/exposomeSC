@@ -35,7 +35,7 @@ The subsetting method returns a valid
   is called for its display side effect and returns \code{NULL} invisibly.
 }
 \description{
-Extends \code{\link[SingleCellExperiment:SingleCellExperiment-class]{SingleCellExperiment}} with
+Extends \code{\link[SingleCellExperiment]{SingleCellExperiment}} with
 sample-level environmental exposure measurements and a
 sample-to-cell mapping. This enables cell-type-specific
 exposome-wide association studies (sc-ExWAS).

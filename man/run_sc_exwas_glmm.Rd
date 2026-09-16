@@ -13,7 +13,7 @@ run_sc_exwas_glmm(
   target_genes = NULL,
   ddf = c("Satterthwaite", "Kenward-Roger"),
   family = c("gaussian", "nbinom"),
-  BPPARAM = NULL
+  BPPARAM = BiocParallel::SerialParam()
 )
 }
 \arguments{
@@ -40,8 +40,10 @@ donors).}
 \item{family}{\code{"gaussian"} (LMM on cell-level \eqn{\log_2} CP10k,
 default) or \code{"nbinom"} (negative-binomial GLMM on cell counts).}
 
-\item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes;
-defaults to a PSOCK \code{SnowParam}.}
+\item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes.
+Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
+started unless one is asked for; pass, for example,
+\code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.}
 }
 \value{
 A \code{data.frame}, one row per gene x cell type: \code{gene},

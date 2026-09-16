@@ -423,7 +423,10 @@
     }
     design <- design_full[, retained_columns, drop = FALSE]
     if (qr(design)$rank != ncol(design)) {
-        stop("Internal error: the retained design is not full rank.")
+        stop("The retained design is not full rank, which should be ",
+             "unreachable after the greedy column selection above. This ",
+             "is a bug in exposomeSC; please report it at ",
+             "https://github.com/CuiweiG/exposomeSC/issues")
     }
     if (nrow(design) <= ncol(design) + 2L) {
         stop("Insufficient residual degrees of freedom.")
@@ -727,7 +730,8 @@
             any(!is.finite(result$se)) || any(result$se <= 0) ||
             any(!is.finite(result$statistic)) ||
             any(!is.finite(result$logCPM))) {
-        stop("voomLmFit returned an invalid effect, standard error, or p-value.")
+        stop("voomLmFit returned an invalid effect, standard error, ",
+             "or p-value.")
     }
     correlation <- if (!is.null(block) && !is.null(fit$correlation)) {
         unname(fit$correlation)
@@ -1011,7 +1015,8 @@
             anyDuplicated(donor_table$donor_id)) {
         stop("Canonical primary donor table is malformed.")
     }
-    donor_ids_by_celltype <- setNames(vector("list", length(celltypes)), celltypes)
+    donor_ids_by_celltype <- setNames(
+        vector("list", length(celltypes)), celltypes)
     for (celltype in celltypes) {
         cell_result <- result[result$celltype == celltype, , drop = FALSE]
         diagnostic <- diagnostics[[celltype]]
