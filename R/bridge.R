@@ -41,11 +41,32 @@ NULL
 #'
 #' @export
 #' @examples
-#' # Requires rexposome package
-#' # library(rexposome)
-#' # es <- loadExposome(...)
-#' # scee <- as_scee(es, sce, sample_col = "donor_id")
-#' cat("See rexposome vignette for ExposomeSet creation\n")
+#' if (requireNamespace("Biobase", quietly = TRUE)) {
+#'     ## as_scee() needs only what an ExposomeSet is: a Biobase eSet whose
+#'     ## assayData element "exp" holds exposures (rows) by samples
+#'     ## (columns). A minimal eSet of that shape stands in here; an object
+#'     ## from rexposome::loadExposome() is converted the same way.
+#'     setClass("ExposomeSetExample", contains = "eSet")
+#'     samples <- paste0("D", 1:4)
+#'     exposures <- matrix(c(12, 25, 8, 30, 0.4, 0.9, 0.2, 1.1), nrow = 2,
+#'         byrow = TRUE, dimnames = list(c("PM2.5", "Pb"), samples))
+#'     es <- methods::new("ExposomeSetExample",
+#'         assayData = Biobase::assayDataNew("environment", exp = exposures),
+#'         phenoData = Biobase::AnnotatedDataFrame(
+#'             data.frame(sex = c(0, 1, 0, 1), row.names = samples)),
+#'         featureData = Biobase::AnnotatedDataFrame(
+#'             data.frame(family = c("air", "metal"),
+#'                        row.names = c("PM2.5", "Pb"))))
+#'     sce <- SingleCellExperiment::SingleCellExperiment(
+#'         assays = list(counts = matrix(1L, nrow = 5, ncol = 8,
+#'             dimnames = list(paste0("G", 1:5), paste0("c", 1:8)))),
+#'         colData = S4Vectors::DataFrame(
+#'             cell_id = paste0("c", 1:8),
+#'             donor_id = rep(samples, each = 2)))
+#'     scee <- as_scee(es, sce, sample_col = "donor_id")
+#'     exposureData(scee)
+#'     exposureInfo(scee)
+#' }
 as_scee <- function(exposome_set, sce, sample_col,
                      exposures = NULL) {
     ## rexposome is not required: an ExposomeSet is a Biobase eSet whose

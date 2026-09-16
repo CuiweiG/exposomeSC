@@ -67,5 +67,25 @@ Replace exposure data matrix
 Replace exposure metadata
 }
 \examples{
-showClass("SingleCellExposomeExperiment")
+library(SingleCellExperiment)
+counts <- matrix(1L, nrow = 5, ncol = 12,
+    dimnames = list(paste0("G", 1:5), paste0("c", 1:12)))
+sce <- SingleCellExperiment(assays = list(counts = counts),
+    colData = S4Vectors::DataFrame(
+        cell_id = paste0("c", 1:12),
+        donor_id = rep(paste0("D", 1:4), each = 3)))
+exp_mat <- matrix(c(12, 25, 8, 30, 45, 32, 67, 51), nrow = 4,
+    dimnames = list(paste0("D", 1:4), c("PM2.5", "age")))
+scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+
+exposureNames(scee)
+exposureData(scee)
+exposureInfo(scee)
+head(sampleMap(scee))
+
+## Replace the exposure matrix, here rescaling PM2.5
+exp_new <- exposureData(scee)
+exp_new[, "PM2.5"] <- exp_new[, "PM2.5"] / 10
+exposureData(scee) <- exp_new
+exposureData(scee)[, "PM2.5"]
 }

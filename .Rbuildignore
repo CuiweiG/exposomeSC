@@ -1,4 +1,6 @@
 ^(?!(DESCRIPTION|NAMESPACE|NEWS\.md|README\.md|R|man|tests|vignettes|inst)$)[^/]+$
-^inst/(?!(extdata|doc)$)[^/]+$
+^inst/(?!(extdata|doc|scripts)$)[^/]+$
+^inst/extdata/(?!(demo_sce\.rds|demo_exposures\.csv)$)[^/]+$
+^inst/scripts/(?!create_demo_data\.R$)[^/]+$
 ^vignettes/.*_cache$
 ^.*\.log$
