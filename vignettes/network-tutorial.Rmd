@@ -267,8 +267,9 @@ cohort.
 
 - Albanese A, Kohlen W, Behrouzi P (2024). Collaborative graphical lasso.
   arXiv:2403.18602.
-- Liu H, Roeder K, Wasserman L (2010). Stability approach to regularisation
-  selection (StARS). *NeurIPS* 23.
+- Liu H, Roeder K, Wasserman L (2010). Stability Approach to Regularization
+  Selection (StARS) for High Dimensional Graphical Models. *Advances in Neural
+  Information Processing Systems* 23.
 - Meinshausen N, Bühlmann P (2010). Stability selection. *Journal of the Royal
   Statistical Society: Series B* 72:417--473.
 

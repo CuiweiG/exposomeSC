@@ -100,6 +100,9 @@ Initial Bioconductor submission.
   points but not in between as `intermittent`.
 * edgeR normalisation uses `normLibSizes()`, the current name of
   `calcNormFactors()`.
+* Internal helpers for a repeated-sample sensitivity analysis (sample
+  pseudobulk with donor-blocked voom) and for null-calibration runs are
+  removed. No exported function used them.
 
 ## Random number state
 

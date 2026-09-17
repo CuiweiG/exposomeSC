@@ -18,10 +18,9 @@ Description: A framework for cell-type-specific exposome-wide
     robust edgeR quasi-likelihood models, exposure-independent
     expression-support filtering, complete-transcriptome offsets,
     design-rank diagnostics, and global multiplicity correction.
-    Additional modules support repeated-sample sensitivity analyses,
-    dose-response modelling, exposure mixtures, cross-cohort
-    synthesis, and cell-level gene-protein coupling. Exploratory
-    decomposition and mediation utilities report model-based
+    Additional modules support dose-response modelling, exposure mixtures,
+    cross-cohort synthesis, and cell-level gene-protein coupling.
+    Exploratory decomposition and mediation utilities report model-based
     associations; they do not by themselves identify causal effects.
 License: Artistic-2.0
 Depends: R (>= 4.5.0)
@@ -105,9 +104,7 @@ Collate:
     'network-plots.R'
     'network-simulate.R'
     'network-temporal.R'
-    'null-calibration.R'
     'power.R'
     'qgcomp-mixture.R'
-    'sample-blocked-voom.R'
     'spatial.R'
     'state-coupling.R'

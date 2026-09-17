@@ -203,10 +203,10 @@ carries no biological conclusion.
 
 # Repeated samples and composition
 
-The donor-aggregated model is the primary expression estimand. A separate
-sample-pseudobulk sensitivity preserves repeated biological samples and uses
-donor blocking with voom/limma while retaining the primary hypothesis universe.
-It is not a second discovery screen.
+The donor-aggregated model is the primary expression estimand. A sensitivity
+analysis that keeps repeated biological samples apart, for example with donor
+blocking in voom/limma, is not part of the package; it would be run separately
+and is not a second discovery screen.
 
 The composition analysis operates on the supported `ann_level_3` simplex. It
 uses Jeffreys-regularised log ratios, donor-level aggregation and a

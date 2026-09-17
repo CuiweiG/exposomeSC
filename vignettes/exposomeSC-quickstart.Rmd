@@ -139,14 +139,18 @@ stopifnot(all(required_columns %in% colnames(fit)))
 
 # Sorting is descriptive; the inferential family was fixed before this step.
 head(fit[order(fit$padj_global, fit$pvalue), required_columns])
+
+# What the backend reports in place of a standard error
+S4Vectors::metadata(fit)$parameters[c("se_method", "statistic_type")]
 ```
 
 For the default edgeR backend, `se` is deliberately numeric `NA` because the
 quasi-likelihood F test does not supply a coefficient standard error.
 `statistic` is the signed square root of that QL F statistic—a directional
 ranking quantity, not a Wald z statistic and not a basis for a coefficient
-confidence interval. Inspect `metadata(fit)$parameters[c("se_method",
-"statistic_type")]` before any downstream operation that uses uncertainty.
+confidence interval. The last line of the chunk above prints the two
+parameters that record this; check them before any downstream operation that
+uses uncertainty.
 
 In the full HLCA analysis, feature annotation defines a primary
 host-expression family and separate receptor/residual families after fitting.
