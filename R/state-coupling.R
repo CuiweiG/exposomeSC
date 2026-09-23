@@ -35,7 +35,10 @@ NULL
 #'   n_donors, mean_r. With at least two bins, the attribute
 #'   \code{slope_heterogeneity} holds the test of whether
 #'   \code{beta1} differs between bins (statistic, df1, df2,
-#'   pvalue, method).
+#'   pvalue, method). \code{method} names the test that was
+#'   used: the F-test, the likelihood-ratio test, or
+#'   \code{"not estimable"} with \code{NA} values when neither
+#'   model could be fitted.
 #'
 #' @details
 #' \strong{Mathematical model:}
@@ -62,6 +65,15 @@ NULL
 #' the bin-by-exposure terms asks whether the exposure effect on
 #' coupling differs between bins. A non-significant result does
 #' not show that the effect is the same in every state.
+#'
+#' When the correlations carry little signal the two variance
+#' components are estimated at zero. The fit then tries
+#' \pkg{metafor}'s optimisers in turn and keeps the first that
+#' converges with finite coefficients. If the resulting
+#' coefficient covariance is still unusable for the F-test, the
+#' same question is put as a likelihood-ratio test between the
+#' full and the additive model, both fitted by maximum
+#' likelihood, and \code{method} says so.
 #'
 #' @examples
 #' set.seed(1)
@@ -222,34 +234,79 @@ run_state_coupling <- function(scee, gene, protein, exposure,
         rownames(long) <- NULL
         long$bin <- factor(long$bin)
         long$observation <- seq_len(nrow(long))
-        joint <- tryCatch(
-            metafor::rma.mv(yi = long$yi, V = long$vi,
-                mods = ~ bin * exposure,
-                random = list(~ 1 | donor, ~ 1 | observation),
-                data = long, method = "REML", test = "t"),
-            error = function(e) NULL)
-        slope_test <- NULL
-        if (!is.null(joint)) {
-            interaction_terms <- grep(":exposure$", rownames(joint$beta))
-            slope_test <- tryCatch(
-                stats::anova(joint, btt = interaction_terms),
-                error = function(e) NULL)
-        }
-        attr(out, "slope_heterogeneity") <- if (is.null(slope_test)) {
-            data.frame(statistic = NA_real_, df1 = NA_real_,
-                       df2 = NA_real_, pvalue = NA_real_,
-                       method = "not estimable",
-                       stringsAsFactors = FALSE)
-        } else {
-            data.frame(statistic = slope_test$QM,
-                       df1 = slope_test$QMdf[1],
-                       df2 = slope_test$QMdf[2],
-                       pvalue = slope_test$QMp,
-                       method = paste("rma.mv bin-by-exposure F-test",
-                                      "with a random donor effect"),
-                       stringsAsFactors = FALSE)
-        }
+        attr(out, "slope_heterogeneity") <- .slope_heterogeneity_test(long)
     }
 
     out
+}
+
+## Fit the multilevel meta-regression behind the slope-heterogeneity test,
+## trying metafor's optimisers in turn. When the donor-by-bin correlations
+## carry little signal the donor and residual variance components are
+## estimated at zero, and whether an optimiser stops there cleanly depends
+## on the platform: the same data converged on Linux and Windows and failed
+## on macOS. metafor signals an optimiser that did not converge as an
+## error, so the search moves to the next optimiser; a fit is kept only
+## when every coefficient is finite.
+.fit_rma_mv <- function(mods, data, method) {
+    controls <- list(
+        list(optimizer = "nlminb"),
+        list(optimizer = "optim", optmethod = "BFGS"),
+        list(optimizer = "optim", optmethod = "Nelder-Mead"))
+    for (ctrl in controls) {
+        fit <- tryCatch(
+            metafor::rma.mv(yi = yi, V = vi, mods = mods,
+                random = list(~ 1 | donor, ~ 1 | observation),
+                data = data, method = method, test = "t",
+                control = ctrl),
+            error = function(e) NULL)
+        if (!is.null(fit) && all(is.finite(fit$beta)))
+            return(fit)
+    }
+    NULL
+}
+
+## The test of whether the exposure slope differs between bins. The Wald
+## F-test of the bin-by-exposure terms is used when the fitted model gives
+## it a usable coefficient covariance. A variance component estimated at
+## zero can leave that covariance singular, in which case the same
+## question is put as a likelihood-ratio test between the full and the
+## additive model, both fitted by maximum likelihood, which does not need
+## the covariance. The method field of the result says which was used.
+.slope_heterogeneity_test <- function(long) {
+    not_estimable <- data.frame(statistic = NA_real_, df1 = NA_real_,
+                                df2 = NA_real_, pvalue = NA_real_,
+                                method = "not estimable",
+                                stringsAsFactors = FALSE)
+
+    joint <- .fit_rma_mv(~ bin * exposure, long, "REML")
+    if (!is.null(joint)) {
+        interaction_terms <- grep(":exposure$", rownames(joint$beta))
+        wald <- tryCatch(
+            stats::anova(joint, btt = interaction_terms),
+            error = function(e) NULL)
+        if (!is.null(wald) && is.finite(wald$QMp)) {
+            return(data.frame(statistic = wald$QM,
+                              df1 = wald$QMdf[1],
+                              df2 = wald$QMdf[2],
+                              pvalue = wald$QMp,
+                              method = paste("rma.mv bin-by-exposure",
+                                             "F-test with a random",
+                                             "donor effect"),
+                              stringsAsFactors = FALSE))
+        }
+    }
+
+    full <- .fit_rma_mv(~ bin * exposure, long, "ML")
+    reduced <- .fit_rma_mv(~ bin + exposure, long, "ML")
+    if (is.null(full) || is.null(reduced)) return(not_estimable)
+    lrt <- tryCatch(stats::anova(full, reduced), error = function(e) NULL)
+    if (is.null(lrt) || !is.finite(lrt$pval)) return(not_estimable)
+    data.frame(statistic = lrt$LRT,
+               df1 = lrt$parms.f - lrt$parms.r,
+               df2 = NA_real_,
+               pvalue = lrt$pval,
+               method = paste("rma.mv bin-by-exposure likelihood-ratio",
+                              "test (ML) with a random donor effect"),
+               stringsAsFactors = FALSE)
 }

@@ -1,3 +1,16 @@
+# exposomeSC 0.99.1
+
+* `run_state_coupling()` returned an `NA` p-value for its slope-heterogeneity
+  test on both macOS builds of the Bioconductor staging checks, while every
+  Linux and Windows build passed. The multilevel fit stops at variance
+  components of zero for the example data, and whether the default optimiser
+  stops there cleanly depends on the platform. The fit now tries metafor's
+  optimisers in turn and keeps only a converged fit with finite coefficients.
+  If the F-test's coefficient covariance is still unusable, the same question
+  is put as a likelihood-ratio test between the full and the additive model,
+  both fitted by maximum likelihood, and the `method` field of the
+  `slope_heterogeneity` attribute names the test that was used.
+
 # exposomeSC 0.99.0
 
 Initial Bioconductor submission.

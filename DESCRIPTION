@@ -1,7 +1,7 @@
 Package: exposomeSC
 Title: Single-Cell Exposome-Wide Association Studies
     with Cross-Omic Network Inference
-Version: 0.99.0
+Version: 0.99.1
 Authors@R:
     person(given = "Cuiwei",
            family = "Gao",

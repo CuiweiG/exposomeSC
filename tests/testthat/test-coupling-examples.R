@@ -26,6 +26,9 @@ test_that("run_state_coupling returns one row per populated state bin", {
     slope <- attr(res, "slope_heterogeneity")
     expect_s3_class(slope, "data.frame")
     expect_true(is.finite(slope$pvalue))
+    expect_true(slope$pvalue >= 0 && slope$pvalue <= 1)
+    expect_true(is.finite(slope$statistic))
+    expect_match(slope$method, "rma.mv bin-by-exposure")
     expect_error(run_state_coupling(scee, gene = "Gene1", protein = "Prot1",
         exposure = "nope", celltype = "T", state_col = "pseudotime"),
         "not in exposureData")

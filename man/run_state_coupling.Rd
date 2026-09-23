@@ -55,7 +55,10 @@ A \code{data.frame} with one row per state bin:
   n_donors, mean_r. With at least two bins, the attribute
   \code{slope_heterogeneity} holds the test of whether
   \code{beta1} differs between bins (statistic, df1, df2,
-  pvalue, method).
+  pvalue, method). \code{method} names the test that was
+  used: the F-test, the likelihood-ratio test, or
+  \code{"not estimable"} with \code{NA} values when neither
+  model could be fitted.
 }
 \description{
 Tests whether gene-protein coupling varies along a
@@ -87,6 +90,15 @@ across bins and a residual heterogeneity term. The F-test of
 the bin-by-exposure terms asks whether the exposure effect on
 coupling differs between bins. A non-significant result does
 not show that the effect is the same in every state.
+
+When the correlations carry little signal the two variance
+components are estimated at zero. The fit then tries
+\pkg{metafor}'s optimisers in turn and keeps the first that
+converges with finite coefficients. If the resulting
+coefficient covariance is still unusable for the F-test, the
+same question is put as a likelihood-ratio test between the
+full and the additive model, both fitted by maximum
+likelihood, and \code{method} says so.
 }
 \examples{
 set.seed(1)
