@@ -1,27 +1,30 @@
 Package: exposomeSC
-Title: Single-Cell Exposome-Wide Association Studies
-    with Cross-Omic Network Inference
+Title: Cell-Type-Resolved Exposome-Wide Association Studies for
+    Single-Cell RNA-seq
 Version: 0.99.2
 Authors@R:
     person(given = "Cuiwei",
            family = "Gao",
            email = "48gaocuiwei@gmail.com",
            role = c("aut", "cre"))
-Description: A framework for cell-type-specific exposome-wide
-    association studies (sc-ExWAS) that bridges donor-level
-    environmental exposures with single-cell resolution gene
-    expression. The package extends SingleCellExperiment to
-    store exposure measurements alongside transcriptomic data,
-    and implements donor-level raw-count pseudobulk inference to
-    avoid cellular pseudoreplication (Squair et al. 2021
-    <doi:10.1038/s41467-021-25960-2>). The default workflow uses
-    robust edgeR quasi-likelihood models, exposure-independent
-    expression-support filtering, complete-transcriptome offsets,
-    design-rank diagnostics, and global multiplicity correction.
-    Additional modules support dose-response modelling, exposure mixtures,
-    cross-cohort synthesis, and cell-level gene-protein coupling.
-    Exploratory decomposition and mediation utilities report model-based
-    associations; they do not by themselves identify causal effects.
+Description: Tests donor-level environmental exposures for
+    association with gene expression within cell types in single-cell
+    RNA-seq cohorts (single-cell exposome-wide association studies,
+    sc-ExWAS). The package extends SingleCellExperiment to hold
+    donor-level exposure measurements alongside the cells, and
+    aggregates raw counts by donor and cell type so that the donor,
+    not the cell, is the unit of inference (Squair et al. 2021
+    <doi:10.1038/s41467-021-25960-2>). The default analysis fits robust
+    edgeR quasi-likelihood models with exposure-independent expression
+    filtering, complete-transcriptome library sizes, design-rank checks
+    and multiplicity correction across all genes and cell types; DESeq2
+    and voom-dream backends are also available. Further functions cover
+    several exposures at once, donor-level cell-type composition,
+    dose-response curves, exposure mixtures, meta-analysis across
+    cohorts, power calculation, gene set enrichment and imputation below
+    the limit of detection. Exploratory functions estimate cross-omic
+    networks within a cell type. All results are associations; the
+    package does not identify causal effects.
 License: Artistic-2.0
 Depends: R (>= 4.6.0)
 Imports:
@@ -59,9 +62,9 @@ Suggests:
     rmarkdown,
     BiocStyle
 Config/testthat/edition: 3
-biocViews: SingleCell, GeneExpression, DifferentialExpression,
-    Transcriptomics, CellBiology, StatisticalMethod, Network,
-    NetworkInference, Regression
+biocViews: SingleCell, RNASeq, GeneExpression, DifferentialExpression,
+    Transcriptomics, StatisticalMethod, Regression, MultipleComparison,
+    GeneSetEnrichment, Network, NetworkInference
 URL: https://github.com/CuiweiG/exposomeSC
 BugReports: https://github.com/CuiweiG/exposomeSC/issues
 Encoding: UTF-8

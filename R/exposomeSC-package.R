@@ -1,8 +1,9 @@
-#' exposomeSC: Single-Cell Exposome-Wide Association Studies
+#' exposomeSC: Cell-Type-Resolved Exposome-Wide Association Studies for
+#' Single-Cell RNA-seq
 #'
-#' A framework for cell-type-specific exposome-wide association
-#' studies (sc-ExWAS) bridging donor-level environmental
-#' exposures with single-cell resolution gene expression.
+#' Tests donor-level exposures for association with gene expression
+#' within cell types, with the donor as the unit of inference. Results are
+#' associations; the package does not identify causal effects.
 #'
 #' @section Core analysis:
 #' \describe{
@@ -44,6 +45,27 @@
 #'     meta-analysis (fixed/random effects)}
 #'   \item{\code{\link{estimate_power}}}{Power/sample size
 #'     calculator}
+#' }
+#'
+#' @section Composition:
+#' \describe{
+#'   \item{\code{\link{run_exposure_composition}}}{Exposure
+#'     association with donor-level cell-type composition}
+#' }
+#'
+#' @section Cross-omic networks (exploratory):
+#' \describe{
+#'   \item{\code{\link{run_celltype_network}}}{Cell-type-resolved
+#'     network of transcripts and donor-level molecular measurements}
+#'   \item{\code{\link{run_exposure_network}}}{Network restricted to
+#'     exposure-associated features}
+#'   \item{\code{\link{run_comparative_network}}}{Descriptive
+#'     comparison of networks across cell types}
+#'   \item{\code{\link{simulate_crossomic_network}}}{Simulated data
+#'     with a known network}
+#'   \item{\code{\link{plot_celltype_network}},
+#'     \code{\link{plot_network_comparison}},
+#'     \code{\link{plot_edge_stability}}}{Plots}
 #' }
 #'
 #' @section Preprocessing:

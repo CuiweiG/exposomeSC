@@ -1,5 +1,27 @@
 # exposomeSC 0.99.2
 
+## Removed from this release
+
+The first release keeps the donor-level association workflow and the
+exploratory cross-sectional networks. Functions that sit outside that core,
+or whose estimators have not been validated, are removed rather than shipped
+with warnings.
+
+* `run_mediation()`, `run_causal_mediation()`, `run_network_mediation()`,
+  `mediational_evalue()` and `mediational_evalue_ci()`. Their identification
+  assumptions and resampling properties have not been validated, and the
+  package reports associations, not causal effects.
+* `compute_iers()`. Its directness component needed a decomposition table
+  that no function in the package produces.
+* `run_state_coupling()` and `run_spatial_exwas()`, which lie outside the
+  core donor-level analysis and have not been validated.
+* `run_differential_network()`, which split a continuous exposure at its
+  median and ignored covariates, and `run_temporal_network()`, whose only
+  tests were argument checks, with `plot_temporal_dynamics()` and the
+  `TemporalNetwork` class.
+* The unexported developmental function `run_erd_interventional()`.
+* mediation and SpatialExperiment are no longer suggested.
+
 ## Changes that can alter results
 
 * `run_sc_exwas(method = "edgeR")` now calls `glmQLFit(legacy = FALSE)`
@@ -21,16 +43,20 @@
   for DESeq2 is removed.
 * `plot_stability_surface()` is renamed `plot_edge_stability()`. The fixed
   dashed line at 0.6 is gone; pass `threshold` to draw one.
-* `run_exposure_composition()` and `run_spatial_exwas()` default to
-  `seed = NULL` and then draw from the caller's random-number stream, so
-  `set.seed()` before the call works as expected. An integer seed still
-  works as before.
+* `run_exposure_composition()` defaults to `seed = NULL` and then draws from
+  the caller's random-number stream, so `set.seed()` before the call works
+  as expected. An integer seed still works as before.
+* `run_gsea()` ranks by the column named in `rank_by` and stops if that
+  column is missing or not numeric. It no longer falls back between
+  `"statistic"` and `"stat"`, or `"log2FC"` and `"log2FoldChange"`.
+* `run_meta_exwas()` no longer returns `meta_z`, which duplicated
+  `meta_statistic`.
 
 ## Bug fixes
 
-* `plot_edge_stability()` and `plot_temporal_dynamics()` matched legend
-  labels to colours by position, so a plot with a single edge type, or with
-  every edge present, was labelled wrongly. Labels are now matched by name.
+* `plot_edge_stability()` matched legend labels to colours by position, so a
+  plot with a single edge type was labelled wrongly. Labels are now matched
+  by name.
 * `show()` for a SingleCellExposomeExperiment printed part of its summary
   with `message()`; all of it now goes to standard output.
 * A dimension mismatch in a CelltypeNetworkResult is reported as one
@@ -41,9 +67,8 @@
 * The demo data are described as what they are: independent Poisson counts
   with an added PM2.5 signal, and simulated exposures without units.
 * References added or corrected: edgeR v4, the graphical lasso, the
-  published coglasso paper, dream and variancePartition, the volume and
-  pages of SpatialExperiment, and DOIs for Lee and Han (2024) and Smith and
-  VanderWeele (2019).
+  published coglasso paper, dream and variancePartition, and a DOI for Lee
+  and Han (2024).
 * Requires R 4.6.0. BiocCheck and statmod are no longer suggested.
 
 # exposomeSC 0.99.1
