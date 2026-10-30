@@ -231,9 +231,9 @@ setValidity("CelltypeNetworkResult", function(object) {
             msg <- c(msg,
                 "precision_matrix must be square")
         if (nrow(am) != nrow(pm) || ncol(am) != ncol(pm))
-            msg <- c(msg,
+            msg <- c(msg, paste0(
                 "adjacency_matrix dimensions must match ",
-                "precision_matrix")
+                "precision_matrix"))
     }
 
     ni <- object@node_info

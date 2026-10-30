@@ -110,10 +110,10 @@ setMethod("show", "SingleCellExposomeExperiment",
     function(object) {
     callNextMethod()
     ed <- slot(object, "exposureData")
-    message("exposureData(", nrow(ed), " samples x ",
+    cat("exposureData(", nrow(ed), " samples x ",
         ncol(ed), " exposures): ",
         paste(utils::head(colnames(ed), 5), collapse = ", "),
-        if (ncol(ed) > 5) " ..." else "")
+        if (ncol(ed) > 5) " ..." else "", "\n", sep = "")
     sm <- slot(object, "sampleMap")
-    message("sampleMap: ", nrow(sm), " cell-sample links")
+    cat("sampleMap: ", nrow(sm), " cell-sample links\n", sep = "")
 })

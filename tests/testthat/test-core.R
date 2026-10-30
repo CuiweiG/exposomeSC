@@ -43,10 +43,11 @@ test_that("accessors work", {
     expect_s4_class(cellSampleMap(scee), "DataFrame")
 })
 
-test_that("show method works", {
+test_that("show method prints the exposure summary to standard output", {
     scee <- .make_test_scee()
-    expect_message(show(scee), "exposureData")
-    expect_message(show(scee), "sampleMap")
+    expect_no_message(out <- utils::capture.output(show(scee)))
+    expect_true(any(grepl("^exposureData\\(5 samples x 3 exposures\\)", out)))
+    expect_true(any(grepl("^sampleMap: 100 cell-sample links$", out)))
 })
 
 test_that("build_scee errors on missing sample_col", {

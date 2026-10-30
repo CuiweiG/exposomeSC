@@ -137,3 +137,15 @@ test_that("build_scee rejects malformed matrices and extra samples", {
         "must match"
     )
 })
+
+test_that("CelltypeNetworkResult reports a dimension mismatch as one message", {
+    obj <- methods::new("CelltypeNetworkResult")
+    obj@precision_matrix <- diag(2)
+    obj@adjacency_matrix <- matrix(0L, 3L, 3L)
+    message_text <- tryCatch(methods::validObject(obj),
+        error = conditionMessage)
+    expect_match(message_text,
+        "adjacency_matrix dimensions must match precision_matrix",
+        fixed = TRUE)
+    expect_false(grepl("2: precision_matrix", message_text, fixed = TRUE))
+})
