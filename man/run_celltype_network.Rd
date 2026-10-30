@@ -94,7 +94,10 @@ binary matrix, required), \code{precision} (numeric matrix, optional),
 the column names of \code{adjacency} when absent), and either
 \code{block_sizes} (a named vector giving the size of each omic
 block) or \code{feature_blocks} (a character vector labelling
-each feature), both optional.
+each feature), both optional. The block labels become the
+\code{omic_layer} column of the node table, so use
+\code{"transcript"} and \code{"metabolite"} for the summaries and
+plots to recognise the layers.
 When provided, \code{metabolites}, \code{method},
 \code{stability}, and lambda parameters are ignored.
 \code{x} must still be a

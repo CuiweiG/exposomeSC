@@ -129,6 +129,10 @@ with warnings.
   with `message()`; all of it now goes to standard output.
 * A dimension mismatch in a CelltypeNetworkResult is reported as one
   validity message instead of two fragments.
+* `run_celltype_network(precomputed_network = )` named the omic layer column
+  of its node table `omic`, so `show()`, `plot_celltype_network()` and
+  `run_comparative_network()` failed on a wrapped network. The column is now
+  `omic_layer`, with an integer `block` index, as for estimated networks.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

@@ -139,6 +139,7 @@ test_that("a precomputed network is accepted as a named list", {
     adj[2L, 3L] <- adj[3L, 2L] <- 1L
     prec <- diag(3L)
     prec[1L, 2L] <- prec[2L, 1L] <- -0.4
+    prec[2L, 3L] <- prec[3L, 2L] <- 0.3
     precomputed <- list(
         adjacency = adj,
         precision = prec,
@@ -162,8 +163,22 @@ test_that("a precomputed network is accepted as a named list", {
     ## two undirected edges, counted once each
     expect_equal(metadata(net)$n_edges, 2L)
     expect_identical(networkNodes(net)$feature, c("G1", "G2", "M1"))
-    expect_identical(networkNodes(net)$omic,
+    expect_identical(networkNodes(net)$omic_layer,
                      c("transcript", "transcript", "metabolite"))
+    expect_identical(networkNodes(net)$block, c(1L, 1L, 2L))
+    ## the summary, the plot and the comparison read the omic layer
+    expect_output(show(net), "2 transcripts, 1 metabolites")
+    expect_output(show(net), "1 cross-omic")
+    other <- suppressMessages(run_celltype_network(scee, celltype = "NK",
+        precomputed_network = precomputed))
+    comparison <- run_comparative_network(net, other)
+    expect_s4_class(comparison, "NetworkComparison")
+    expect_equal(nrow(sharedEdges(comparison)), 2L)
+    if (requireNamespace("ggplot2", quietly = TRUE) &&
+            requireNamespace("igraph", quietly = TRUE) &&
+            requireNamespace("ggraph", quietly = TRUE)) {
+        expect_s3_class(plot_celltype_network(net), "ggplot")
+    }
     expect_identical(dimnames(networkAdjacency(net)),
                      list(c("G1", "G2", "M1"), c("G1", "G2", "M1")))
     expect_identical(dimnames(networkPrecision(net)),
@@ -180,7 +195,8 @@ test_that("a precomputed network is accepted as a named list", {
     expect_equal(nrow(networkStability(minimal)), 0L)
     expect_true(all(is.na(networkPrecision(minimal))))
     expect_identical(networkNodes(minimal)$feature, paste0("F", seq_len(3L)))
-    expect_identical(networkNodes(minimal)$omic, rep("unknown", 3L))
+    expect_identical(networkNodes(minimal)$omic_layer, rep("unknown", 3L))
+    expect_identical(networkNodes(minimal)$block, rep(1L, 3L))
 
     expect_error(
         run_celltype_network(scee, celltype = "Mono",
