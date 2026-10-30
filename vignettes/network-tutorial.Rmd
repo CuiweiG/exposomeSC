@@ -210,38 +210,6 @@ exposure_net <- run_exposure_network(
 exposure_net
 ```
 
-# Longitudinal networks
-
-Time-point-specific networks can be organised with `run_temporal_network()`.
-Repeated measurements must remain linked to their donor, and an apparent
-emerging or disappearing edge is descriptive unless its uncertainty has been
-assessed under an appropriate longitudinal resampling scheme.
-
-```{r temporal-network, eval=has_plot_packages}
-metabolites_follow_up <- metabolites
-metabolites_follow_up[, "M2"] <- metabolites_follow_up[, "M2"] + 1.5 * pm25
-
-temporal <- run_temporal_network(
-    scee_list = list(baseline = scee, follow_up = scee),
-    metabolites_list = list(
-        baseline = metabolites,
-        follow_up = metabolites_follow_up
-    ),
-    celltype = "Monocyte",
-    sample_col = "donor_id",
-    covariates = c("age", "sex"),
-    method = "block_glasso",
-    stability = FALSE
-)
-temporal
-
-plot_temporal_dynamics(temporal)
-```
-
-The follow-up here reuses the baseline cells with one changed metabolite, so
-the example shows the mechanics of edge tracking rather than a longitudinal
-design.
-
 # Composition and provenance
 
 Building a network within a cell type removes variation in broad cell-type

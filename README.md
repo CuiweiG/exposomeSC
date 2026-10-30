@@ -104,7 +104,7 @@ not absolute tissue abundance.
 | Exposure modelling | `run_dose_response()`, `run_dose_response_gam()`, `run_interaction_test()`, `run_mixture_qgcomp()`, `run_sc_mixture()` |
 | Composition | `run_exposure_composition()` |
 | Downstream | `run_gsea()`, `run_cell_coupling()` |
-| Cross-omic networks (exploratory) | `simulate_crossomic_network()`, `run_celltype_network()`, `run_exposure_network()`, `run_comparative_network()`, `run_differential_network()`, `run_temporal_network()` and their plots |
+| Cross-omic networks (exploratory) | `simulate_crossomic_network()`, `run_celltype_network()`, `run_exposure_network()`, `run_comparative_network()` and their plots |
 
 The network functions return model-dependent summaries, not validated
 conditional-independence findings. `run_comparative_network()` warns once per

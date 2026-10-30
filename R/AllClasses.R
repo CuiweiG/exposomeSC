@@ -283,35 +283,6 @@ setClass("NetworkComparison",
     )
 )
 
-#' TemporalNetwork: temporal network evolution result
-#'
-#' Stores results from \code{\link{run_temporal_network}},
-#' tracking edge dynamics across time points.
-#'
-#' @slot networks List of \code{CelltypeNetworkResult} objects,
-#'   one per time point.
-#' @slot edge_dynamics \code{DataFrame}. Edge-level temporal
-#'   trajectory: node_i, node_j, status at each time point.
-#' @slot timepoints Character vector. Ordered time point labels.
-#'
-#' @return A \code{TemporalNetwork} object.
-#' @name TemporalNetwork-class
-#' @exportClass TemporalNetwork
-#' @examples
-#' showClass("TemporalNetwork")
-setClass("TemporalNetwork",
-    slots = c(
-        networks       = "list",
-        edge_dynamics  = "DataFrame",
-        timepoints     = "character"
-    ),
-    prototype = list(
-        networks       = list(),
-        edge_dynamics  = S4Vectors::DataFrame(),
-        timepoints     = character()
-    )
-)
-
 # Show methods for network classes
 
 #' @rdname CelltypeNetworkResult-class
@@ -367,23 +338,5 @@ setMethod("show", "NetworkComparison", function(object) {
     for (ct in names(object@celltype_specific)) {
         cat(sprintf("  Unique to %s: %d\n",
             ct, nrow(object@celltype_specific[[ct]])))
-    }
-})
-
-#' @rdname TemporalNetwork-class
-#' @aliases show,TemporalNetwork-method
-#' @param object A \code{TemporalNetwork} object.
-#' @export
-setMethod("show", "TemporalNetwork", function(object) {
-    cat("TemporalNetwork\n")
-    cat(sprintf("  Time points: %s\n",
-        paste(object@timepoints, collapse = " -> ")))
-    cat(sprintf("  Networks: %d\n", length(object@networks)))
-    if (nrow(object@edge_dynamics) > 0) {
-        ed <- object@edge_dynamics
-        if ("status" %in% colnames(ed)) {
-            cat(sprintf("  Edge dynamics tracked: %d edges\n",
-                nrow(ed)))
-        }
     }
 })

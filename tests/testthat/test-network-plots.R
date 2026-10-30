@@ -113,14 +113,6 @@ test_that("plot_edge_stability handles no stability", {
     expect_s3_class(p, "gg")
 })
 
-test_that("plot_temporal_dynamics handles empty dynamics", {
-    skip_if_not_installed("ggplot2")
-
-    tn <- new("TemporalNetwork")
-    p <- plot_temporal_dynamics(tn)
-    expect_s3_class(p, "gg")
-})
-
 test_that("plot_network_comparison handles every edge-category boundary", {
     skip_if_not_installed("ggplot2")
 
@@ -203,28 +195,4 @@ test_that("plot_edge_stability draws a reference line only on request", {
     expect_error(plot_edge_stability(net, threshold = 1.5), "threshold")
     expect_error(plot_edge_stability(net, threshold = c(0.5, 0.8)),
         "threshold")
-})
-
-test_that("plot_temporal_dynamics labels presence by name", {
-    skip_if_not_installed("ggplot2")
-    edge_dynamics <- S4Vectors::DataFrame(
-        node_i = c("G1", "G2"),
-        node_j = c("M1", "M1"),
-        cross_omic = c(TRUE, TRUE),
-        status = c("persistent", "persistent"),
-        present_baseline = c(TRUE, TRUE),
-        present_follow_up = c(TRUE, TRUE)
-    )
-    temporal <- methods::new(
-        "TemporalNetwork",
-        networks = list(),
-        edge_dynamics = edge_dynamics,
-        timepoints = c("baseline", "follow_up")
-    )
-    p <- plot_temporal_dynamics(temporal)
-    tiles <- ggplot2::layer_data(p, 1L)
-    expect_true(all(tiles$fill == "#0072B2"))
-    guide <- ggplot2::get_guide_data(p, "fill")
-    expect_identical(as.character(guide$.label), c("Absent", "Present"))
-    expect_identical(guide$fill, c("#E5E5E5", "#0072B2"))
 })

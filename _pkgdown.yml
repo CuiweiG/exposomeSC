@@ -10,7 +10,6 @@ reference:
       - CelltypeNetwork-class
       - CelltypeNetworkResult-class
       - NetworkComparison-class
-      - TemporalNetwork-class
 
   - title: "Data Construction"
     desc: "Build and convert exposome objects"
@@ -59,8 +58,6 @@ reference:
       - run_celltype_network
       - run_cell_coupling
       - run_comparative_network
-      - run_differential_network
-      - run_temporal_network
       - simulate_crossomic_network
 
   - title: "Visualization"
@@ -68,7 +65,6 @@ reference:
       - plot_celltype_network
       - plot_network_comparison
       - plot_edge_stability
-      - plot_temporal_dynamics
 
   - title: "Sensitivity and Power"
     contents:
