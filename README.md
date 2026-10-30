@@ -41,6 +41,9 @@ BiocManager::install("CuiweiG/exposomeSC")
 The package ships a small simulated data set: 2,000 cells from 20 donors in
 three cell types, with five exposures and two covariates per donor. Ten genes
 were given a PM2.5-dependent increase in monocytes when the data were made.
+The counts are independent Poisson draws without donor effects or the
+sparsity of real data, so the data set shows how the functions are called,
+not how well they perform.
 
 ```r
 library(exposomeSC)

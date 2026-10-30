@@ -1,5 +1,7 @@
-## Create demo SCEE data for vignette and figures
-## Uses realistic parameters from published sc-eQTL studies
+## Create the small simulated demo data used in the README.
+## Counts are independent Poisson(8) draws with an additive PM2.5 signal
+## in genes 1-10 of cells labelled Monocyte; the exposures are simulated
+## and have no units. Nothing here is taken from real data.
 library(SingleCellExperiment)
 library(S4Vectors)
 

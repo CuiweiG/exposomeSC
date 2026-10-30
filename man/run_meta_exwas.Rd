@@ -81,7 +81,7 @@ r2 <- DataFrame(
 )
 meta <- run_meta_exwas(
     list(r1, r2),
-    cohort_names = c("HELIX", "ENVIRONAGE")
+    cohort_names = c("CohortA", "CohortB")
 )
 meta
 }

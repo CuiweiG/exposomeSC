@@ -168,10 +168,10 @@ test_that("edgeR QL results cannot enter inverse-variance synthesis", {
 
     expect_error(
         run_meta_exwas(list(edgeR_proxy, edgeR_proxy)),
-        "edgeR quasi-likelihood.*does not supply coefficient standard errors"
+        "edgeR quasi-likelihood.*does not supply coefficient SEs"
     )
     expect_error(
         run_meta_exwas(list(edgeR_current, edgeR_current)),
-        "edgeR quasi-likelihood.*does not supply coefficient standard errors"
+        "edgeR quasi-likelihood.*does not supply coefficient SEs"
     )
 })

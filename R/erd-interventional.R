@@ -60,6 +60,11 @@ NULL
 #' @param rr Numeric rate ratio (point estimate or CI limit).
 #' @return The E-value \code{rr + sqrt(rr*(rr-1))}, with \code{rr} inverted
 #'   when below 1; \code{1} when the limit already crosses the null.
+#' @references
+#' Smith LH, VanderWeele TJ (2019). Mediational E-values: approximate
+#' sensitivity analysis for unmeasured mediator-outcome confounding.
+#' \emph{Epidemiology} 30(6):835--837.
+#' \doi{10.1097/EDE.0000000000001064}
 #' @examples
 #' mediational_evalue(c(1, 1.5, 0.5))
 #' @export

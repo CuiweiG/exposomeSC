@@ -125,6 +125,7 @@ NULL
 #' Lee H & Han B (2024). Pseudobulk with proper offsets has the same statistical
 #' properties as generalized linear mixed models in single-cell case-control
 #' studies. \emph{Bioinformatics} 40(8):btae498.
+#' \doi{10.1093/bioinformatics/btae498}
 #'
 #' Squair JW et al. (2021). Confronting false discoveries in single-cell
 #' differential expression. \emph{Nat Commun} 12:5692.

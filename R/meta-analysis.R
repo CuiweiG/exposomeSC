@@ -77,7 +77,7 @@ NULL
 #' )
 #' meta <- run_meta_exwas(
 #'     list(r1, r2),
-#'     cohort_names = c("HELIX", "ENVIRONAGE")
+#'     cohort_names = c("CohortA", "CohortB")
 #' )
 #' meta
 run_meta_exwas <- function(results_list,
@@ -163,10 +163,10 @@ run_meta_exwas <- function(results_list,
         if (any(edgeR_ql_method) || edgeR_ql_contract) {
             stop(
                 "edgeR quasi-likelihood output does not supply coefficient ",
-                "standard errors and cannot enter inverse-variance synthesis ",
+                "SEs and cannot enter inverse-variance synthesis ",
                 "for cohort '", cohort, "'. Use independently fitted ",
                 "uncertainty from a method that supplies valid coefficient ",
-                "standard errors."
+                "SEs."
             )
         }
         missing <- setdiff(c("gene", "celltype"), colnames(data))
@@ -200,7 +200,7 @@ run_meta_exwas <- function(results_list,
         if (!is.numeric(data[[effect_name]]) ||
                 !is.numeric(data[[se_name]])) {
             stop(
-                "Effect and standard-error columns must be numeric in cohort '",
+                "Effect and SE columns must be numeric in cohort '",
                 cohort, "'."
             )
         }
@@ -208,7 +208,7 @@ run_meta_exwas <- function(results_list,
         standard_error <- as.numeric(data[[se_name]])
         if (length(standard_error) && all(is.na(standard_error))) {
             stop(
-                "No coefficient standard errors are available in cohort '",
+                "No coefficient SEs are available in cohort '",
                 cohort, "'; inverse-variance synthesis is undefined."
             )
         }
@@ -218,7 +218,7 @@ run_meta_exwas <- function(results_list,
         if (any(!is.na(standard_error) &
                 (!is.finite(standard_error) | standard_error <= 0))) {
             stop(
-                "Standard errors must be positive and finite in cohort '",
+                "SEs must be positive and finite in cohort '",
                 cohort, "'."
             )
         }

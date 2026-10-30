@@ -19,3 +19,9 @@ Mediational E-value (Smith & VanderWeele 2019) on the rate-ratio scale
 \examples{
 mediational_evalue(c(1, 1.5, 0.5))
 }
+\references{
+Smith LH, VanderWeele TJ (2019). Mediational E-values: approximate
+sensitivity analysis for unmeasured mediator-outcome confounding.
+\emph{Epidemiology} 30(6):835--837.
+\doi{10.1097/EDE.0000000000001064}
+}
