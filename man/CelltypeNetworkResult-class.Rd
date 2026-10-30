@@ -30,8 +30,9 @@ elsewhere.
 \item{\code{precision_matrix}}{Numeric matrix. Estimated block
 precision (inverse covariance) matrix.}
 
-\item{\code{adjacency_matrix}}{Numeric matrix. Binary edge indicators
-(1 = edge present, 0 = absent).}
+\item{\code{adjacency_matrix}}{Numeric matrix. Symmetric binary edge
+indicators (1 = edge present, 0 = absent) with the dimensions of
+\code{precision_matrix}.}
 
 \item{\code{stability_scores}}{Numeric matrix. Edge-level selection
 frequencies (0-1) across the XStARS subsamples at the selected
@@ -40,7 +41,9 @@ Empty otherwise.}
 
 \item{\code{node_info}}{\code{DataFrame}. Maps each node (row/col
 index) to its omic layer ("transcript" or "metabolite"),
-feature name, and optional module/community assignment.}
+feature name, and optional module/community assignment. It has
+one row per node, in matrix order; when the matrices have row or
+column names, these must equal its \code{feature} column.}
 
 \item{\code{celltype}}{Character. The cell type this network
 represents.}

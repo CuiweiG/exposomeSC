@@ -52,7 +52,13 @@ The subsetting method returns a valid
   cell; feature subsetting leaves the donor-level slots unchanged.
   \code{cbind} combines objects with the same exposure variables, exposure
   metadata and sample column; donors present in more than one object must
-  have identical exposure values. The replacement methods return the
+  have identical exposure values. Every argument to \code{cbind} must be
+  a \code{SingleCellExposomeExperiment}: when a plain
+  \code{SingleCellExperiment} comes first, R dispatches to the
+  \code{SingleCellExperiment} method, which returns a
+  \code{SingleCellExperiment} without the exposure data (with only a
+  warning about ambiguous dispatch), so convert such objects with
+  \code{\link{build_scee}} first. The replacement methods return the
   modified object. The \code{show} method is called for its display side
   effect and returns \code{NULL} invisibly.
 }

@@ -59,8 +59,8 @@ NULL
 #'   for the block_glasso method. Default 0.5.
 #' @param precomputed_network Optional named list holding a
 #'   pre-estimated network to wrap into a CelltypeNetworkResult
-#'   without re-estimation, with elements \code{adjacency} (binary
-#'   matrix, required), \code{precision} (numeric matrix, optional),
+#'   without re-estimation, with elements \code{adjacency} (symmetric
+#'   binary matrix, required), \code{precision} (numeric matrix, optional),
 #'   \code{stability} (numeric matrix, optional),
 #'   \code{feature_names} (character vector, optional; taken from
 #'   the column names of \code{adjacency} when absent), and either

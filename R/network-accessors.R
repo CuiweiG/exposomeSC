@@ -16,10 +16,12 @@ NULL
 #'
 #' @param precision Numeric square matrix: the precision (inverse
 #'   covariance) matrix, one row and column per feature.
-#' @param adjacency Square matrix of edge indicators (1 = edge, 0 = no
+#' @param adjacency Symmetric matrix of edge indicators (1 = edge, 0 = no
 #'   edge) with the dimensions of \code{precision}.
 #' @param node_info \code{DataFrame} or \code{data.frame} with one row per
-#'   feature, in matrix order, and at least a \code{feature} column. The
+#'   feature, in matrix order, and at least a \code{feature} column without
+#'   missing values. Row and column names of the matrices, where present,
+#'   must equal \code{feature}, so that a misordered table is an error. The
 #'   plotting and comparison functions also use an \code{omic_layer} column
 #'   (\code{"transcript"} or \code{"metabolite"}).
 #' @param celltype Character scalar: the cell type.

@@ -16,11 +16,14 @@ run_sc_exwas_glmm(
 )
 }
 \arguments{
-\item{x}{A \linkS4class{SingleCellExposomeExperiment}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposure}{Character; a donor-level column of \code{exposureData(x)}.}
 
-\item{celltype_col}{Character; \code{colData} column with cell-type labels.}
+\item{celltype_col}{Character. Column in \code{colData}
+containing cell type annotations. Default \code{"cell_type"}.}
 
 \item{covariates}{Character vector; donor covariate columns in
 \code{exposureData} (numeric), added as fixed-effect main effects.}

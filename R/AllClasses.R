@@ -41,7 +41,13 @@ NULL
 #'   cell; feature subsetting leaves the donor-level slots unchanged.
 #'   \code{cbind} combines objects with the same exposure variables, exposure
 #'   metadata and sample column; donors present in more than one object must
-#'   have identical exposure values. The replacement methods return the
+#'   have identical exposure values. Every argument to \code{cbind} must be
+#'   a \code{SingleCellExposomeExperiment}: when a plain
+#'   \code{SingleCellExperiment} comes first, R dispatches to the
+#'   \code{SingleCellExperiment} method, which returns a
+#'   \code{SingleCellExperiment} without the exposure data (with only a
+#'   warning about ambiguous dispatch), so convert such objects with
+#'   \code{\link{build_scee}} first. The replacement methods return the
 #'   modified object. The \code{show} method is called for its display side
 #'   effect and returns \code{NULL} invisibly.
 #'
@@ -197,15 +203,18 @@ setClass("CelltypeNetwork", contains = "VIRTUAL")
 #'
 #' @slot precision_matrix Numeric matrix. Estimated block
 #'   precision (inverse covariance) matrix.
-#' @slot adjacency_matrix Numeric matrix. Binary edge indicators
-#'   (1 = edge present, 0 = absent).
+#' @slot adjacency_matrix Numeric matrix. Symmetric binary edge
+#'   indicators (1 = edge present, 0 = absent) with the dimensions of
+#'   \code{precision_matrix}.
 #' @slot stability_scores Numeric matrix. Edge-level selection
 #'   frequencies (0-1) across the XStARS subsamples at the selected
 #'   penalties, for coglasso networks built with \code{stability = TRUE}.
 #'   Empty otherwise.
 #' @slot node_info \code{DataFrame}. Maps each node (row/col
 #'   index) to its omic layer ("transcript" or "metabolite"),
-#'   feature name, and optional module/community assignment.
+#'   feature name, and optional module/community assignment. It has
+#'   one row per node, in matrix order; when the matrices have row or
+#'   column names, these must equal its \code{feature} column.
 #' @slot celltype Character. The cell type this network
 #'   represents.
 #' @slot method Character. Estimation method: \code{"coglasso"} or
@@ -249,34 +258,61 @@ setValidity("CelltypeNetworkResult", function(object) {
     msg <- character()
     pm <- object@precision_matrix
     am <- object@adjacency_matrix
+    sm <- object@stability_scores
+    ni <- object@node_info
+    p <- nrow(pm)
 
-    if (nrow(pm) > 0 && ncol(pm) > 0) {
-        if (nrow(pm) != ncol(pm))
-            msg <- c(msg,
-                "precision_matrix must be square")
-        if (nrow(am) != nrow(pm) || ncol(am) != ncol(pm))
-            msg <- c(msg, paste0(
-                "adjacency_matrix dimensions must match ",
-                "precision_matrix"))
+    square <- nrow(pm) == ncol(pm)
+    if (!square)
+        msg <- c(msg, "precision_matrix must be square")
+    if (!identical(dim(am), dim(pm))) {
+        msg <- c(msg, paste0(
+            "adjacency_matrix dimensions must match ",
+            "precision_matrix"))
+    } else if (length(am) > 0L) {
+        if (!(is.numeric(am) || is.logical(am)) || anyNA(am) ||
+                !all(am == 0 | am == 1)) {
+            msg <- c(msg, "adjacency_matrix must hold only 0 and 1")
+        } else if (square && !all(am == t(am))) {
+            msg <- c(msg, "adjacency_matrix must be symmetric")
+        }
     }
 
-    sm <- object@stability_scores
-    if (length(sm) > 0L &&
-            (nrow(sm) != nrow(am) || ncol(sm) != ncol(am)))
+    if (length(sm) > 0L && !identical(dim(sm), dim(am)))
         msg <- c(msg, paste0(
             "stability_scores must be empty or have the dimensions of ",
             "adjacency_matrix"))
 
-    ni <- object@node_info
-    if (nrow(ni) > 0 && nrow(pm) > 0) {
-        if (nrow(ni) != nrow(pm))
-            msg <- c(msg, paste0(
-                "nrow(node_info) [", nrow(ni),
-                "] must equal nrow(precision_matrix) [",
-                nrow(pm), "]"))
-    }
-    if (nrow(ni) > 0 && !"feature" %in% colnames(ni))
+    if (nrow(ni) != p)
+        msg <- c(msg, paste0(
+            "nrow(node_info) [", nrow(ni),
+            "] must equal nrow(precision_matrix) [", p, "]"))
+    if ((p > 0L || nrow(ni) > 0L) && !"feature" %in% colnames(ni)) {
         msg <- c(msg, "node_info must have a feature column")
+    } else if (nrow(ni) == p && p > 0L) {
+        features <- as.character(ni$feature)
+        if (anyNA(features)) {
+            msg <- c(msg, "node_info$feature must not contain NA")
+        } else {
+            ## Matrices that carry dimnames must name the nodes in the
+            ## order of node_info, which the comparison and plotting
+            ## functions read by position
+            mats <- list(precision_matrix = pm, adjacency_matrix = am,
+                stability_scores = sm)
+            for (nm in names(mats)) {
+                m <- mats[[nm]]
+                if (!identical(dim(m), c(p, p)))
+                    next
+                named <- Filter(Negate(is.null), dimnames(m))
+                if (!all(vapply(named, function(d)
+                        identical(as.character(d), features),
+                        logical(1))))
+                    msg <- c(msg, paste0(
+                        "row and column names of ", nm, " must match ",
+                        "node_info$feature in order"))
+            }
+        }
+    }
 
     if (length(object@celltype) != 1L)
         msg <- c(msg, "celltype must be a single character string")

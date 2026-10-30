@@ -74,7 +74,11 @@ with warnings.
   for networks, and `diffEdges()`, `sharedEdges()`,
   `celltypeSpecificEdges()` and `comparisonSummary()` for comparisons.
   NetworkComparison now has a validity method, and CelltypeNetworkResult
-  checks its stability matrix, node table, cell type and method.
+  checks its stability matrix, node table, cell type and method. The node
+  table must have one row per node, and where the matrices have row or
+  column names they must equal its `feature` column, so a node table in
+  another order is an error rather than a source of mislabelled edges. The
+  adjacency matrix must be symmetric and hold only 0 and 1.
 
 ## Bug fixes
 

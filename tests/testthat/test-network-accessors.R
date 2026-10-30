@@ -60,6 +60,76 @@ test_that("CelltypeNetworkResult validity rejects inconsistent parts", {
         "must equal nrow")
 })
 
+test_that("CelltypeNetworkResult validity ties node_info to the matrices", {
+    good <- .toy_network()
+    precision <- networkPrecision(good)
+    adjacency <- networkAdjacency(good)
+    nodes <- networkNodes(good)
+
+    ## a node table in another order would relabel the G1-M1 edge
+    expect_error(
+        CelltypeNetworkResult(precision, adjacency,
+            node_info = nodes[c(2, 3, 1), ], celltype = "Mono"),
+        "names of precision_matrix must match node_info\\$feature")
+    expect_error(
+        CelltypeNetworkResult(precision, unname(adjacency),
+            node_info = nodes, celltype = "Mono",
+            stability = adjacency[c(2, 3, 1), c(2, 3, 1)] * 0.9),
+        "names of stability_scores must match")
+    adjacency_named_wrongly <- adjacency
+    dimnames(adjacency_named_wrongly) <- list(c("A", "B", "C"), NULL)
+    expect_error(
+        CelltypeNetworkResult(unname(precision), adjacency_named_wrongly,
+            node_info = nodes, celltype = "Mono"),
+        "names of adjacency_matrix must match")
+    ## unnamed matrices are matched by position
+    expect_true(methods::validObject(CelltypeNetworkResult(
+        unname(precision), unname(adjacency), node_info = nodes,
+        celltype = "Mono")))
+
+    expect_error(
+        CelltypeNetworkResult(precision, adjacency,
+            node_info = S4Vectors::DataFrame(), celltype = "Mono"),
+        "nrow\\(node_info\\) \\[0\\] must equal")
+    expect_error(
+        CelltypeNetworkResult(precision, adjacency,
+            node_info = data.frame(feature = c("G1", NA, "M1")),
+            celltype = "Mono"),
+        "must not contain NA")
+    expect_error(
+        CelltypeNetworkResult(matrix(numeric(), 0L, 0L), adjacency,
+            node_info = nodes, celltype = "Mono"),
+        "adjacency_matrix dimensions must match")
+})
+
+test_that("CelltypeNetworkResult validity needs a symmetric 0/1 adjacency", {
+    good <- .toy_network()
+    precision <- networkPrecision(good)
+    adjacency <- networkAdjacency(good)
+    nodes <- networkNodes(good)
+
+    weighted <- adjacency
+    weighted["G1", "M1"] <- weighted["M1", "G1"] <- 5
+    expect_error(
+        CelltypeNetworkResult(precision, weighted, node_info = nodes,
+            celltype = "Mono"),
+        "only 0 and 1")
+    missing_edge <- adjacency
+    missing_edge["G1", "G2"] <- NA
+    expect_error(
+        CelltypeNetworkResult(precision, missing_edge, node_info = nodes,
+            celltype = "Mono"),
+        "only 0 and 1")
+    one_way <- adjacency
+    one_way["G1", "G2"] <- 1L
+    expect_error(
+        CelltypeNetworkResult(precision, one_way, node_info = nodes,
+            celltype = "Mono"),
+        "must be symmetric")
+    expect_true(methods::validObject(CelltypeNetworkResult(precision,
+        adjacency != 0, node_info = nodes, celltype = "Mono")))
+})
+
 test_that("comparison accessors agree with the summary", {
     comp <- run_comparative_network(.toy_network("Mono", -0.4),
                                     .toy_network("NK", 0))

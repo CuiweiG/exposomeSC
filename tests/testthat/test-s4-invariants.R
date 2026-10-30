@@ -126,7 +126,8 @@ test_that("CelltypeNetworkResult reports a dimension mismatch as one message", {
     message_text <- tryCatch(
         CelltypeNetworkResult(precision = diag(2),
             adjacency = matrix(0L, 3L, 3L),
-            node_info = S4Vectors::DataFrame(), celltype = "Mono"),
+            node_info = S4Vectors::DataFrame(feature = c("G1", "G2")),
+            celltype = "Mono"),
         error = conditionMessage)
     expect_match(message_text,
         "adjacency_matrix dimensions must match precision_matrix",

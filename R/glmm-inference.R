@@ -98,9 +98,12 @@ NULL
 #' P-values are Wald tests with an estimated dispersion and can be
 #' anticonservative when there are few donors.
 #'
-#' @param x A \linkS4class{SingleCellExposomeExperiment}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character; a donor-level column of \code{exposureData(x)}.
-#' @param celltype_col Character; \code{colData} column with cell-type labels.
+#' @param celltype_col Character. Column in \code{colData}
+#'   containing cell type annotations. Default \code{"cell_type"}.
 #' @param covariates Character vector; donor covariate columns in
 #'   \code{exposureData} (numeric), added as GLM main effects.
 #' @param target_genes Character; genes to test (default: all rows of
@@ -277,9 +280,12 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #' equivalent and far faster (Lee & Han 2024). The \code{ddf} argument is
 #' ignored for \code{family = "nbinom"}.
 #'
-#' @param x A \linkS4class{SingleCellExposomeExperiment}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character; a donor-level column of \code{exposureData(x)}.
-#' @param celltype_col Character; \code{colData} column with cell-type labels.
+#' @param celltype_col Character. Column in \code{colData}
+#'   containing cell type annotations. Default \code{"cell_type"}.
 #' @param covariates Character vector; donor covariate columns in
 #'   \code{exposureData} (numeric), added as fixed-effect main effects.
 #' @param target_genes Character; genes to test (default: all rows of
