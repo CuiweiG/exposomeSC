@@ -4,7 +4,7 @@
 #' @include AllClasses.R
 #' @include network-utils.R
 #' @importFrom S4Vectors DataFrame
-#' @importFrom stats cov cor var
+#' @importFrom stats cov cor cor.test var
 NULL
 
 #' Build cell-type-resolved cross-omic network

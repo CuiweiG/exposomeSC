@@ -105,25 +105,11 @@ not absolute tissue abundance.
 | Composition | `run_exposure_composition()` |
 | Downstream | `run_gsea()`, `run_cell_coupling()` |
 | Cross-omic networks (exploratory) | `simulate_crossomic_network()`, `run_celltype_network()`, `run_exposure_network()`, `run_comparative_network()`, `run_differential_network()`, `run_temporal_network()` and their plots |
-| Experimental | `run_mediation()`, `run_causal_mediation()`, `run_network_mediation()`, `mediational_evalue()`, `compute_iers()`, `run_state_coupling()`, `run_spatial_exwas()` |
 
 The network functions return model-dependent summaries, not validated
-conditional-independence findings. The last row is this README's own grouping:
-the functions in it are the ones whose estimator, resampling or identification
-properties have been examined least. Three of them, `run_mediation()`,
-`run_causal_mediation()` and `run_network_mediation()`, warn once per session
-to say so, as does `run_comparative_network()` in its `fisher_z` mode. The
-package does not supply causal identification by itself.
-
-## Decomposition
-
-`run_decomposed_exwas()`, `erd_evalue()` and `erd_resolution_sensitivity()`
-have been removed. Their outcome was a within-cell-type expression rate, which
-cannot identify the mechanical contribution of cell-type abundance to a tissue
-mixture, so the direct/indirect labels and mediational E-values they produced
-did not support causal or abundance claims. `run_erd_interventional()` is kept
-as an unexported developmental function while a replacement estimand is worked
-out.
+conditional-independence findings. `run_comparative_network()` warns once per
+session when its experimental `fisher_z` mode is used. The package estimates
+associations; it does not supply causal identification.
 
 ## HLCA data provenance
 

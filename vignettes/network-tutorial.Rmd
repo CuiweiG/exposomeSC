@@ -242,14 +242,6 @@ The follow-up here reuses the baseline cells with one changed metabolite, so
 the example shows the mechanics of edge tracking rather than a longitudinal
 design.
 
-# Mediation terminology
-
-`run_network_mediation()` is a model-based exploratory utility. Network
-topology does not establish temporal ordering, eliminate unmeasured
-confounding or identify a causal indirect effect. Results must be described as
-conditional model associations unless the study design and identification
-assumptions independently support stronger language.
-
 # Composition and provenance
 
 Building a network within a cell type removes variation in broad cell-type

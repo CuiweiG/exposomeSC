@@ -33,7 +33,6 @@ reference:
     contents:
       - run_sc_exwas
       - run_sc_exwas_glmm
-      - run_spatial_exwas
       - run_multi_exwas
       - run_meta_exwas
 
@@ -49,11 +48,8 @@ reference:
       - run_dose_response
       - run_dose_response_gam
 
-  - title: "Mediation and Causal Inference"
+  - title: "Enrichment"
     contents:
-      - run_mediation
-      - run_causal_mediation
-      - run_network_mediation
       - run_gsea
 
   - title: "Network Analysis"
@@ -62,7 +58,6 @@ reference:
       - run_exposure_network
       - run_celltype_network
       - run_cell_coupling
-      - run_state_coupling
       - run_comparative_network
       - run_differential_network
       - run_temporal_network

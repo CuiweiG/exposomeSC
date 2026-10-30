@@ -214,18 +214,6 @@ study-adjusted multivariate test. The resulting coefficients concern relative
 captured-cell composition—not absolute lung-cell abundance—and no mediation
 interpretation is made.
 
-# Developmental decomposition interfaces
-
-`run_decomposed_exwas()` has been removed. `run_erd_interventional()` is kept
-as an unexported developmental function and is not for confirmatory
-interpretation. The earlier within-type-rate outcome cannot identify the
-mechanical contribution of cell-type abundance to a tissue mixture, so former
-direct/indirect labels and ERD E-values must not be used for causal or abundance
-claims.
-
-A replacement estimand remains developmental until it is implemented, calibrated
-under appropriate data-generating mechanisms and assessed independently.
-
 # Public source and reproducibility
 
 The HLCA source is the CC BY 4.0 CZ CELLxGENE collection associated with

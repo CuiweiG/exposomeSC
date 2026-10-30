@@ -1,4 +1,4 @@
-# tests/testthat/test-bridge-spatial.R
+# tests/testthat/test-bridge.R
 
 test_that("as_scee reads the ExposomeSet exposure matrix", {
     skip_if_not_installed("Biobase")
@@ -37,26 +37,4 @@ test_that("seurat_to_exposure warns on within-donor variation", {
                    "vary within a donor")
     expect_equal(unname(m[, "pm"]), c(1, 7 / 3))
     expect_error(seurat_to_exposure(meta, "donor", "sex"), "Non-numeric")
-})
-
-test_that("run_spatial_exwas refuses unregistered pooled k-means regions", {
-    skip_if_not_installed("SpatialExperiment")
-    set.seed(1)
-    donors <- paste0("D", 1:6)
-    spot_donor <- rep(donors, each = 40)
-    region <- rep(rep(c("epithelium", "stroma"), each = 20), times = 6)
-    counts <- matrix(stats::rpois(200 * length(spot_donor), 5), nrow = 200,
-        dimnames = list(paste0("G", 1:200), paste0("s", seq_along(spot_donor))))
-    spe <- SpatialExperiment::SpatialExperiment(
-        assays = list(counts = counts),
-        colData = S4Vectors::DataFrame(sample_id = spot_donor, region = region),
-        spatialCoords = cbind(x = stats::runif(240), y = stats::runif(240)))
-    exposure <- matrix(stats::rnorm(6), ncol = 1,
-        dimnames = list(donors, "PM2.5"))
-    expect_error(run_spatial_exwas(spe, exposure, "PM2.5"), "registered")
-    res <- run_spatial_exwas(spe, exposure, "PM2.5", region_col = "region",
-                             target_genes = paste0("G", 1:10))
-    expect_setequal(unique(res$region), c("epithelium", "stroma"))
-    expect_true(all(res$gene %in% paste0("G", 1:10)))
-    expect_true("padj_global" %in% colnames(res))
 })

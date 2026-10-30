@@ -45,10 +45,8 @@ Suggests:
     pbkrtest,
     mgcv,
     qgcomp,
-    mediation,
     glasso,
     Biobase,
-    SpatialExperiment,
     coglasso (>= 1.1.0),
     igraph,
     ggraph,
@@ -75,20 +73,16 @@ Collate:
     'below-lod.R'
     'build-scee.R'
     'bridge.R'
-    'utils.R'
-    'causal-mediation.R'
     'cell-coupling.R'
+    'utils.R'
     'composition.R'
     'data-docs.R'
     'dose-response.R'
     'enrichment.R'
-    'erd-interventional.R'
     'exposomeSC-package.R'
     'gam-dr.R'
     'glmm-inference.R'
-    'iers.R'
     'interaction.R'
-    'mediation.R'
     'meta-analysis.R'
     'methods.R'
     'mixture.R'
@@ -98,11 +92,8 @@ Collate:
     'network-build.R'
     'network-compare.R'
     'network-differential.R'
-    'network-mediation.R'
     'network-plots.R'
     'network-simulate.R'
     'network-temporal.R'
     'power.R'
     'qgcomp-mixture.R'
-    'spatial.R'
-    'state-coupling.R'

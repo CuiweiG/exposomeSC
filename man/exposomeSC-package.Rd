@@ -24,15 +24,6 @@ exposures with single-cell resolution gene expression.
 }
 }
 
-\section{Experimental and legacy association utilities}{
-
-\describe{
-  \item{\code{\link{run_causal_mediation}}}{Model-based exploratory
-    mediation calculations requiring user-supplied identification
-    assumptions}
-}
-}
-
 \section{Dose-response and mixtures}{
 
 \describe{
@@ -54,8 +45,6 @@ exposures with single-cell resolution gene expression.
 \describe{
   \item{\code{\link{run_cell_coupling}}}{Gene-protein
     coupling via meta-regression with confounders}
-  \item{\code{\link{run_state_coupling}}}{Cell-state
-    coupling: exposure x trajectory interaction}
 }
 }
 
@@ -66,8 +55,6 @@ exposures with single-cell resolution gene expression.
     fgsea}
   \item{\code{\link{run_meta_exwas}}}{Cross-cohort
     meta-analysis (fixed/random effects)}
-  \item{\code{\link{run_spatial_exwas}}}{Region-resolved
-    ExWAS via SpatialExperiment}
   \item{\code{\link{estimate_power}}}{Power/sample size
     calculator}
 }
@@ -89,20 +76,8 @@ Squair JW et al. (2021). Confronting false discoveries in
 single-cell differential expression. \emph{Nat Commun}
 12:5692. \doi{10.1038/s41467-021-25960-2}
 
-VanderWeele TJ (2015). \emph{Explanation in Causal
-Inference}. Oxford University Press.
-
-VanderWeele TJ, Ding P (2017). Sensitivity analysis in
-observational research: introducing the E-value.
-\emph{Ann Intern Med} 167:268-274.
-\doi{10.7326/M16-2607}
-
 Aitchison J (1986). \emph{The Statistical Analysis of
 Compositional Data}. Chapman and Hall.
-
-Imai K, Keele L, Tingley D (2010). A general approach to
-causal mediation analysis. \emph{Psychol Methods}
-15:309-334. \doi{10.1037/a0020761}
 }
 \seealso{
 Useful links:

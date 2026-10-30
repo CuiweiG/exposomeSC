@@ -261,17 +261,6 @@ Figures and tables read these objects directly. No metric is typed into display
 code. Until this record is complete, the package makes no quantitative
 calibration, power, speed or superiority claim.
 
-# Developmental ERD assessment
-
-The removed decomposition interfaces and the developmental
-`run_erd_interventional()` are excluded from confirmatory benchmarking. Their
-within-type-rate outcome did not identify the abundance contribution described
-by the former direct/indirect labels. The redesigned molecular-contribution
-estimand must first be implemented, then tested under pure abundance,
-within-type expression, combined, contextual, null and misspecified scenarios.
-No mediational E-value is reported without a derivation valid for that exact
-multivariate stochastic-composition estimand.
-
 # Session information
 
 ```{r session-info}
