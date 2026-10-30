@@ -124,6 +124,34 @@ test_that("exposureInfo<- works", {
                  c("air", "metal", "chemical"))
 })
 
+test_that("exposureData<- adds, drops and reorders exposures", {
+    scee <- .make_test_scee()
+    old <- exposureData(scee)
+    info <- exposureInfo(scee)
+    info$family <- paste0("family", seq_len(nrow(info)))
+    exposureInfo(scee) <- info
+    vars <- colnames(old)
+
+    added <- cbind(old, new_exposure = seq_len(nrow(old)))
+    exposureData(scee) <- added
+    expect_identical(exposureVariables(scee), c(vars, "new_exposure"))
+    expect_identical(exposureInfo(scee)$exposure, c(vars, "new_exposure"))
+    expect_identical(exposureInfo(scee)$family,
+        c(paste0("family", seq_along(vars)), NA))
+    expect_true(validObject(scee))
+
+    kept <- added[, c("new_exposure", vars[1L]), drop = FALSE]
+    exposureData(scee) <- kept
+    expect_identical(exposureVariables(scee), c("new_exposure", vars[1L]))
+    expect_identical(exposureInfo(scee)$exposure, c("new_exposure", vars[1L]))
+    expect_identical(exposureInfo(scee)$family, c(NA, "family1"))
+    expect_true(validObject(scee))
+
+    ## a plain replacement of the same exposures keeps the metadata
+    exposureData(scee) <- kept * 2
+    expect_identical(exposureInfo(scee)$family, c(NA, "family1"))
+})
+
 test_that("exposureData<- rejects non-matrix", {
     scee <- .make_test_scee()
     expect_error(exposureData(scee) <- data.frame(x = 1))

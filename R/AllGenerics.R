@@ -12,11 +12,13 @@ NULL
 #'
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @param value For \code{exposureData<-}, a numeric matrix with one row per
-#'   sample, named by sample ID; for \code{exposureInfo<-}, a
-#'   \code{DataFrame} whose \code{exposure} column equals
-#'   \code{colnames(exposureData(x))}; for \code{sampleColumn<-}, the name of
-#'   a \code{colData} column whose sample IDs match the rows of
-#'   \code{exposureData(x)}.
+#'   sample, named by sample ID, and one column per exposure; the rows of
+#'   \code{exposureInfo(x)} follow the new columns, so an exposure can be
+#'   added (its metadata row is filled with \code{NA}), dropped or reordered.
+#'   For \code{exposureInfo<-}, a \code{DataFrame} whose \code{exposure}
+#'   column equals \code{colnames(exposureData(x))}; for
+#'   \code{sampleColumn<-}, the name of a \code{colData} column whose sample
+#'   IDs match the rows of \code{exposureData(x)}.
 #'
 #' @return
 #' \describe{

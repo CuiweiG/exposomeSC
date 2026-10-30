@@ -61,10 +61,39 @@ setMethod("exposureData<-",
         if (!is.matrix(value) || !is.numeric(value)) {
             stop("replacement exposureData must be a numeric matrix.")
         }
+        slot(x, "exposureInfo") <- .exposure_info_for(
+            slot(x, "exposureInfo"), colnames(value)
+        )
         slot(x, "exposureData") <- value
         validObject(x)
         x
     })
+
+# Exposure metadata for a new set of exposure names: the rows of retained
+# exposures are kept, in the new order; a new exposure gets a row with
+# missing values in every other column.
+# @keywords internal
+# @noRd
+.exposure_info_for <- function(info, exposures) {
+    if (is.null(exposures)) {
+        return(info)
+    }
+    if (!nrow(info) || !"exposure" %in% colnames(info)) {
+        return(S4Vectors::DataFrame(
+            exposure = exposures,
+            family = rep(NA_character_, length(exposures)),
+            unit = rep(NA_character_, length(exposures))
+        ))
+    }
+    current <- as.character(info$exposure)
+    if (identical(current, exposures)) {
+        return(info)
+    }
+    aligned <- info[match(exposures, current), , drop = FALSE]
+    aligned$exposure <- exposures
+    rownames(aligned) <- NULL
+    aligned
+}
 
 #' @rdname SCEE-accessors
 #' @export

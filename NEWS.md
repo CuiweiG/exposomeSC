@@ -59,6 +59,11 @@ with warnings.
 
 ## Interface
 
+* `exposureData<-` can add, drop or reorder exposures: `exposureInfo` now
+  follows the new column names, keeping the rows of retained exposures and
+  adding rows with missing family and unit for new ones. The two setters
+  used to validate against each other, so an exposure could be replaced but
+  not added or removed through the API.
 * New `donor_pseudobulk()` returns the donor-by-cell-type pseudobulk counts
   as one SummarizedExperiment per cell type, with the donors' exposure data
   as column data.
