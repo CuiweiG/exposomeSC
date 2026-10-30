@@ -402,6 +402,9 @@ NULL
 }
 
 .composition_preserve_rng <- function(seed, code) {
+    if (is.null(seed)) {
+        return(code())
+    }
     if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
             !is.finite(seed) ||
             seed != as.integer(seed)) {
@@ -471,7 +474,7 @@ NULL
     q_matrix <- qr.Q(fit$qr, complete = FALSE)
     leverage <- rowSums(q_matrix^2)
     if (any(1 - leverage <= sqrt(.Machine$double.eps))) {
-        stop("HC3 standard errors are undefined because leverage is one.")
+        stop("HC3 SEs are undefined because leverage is one.")
     }
     bread <- solve(crossprod(design))
     standard_errors <- vapply(seq_len(ncol(response)), function(column) {
@@ -483,7 +486,7 @@ NULL
         sqrt(max(0, covariance[coefficient_index, coefficient_index]))
     }, numeric(1))
     if (any(!is.finite(standard_errors)) || any(standard_errors <= 0)) {
-        stop("HC3 standard errors are zero or non-finite.")
+        stop("HC3 SEs are zero or non-finite.")
     }
     residual_df <- nrow(design) - ncol(design)
     statistic <- coefficients / standard_errors
@@ -573,8 +576,11 @@ NULL
 #'   omnibus test. Zero reports the asymptotic partial Pillai test only.
 #' @param permutation_strata Optional exchangeability strata for permutation.
 #'   Supply a named vector indexed by donor ID for study-stratified inference.
-#' @param seed Integer random seed used only for permutation. The caller's RNG
-#'   state is restored before return.
+#' @param seed \code{NULL} (default) or a single integer, used only for
+#'   permutation. With \code{NULL} the permutations draw from the caller's
+#'   random-number stream, so \code{set.seed()} before the call makes them
+#'   reproducible. With an integer, that seed is used inside the call and the
+#'   caller's random-number state is restored before return.
 #'
 #' @return A \code{DataFrame} with one HC3-adjusted cell-type-versus-rest
 #'   log-ratio contrast per supported cell type. \code{metadata(result)} stores
@@ -663,7 +669,7 @@ run_exposure_composition <- function(
         replicate_aggregation = c("equal_replicate", "pooled_counts"),
         n_permutations = 0L,
         permutation_strata = NULL,
-        seed = 1L) {
+        seed = NULL) {
     if (!methods::is(x, "SingleCellExposomeExperiment")) {
         stop("x must be a SingleCellExposomeExperiment.")
     }

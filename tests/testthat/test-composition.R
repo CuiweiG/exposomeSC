@@ -336,3 +336,31 @@ test_that("the omnibus refuses insufficient residual dimensions", {
         "residual degrees of freedom"
     )
 })
+
+test_that("seed = NULL draws from the caller's random-number stream", {
+    synthetic <- .make_composition_scee(n_donors = 36L, shifted = TRUE)
+    run <- function() {
+        .run_synthetic_composition(
+            synthetic$object,
+            n_permutations = 19L,
+            permutation_strata = synthetic$study,
+            seed = NULL
+        )
+    }
+    set.seed(5)
+    result_a <- run()
+    after_a <- .Random.seed
+    set.seed(5)
+    result_b <- run()
+    set.seed(6)
+    result_c <- run()
+
+    statistics <- function(x) S4Vectors::metadata(x)$permutation_statistics
+    ## set.seed() before the call makes the permutations reproducible ...
+    expect_identical(statistics(result_a), statistics(result_b))
+    ## ... a different stream gives different permutations ...
+    expect_false(identical(statistics(result_a), statistics(result_c)))
+    ## ... and the caller's stream has advanced
+    set.seed(5)
+    expect_false(identical(after_a, .Random.seed))
+})

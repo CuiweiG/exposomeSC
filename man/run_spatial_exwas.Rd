@@ -14,7 +14,7 @@ run_spatial_exwas(
   target_genes = NULL,
   min_spots = 10L,
   coordinates_registered = FALSE,
-  seed = 1L
+  seed = NULL
 )
 }
 \arguments{
@@ -50,8 +50,12 @@ when the spatial coordinates of all sections share one
 registered frame, so that k-means regions correspond between
 sections. Default \code{FALSE}.}
 
-\item{seed}{Integer seed for k-means. The caller's random
-number generator state is restored on return. Default 1.}
+\item{seed}{\code{NULL} (default) or a single integer for the
+k-means starts. With \code{NULL} k-means draws from the caller's
+random-number stream, so \code{set.seed()} before the call makes
+the regions reproducible. With an integer, that seed is used inside
+the call and the caller's random-number state is restored on
+return.}
 }
 \value{
 A \code{DataFrame} with columns: gene, region,
@@ -115,6 +119,7 @@ if (requireNamespace("SpatialExperiment", quietly = TRUE)) {
 \references{
 Righelli D et al. (2022). SpatialExperiment: infrastructure
 for spatially-resolved transcriptomics data in R using
-Bioconductor. \emph{Bioinformatics} 38:5397-5401.
+Bioconductor. \emph{Bioinformatics} 38(11):3128--3131.
+\doi{10.1093/bioinformatics/btac299}
 \doi{10.1093/bioinformatics/btac299}
 }

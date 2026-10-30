@@ -20,7 +20,7 @@ run_exposure_composition(
   replicate_aggregation = c("equal_replicate", "pooled_counts"),
   n_permutations = 0L,
   permutation_strata = NULL,
-  seed = 1L
+  seed = NULL
 )
 }
 \arguments{
@@ -70,8 +70,11 @@ omnibus test. Zero reports the asymptotic partial Pillai test only.}
 \item{permutation_strata}{Optional exchangeability strata for permutation.
 Supply a named vector indexed by donor ID for study-stratified inference.}
 
-\item{seed}{Integer random seed used only for permutation. The caller's RNG
-state is restored before return.}
+\item{seed}{\code{NULL} (default) or a single integer, used only for
+permutation. With \code{NULL} the permutations draw from the caller's
+random-number stream, so \code{set.seed()} before the call makes them
+reproducible. With an integer, that seed is used inside the call and the
+caller's random-number state is restored before return.}
 }
 \value{
 A \code{DataFrame} with one HC3-adjusted cell-type-versus-rest

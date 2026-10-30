@@ -36,8 +36,12 @@ NULL
 #'   when the spatial coordinates of all sections share one
 #'   registered frame, so that k-means regions correspond between
 #'   sections. Default \code{FALSE}.
-#' @param seed Integer seed for k-means. The caller's random
-#'   number generator state is restored on return. Default 1.
+#' @param seed \code{NULL} (default) or a single integer for the
+#'   k-means starts. With \code{NULL} k-means draws from the caller's
+#'   random-number stream, so \code{set.seed()} before the call makes
+#'   the regions reproducible. With an integer, that seed is used inside
+#'   the call and the caller's random-number state is restored on
+#'   return.
 #'
 #' @return A \code{DataFrame} with columns: gene, region,
 #'   coefficient (exposure effect), se, pvalue, padj (within
@@ -73,7 +77,8 @@ NULL
 #' @references
 #' Righelli D et al. (2022). SpatialExperiment: infrastructure
 #' for spatially-resolved transcriptomics data in R using
-#' Bioconductor. \emph{Bioinformatics} 38:5397-5401.
+#' Bioconductor. \emph{Bioinformatics} 38(11):3128--3131.
+#' \doi{10.1093/bioinformatics/btac299}
 #' \doi{10.1093/bioinformatics/btac299}
 #'
 #' @export
@@ -104,7 +109,7 @@ run_spatial_exwas <- function(spe, exposure_matrix, exposure,
                                target_genes = NULL,
                                min_spots = 10L,
                                coordinates_registered = FALSE,
-                               seed = 1L) {
+                               seed = NULL) {
 
     if (!requireNamespace("SpatialExperiment", quietly = TRUE))
         stop("Package 'SpatialExperiment' required. ",
@@ -138,7 +143,13 @@ run_spatial_exwas <- function(spe, exposure_matrix, exposure,
         coords <- SpatialExperiment::spatialCoords(spe)
         if (is.null(coords) || nrow(coords) == 0)
             stop("No spatial coordinates found")
-        .local_rng_scope(seed)
+        if (!is.null(seed)) {
+            if (!is.numeric(seed) || length(seed) != 1L ||
+                !is.finite(seed) || seed != as.integer(seed)) {
+                stop("seed must be NULL or one finite integer.")
+            }
+            .local_rng_scope(as.integer(seed))
+        }
         km <- stats::kmeans(coords, centers = n_regions,
             nstart = 10)
         regions <- paste0("Region_", km$cluster)
