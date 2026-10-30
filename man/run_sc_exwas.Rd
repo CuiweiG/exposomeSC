@@ -105,8 +105,6 @@ quasi-likelihood dispersions with robust empirical Bayes
 (\code{glmQLFit(robust = TRUE)}). Default \code{TRUE}.}
 }
 \value{
-A \code{DataFrame} of results.
-
 A \code{DataFrame} with one row per tested gene and cell type and
   the same columns, in the same order, for every backend: \code{gene},
   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic},
@@ -190,8 +188,9 @@ they define the hypotheses of an exposome-wide study:
   \item Gene filtering does not use the exposure. The default edgeR rule
     (\code{filter_method = "fixed_support"}) keeps genes with at least
     \code{filter_min_cpm} CPM in \code{filter_min_donors} donors, and the
-    DESeq2 and voom-dream backends keep genes detected in 20\% of donors,
-    so every exposure is tested on the same genes. By contrast,
+    DESeq2 and voom-dream backends keep genes detected in at least 20\%
+    of donors (and in at least two); which genes are tested therefore
+    does not depend on the exposure values. By contrast,
     \code{scran::pseudoBulkDGE()}, for example, filters each label with
     \code{edgeR::filterByExpr()} using the design matrix.
   \item In the edgeR backend the library sizes are the column sums of the

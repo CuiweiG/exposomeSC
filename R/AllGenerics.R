@@ -213,7 +213,6 @@ setGeneric("comparisonSummary", function(x)
 #' Run cell-type-specific ExWAS
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #' @param ... Additional arguments.
-#' @return A \code{DataFrame} of results.
 #' @export
 #' @rdname run_sc_exwas
 setGeneric("run_sc_exwas", function(x, ...)
