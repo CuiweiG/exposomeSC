@@ -21,10 +21,10 @@ Description: Tests donor-level environmental exposures for
     and voom-dream backends are also available. Further functions cover
     several exposures at once, donor-level cell-type composition,
     dose-response curves, exposure mixtures, meta-analysis across
-    cohorts, power calculation, gene set enrichment and imputation below
-    the limit of detection. Exploratory functions estimate cross-omic
-    networks within a cell type. All results are associations; the
-    package does not identify causal effects.
+    cohorts, power calculation, gene set testing with fgsea and
+    imputation below the limit of detection. Exploratory functions
+    estimate cross-omic networks within a cell type. All results are
+    associations; the package does not identify causal effects.
 License: Artistic-2.0
 Depends: R (>= 4.6.0)
 Imports:
