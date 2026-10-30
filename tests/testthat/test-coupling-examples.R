@@ -58,6 +58,7 @@ test_that("run_causal_mediation runs on a two-cell-type container", {
 })
 
 test_that("stability selection works when features outnumber donors", {
+    skip_if_not_installed("glasso")
     set.seed(4)
     donors <- sprintf("D%02d", 1:20)
     donor <- rep(donors, each = 40)
@@ -97,6 +98,7 @@ test_that("stability selection works when features outnumber donors", {
 })
 
 test_that("run_exposure_network honours network_method", {
+    skip_if_not_installed("glasso")
     set.seed(3)
     donors <- sprintf("D%02d", 1:20)
     donor <- rep(donors, each = 40)

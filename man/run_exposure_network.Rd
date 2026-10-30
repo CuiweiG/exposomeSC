@@ -126,10 +126,13 @@ scee <- build_scee(sce, matrix(exposure, ncol = 1,
 metabolites <- matrix(stats::rnorm(20 * 3), nrow = 20,
     dimnames = list(donors, paste0("M", 1:3)))
 metabolites[, "M1"] <- metabolites[, "M1"] + 1.5 * exposure
-net <- run_exposure_network(scee, metabolites, celltype = "Mono",
-    exposure = "PM2.5", sample_col = "donor_id",
-    selection_method = "univariate", network_method = "block_glasso")
-net
+if (requireNamespace("glasso", quietly = TRUE)) {
+    net <- run_exposure_network(scee, metabolites, celltype = "Mono",
+        exposure = "PM2.5", sample_col = "donor_id",
+        selection_method = "univariate",
+        network_method = "block_glasso")
+    net
+}
 }
 \references{
 Cheng SL et al. (2024). Multiomic signatures of traffic-related

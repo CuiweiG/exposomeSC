@@ -343,58 +343,66 @@ NULL
 }
 
 # -------------------------------------------------------
-# Simple block graphical lasso (fallback when coglasso
-# is not available)
+# Graphical lasso with separate within- and between-block
+# penalties
 # -------------------------------------------------------
 
-#' Block graphical lasso via glasso with separate penalties
+#' Graphical lasso with block-specific penalties
 #'
-#' When coglasso is not installed, estimates the precision
-#' matrix using separate lambda values for within-block and
-#' between-block entries. Requires the glasso package.
+#' Fits the graphical lasso of Friedman, Hastie and Tibshirani
+#' (2008) with \code{glasso::glasso()}. The penalty matrix holds
+#' \code{lambda_w} for pairs of features in the same block and
+#' \code{lambda_b} for pairs in different blocks; the diagonal is
+#' not penalised. The covariance matrix is first scaled to a
+#' correlation matrix, so the penalties do not depend on the units
+#' of the features, and the returned precision matrix is on that
+#' scale. It is symmetrised; an edge is present where the
+#' symmetrised entry is non-zero.
 #'
 #' @param S sample covariance matrix (p x p)
-#' @param blocks integer vector of block assignments
+#' @param blocks vector of block assignments, one per feature
 #' @param lambda_w numeric; within-block penalty
 #' @param lambda_b numeric; between-block penalty
-#' @return list with wi (precision), adj (adjacency)
+#' @return list with wi (precision), adj (adjacency) and rho
+#'   (penalty matrix)
 #'
 #' @keywords internal
 #' @noRd
 .block_glasso <- function(S, blocks, lambda_w = 0.3,
                            lambda_b = 0.5) {
-    p <- nrow(S)
-    rho_mat <- matrix(lambda_b, p, p)
-    for (b in unique(blocks)) {
-        idx <- which(blocks == b)
-        rho_mat[idx, idx] <- lambda_w
+    if (!requireNamespace("glasso", quietly = TRUE)) {
+        stop("Package 'glasso' is required for the block graphical ",
+             "lasso; install it with BiocManager::install(\"glasso\").",
+             call. = FALSE)
     }
+    for (penalty in list(lambda_w, lambda_b)) {
+        if (!is.numeric(penalty) || length(penalty) != 1L ||
+            !is.finite(penalty) || penalty < 0) {
+            stop("lambda_w and lambda_b must each be a single ",
+                 "non-negative number.", call. = FALSE)
+        }
+    }
+    p <- nrow(S)
+    if (length(blocks) != p) {
+        stop("blocks must have one entry per feature.", call. = FALSE)
+    }
+    variances <- diag(S)
+    if (any(!is.finite(variances)) || any(variances <= 0)) {
+        stop("Every feature needs a positive, finite variance before ",
+             "the graphical lasso; remove constant features first.",
+             call. = FALSE)
+    }
+
+    rho_mat <- matrix(lambda_b, p, p)
+    rho_mat[outer(blocks, blocks, "==")] <- lambda_w
     diag(rho_mat) <- 0
 
-    if (!requireNamespace("stats", quietly = TRUE))
-        stop("stats package required")
-
-    ## Use a simple thresholded inverse
-    ## (true glasso would need the glasso package)
-    ## This is a conservative fallback
-    S_reg <- S + diag(max(lambda_w, lambda_b), p)
-    wi <- tryCatch(
-        solve(S_reg),
-        error = function(e) {
-            diag(1 / diag(S_reg))
-        }
-    )
-
-    ## Threshold off-diagonal by rho_mat
-    for (i in seq_len(p)) {
-        for (j in seq_len(p)) {
-            if (i != j && abs(wi[i, j]) < rho_mat[i, j])
-                wi[i, j] <- 0
-        }
-    }
+    fit <- glasso::glasso(stats::cov2cor(S), rho = rho_mat,
+                          penalize.diagonal = FALSE)
+    wi <- (fit$wi + t(fit$wi)) / 2
 
     adj <- .precision_to_adjacency(wi)
-    list(wi = wi, adj = adj)
+    list(wi = wi, adj = adj, rho = rho_mat)
 }
 
 # -------------------------------------------------------

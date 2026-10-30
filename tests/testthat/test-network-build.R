@@ -1,6 +1,7 @@
 # tests/testthat/test-network-build.R
 
 test_that("run_celltype_network works with block_glasso", {
+    skip_if_not_installed("glasso")
     skip_if_not_installed("SingleCellExperiment")
     skip_if_not_installed("S4Vectors")
 

@@ -30,7 +30,7 @@ NULL
 #' @param method Character; \code{"coglasso"} (default) or
 #'   \code{"block_glasso"}. The coglasso method uses
 #'   collaborative graphical lasso with block-calibrated
-#'   penalties (Albanese et al. 2024).
+#'   penalties (Albanese et al. 2026).
 #' @param stability Logical; for \code{method = "coglasso"}, whether
 #'   to return the edge-level selection frequencies from XStARS in
 #'   \code{stability_scores}. The coglasso penalties are chosen by
@@ -52,10 +52,12 @@ NULL
 #' @param top_var_genes Integer or NULL; restrict to top N
 #'   most variable genes for dimensionality reduction.
 #'   Default NULL (all genes). Recommended: 50-200.
-#' @param lambda_w Numeric; within-block penalty for
-#'   block_glasso method. Default 0.3.
-#' @param lambda_b Numeric; between-block penalty for
-#'   block_glasso method. Default 0.5.
+#' @param lambda_w Numeric; graphical-lasso penalty for pairs of
+#'   features in the same omic layer, on the correlation scale, for
+#'   the block_glasso method. Default 0.3.
+#' @param lambda_b Numeric; graphical-lasso penalty for pairs of
+#'   features in different omic layers, on the correlation scale,
+#'   for the block_glasso method. Default 0.5.
 #' @param precomputed_network Optional named list holding a
 #'   pre-estimated network to wrap into a CelltypeNetworkResult
 #'   without re-estimation, with elements \code{adjacency} (binary
@@ -89,14 +91,25 @@ NULL
 #'   \item Block-calibrated graphical lasso estimation.
 #'     With \code{coglasso}: collaborative graphical lasso
 #'     with separate within/between-omic penalties and
-#'     XStARS stability selection. With \code{block_glasso}:
-#'     thresholded block-penalized inverse covariance.
+#'     XStARS stability selection. With \code{block_glasso}: the
+#'     graphical lasso (\code{glasso::glasso()}) on the correlation
+#'     matrix, with the fixed penalties \code{lambda_w} within and
+#'     \code{lambda_b} between omic layers, the diagonal unpenalised
+#'     and no stability selection; it needs the \pkg{glasso}
+#'     package.
 #'   \item Returns a \code{CelltypeNetworkResult} object.
 #' }
 #'
 #' @references
-#' Albanese A, Kohlen W, Behrouzi P (2024). Collaborative
-#'   graphical lasso. \emph{arXiv} 2403.18602.
+#' Albanese A, Kohlen W, Behrouzi P (2026). Multi-omics network
+#'   reconstruction with collaborative graphical lasso.
+#'   \emph{Bioinformatics} 42(7):btag477.
+#'   \doi{10.1093/bioinformatics/btag477}
+#'
+#' Friedman J, Hastie T, Tibshirani R (2008). Sparse inverse
+#'   covariance estimation with the graphical lasso.
+#'   \emph{Biostatistics} 9(3):432--441.
+#'   \doi{10.1093/biostatistics/kxm045}
 #'
 #' Liu H, Roeder K, Wasserman L (2010). Stability approach
 #'   to regularization selection (StARS) for high dimensional
@@ -132,17 +145,19 @@ NULL
 #'     function(donor, feature) (donor + feature)^2 / 10
 #' )
 #' dimnames(metabolites) <- list(donor_ids, c("M1", "M2"))
-#' network <- run_celltype_network(
-#'     scee,
-#'     metabolites,
-#'     celltype = "Monocyte",
-#'     sample_col = "donor_id",
-#'     method = "block_glasso",
-#'     stability = FALSE,
-#'     min_cells = 5L,
-#'     top_var_genes = 3L
-#' )
-#' network
+#' if (requireNamespace("glasso", quietly = TRUE)) {
+#'     network <- run_celltype_network(
+#'         scee,
+#'         metabolites,
+#'         celltype = "Monocyte",
+#'         sample_col = "donor_id",
+#'         method = "block_glasso",
+#'         stability = FALSE,
+#'         min_cells = 5L,
+#'         top_var_genes = 3L
+#'     )
+#'     network
+#' }
 run_celltype_network <- function(scee, metabolites = NULL, celltype,
                                   celltype_col = "cell_type",
                                   sample_col = NULL,
@@ -410,10 +425,13 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 #' metabolites <- matrix(stats::rnorm(20 * 3), nrow = 20,
 #'     dimnames = list(donors, paste0("M", 1:3)))
 #' metabolites[, "M1"] <- metabolites[, "M1"] + 1.5 * exposure
-#' net <- run_exposure_network(scee, metabolites, celltype = "Mono",
-#'     exposure = "PM2.5", sample_col = "donor_id",
-#'     selection_method = "univariate", network_method = "block_glasso")
-#' net
+#' if (requireNamespace("glasso", quietly = TRUE)) {
+#'     net <- run_exposure_network(scee, metabolites, celltype = "Mono",
+#'         exposure = "PM2.5", sample_col = "donor_id",
+#'         selection_method = "univariate",
+#'         network_method = "block_glasso")
+#'     net
+#' }
 run_exposure_network <- function(scee, metabolites, celltype,
                                   exposure,
                                   celltype_col = "cell_type",
