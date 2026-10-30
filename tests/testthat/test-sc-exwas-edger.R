@@ -391,3 +391,32 @@ test_that("a covariate named 'exposure' is refused", {
         "cannot be called 'exposure'"
     )
 })
+
+test_that("a collinear covariate is dropped with a warning and recorded", {
+    skip_if_not_installed("edgeR")
+    scee <- .make_edger_scee()
+    exp_data <- exposureData(scee)
+    exp_data <- cbind(exp_data, exposure_copy = exp_data[, "exposure"])
+    scee2 <- build_scee(methods::as(scee, "SingleCellExperiment"), exp_data,
+                        sample_col = "donor_id")
+    warnings <- character()
+    result <- withCallingHandlers(
+        run_sc_exwas(scee2, exposure = "exposure",
+            celltype_col = "cell_type",
+            covariates = "exposure_copy",
+            min_donors = 15L, robust = FALSE),
+        warning = function(w) {
+            warnings <<- c(warnings, conditionMessage(w))
+            invokeRestart("muffleWarning")
+        }
+    )
+    ## one warning per cell type, naming the dropped column
+    expect_length(warnings, 2L)
+    expect_true(all(grepl("exposure_copy", warnings)))
+    expect_true(any(startsWith(warnings, "Mono:")))
+    expect_true(any(startsWith(warnings, "NK:")))
+    diag <- S4Vectors::metadata(result)$diagnostics
+    expect_identical(diag$Mono$dropped_design_columns, "exposure_copy")
+    expect_identical(diag$Mono$design_columns, c("(Intercept)", "exposure"))
+    expect_identical(diag$NK$dropped_design_columns, "exposure_copy")
+})

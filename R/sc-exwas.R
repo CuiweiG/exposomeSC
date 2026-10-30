@@ -540,6 +540,15 @@ setMethod("run_sc_exwas",
             next
         }
         dropped_design <- setdiff(colnames(design_full), colnames(design))
+        if (length(dropped_design)) {
+            warning(
+                celltype, ": covariate column(s) ",
+                paste(dropped_design, collapse = ", "),
+                " dropped from the design as collinear with the other ",
+                "terms; the test is not adjusted for them.",
+                call. = FALSE
+            )
+        }
         if (nrow(design) <= ncol(design) + 2L) {
             warning(
                 "Skipping ", celltype,

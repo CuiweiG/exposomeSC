@@ -137,6 +137,10 @@ with warnings.
   model's exposure term, and a covariate of the same name silently replaced
   the exposure in the design, so the reported test was of the wrong
   variable.
+* The edgeR backend of `run_sc_exwas()` warns when it drops a covariate
+  column that is collinear with the other model terms. The dropped columns
+  were recorded in `metadata(result)$diagnostics` but the result otherwise
+  looked adjusted for them.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
