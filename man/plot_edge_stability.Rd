@@ -33,17 +33,15 @@ stability <- matrix(0, 3, 3, dimnames = list(features, features))
 stability[1, 3] <- stability[3, 1] <- 0.85
 precision <- diag(3)
 dimnames(precision) <- list(features, features)
-network <- methods::new(
-    "CelltypeNetworkResult",
-    precision_matrix = precision,
-    adjacency_matrix = (stability > 0) * 1L,
-    stability_scores = stability,
+network <- CelltypeNetworkResult(
+    precision = precision,
+    adjacency = (stability > 0) * 1L,
+    stability = stability,
     node_info = S4Vectors::DataFrame(
         feature = features,
         omic_layer = c("transcript", "transcript", "metabolite")
     ),
     celltype = "Monocyte",
-    method = "precomputed",
     metadata = list(n_donors = 20L)
 )
 if (requireNamespace("ggplot2", quietly = TRUE)) {

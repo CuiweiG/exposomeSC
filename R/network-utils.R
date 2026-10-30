@@ -18,11 +18,11 @@ NULL
 #' data matrix from a SCEE and metabolite matrix for a
 #' specified cell type.
 #'
-#' @param scee SingleCellExposomeExperiment
+#' @param x SingleCellExposomeExperiment; each cell's donor is read from
+#'   its sample column
 #' @param metabolites matrix; rows = donors, cols = metabolites
 #' @param celltype character; cell type to aggregate
 #' @param celltype_col character; colData column for cell types
-#' @param sample_col character; colData column for donor IDs
 #' @param exposure character or NULL; exposure to residualize
 #' @param covariates character vector or NULL
 #' @param min_cells integer; minimum cells per pseudobulk
@@ -39,47 +39,25 @@ NULL
 #'
 #' @keywords internal
 #' @noRd
-.assemble_crossomic <- function(scee, metabolites, celltype,
+.assemble_crossomic <- function(x, metabolites, celltype,
                                  celltype_col = "cell_type",
-                                 sample_col = NULL,
                                  exposure = NULL,
                                  covariates = NULL,
                                  min_cells = 10L,
                                  top_var_genes = NULL,
                                  vst = TRUE) {
-    ## --- Resolve sample column ---
-    if (is.null(sample_col)) {
-        sm <- slot(scee, "sampleMap")
-        if (nrow(sm) > 0) {
-            sample_col <- "sample_id"
-        } else {
-            stop("Cannot determine sample column. ",
-                 "Provide sample_col or use build_scee().")
-        }
-    }
-
     ## --- Get cell type annotations ---
-    cd <- colData(scee)
+    cd <- colData(x)
     if (!celltype_col %in% colnames(cd))
         stop("'", celltype_col, "' not in colData")
 
     cell_types <- as.character(cd[[celltype_col]])
 
-    ## --- Resolve sample IDs per cell ---
-    sm <- slot(scee, "sampleMap")
-    if (nrow(sm) > 0 && sample_col == "sample_id") {
-        cell_to_sample <- setNames(
-            as.character(sm$sample_id),
-            as.character(sm$cell_id))
-        samples <- cell_to_sample[colnames(scee)]
-    } else if (sample_col %in% colnames(cd)) {
-        samples <- as.character(cd[[sample_col]])
-    } else {
-        stop("'", sample_col, "' not in colData")
-    }
+    ## --- Sample (donor) ID of each cell ---
+    samples <- .cell_samples(x)
 
     ## --- Pseudobulk aggregation ---
-    counts_mat <- assay(scee, "counts")
+    counts_mat <- assay(x, "counts")
     pb <- .pseudobulk_aggregate(
         counts_mat, samples, cell_types,
         celltype, min_cells = min_cells)
@@ -134,7 +112,7 @@ NULL
 
     ## --- Residualization (optional) ---
     if (!is.null(exposure) || !is.null(covariates)) {
-        exp_data <- slot(scee, "exposureData")
+        exp_data <- exposureData(x)
         adj_vars <- c(exposure, covariates)
         adj_vars <- adj_vars[adj_vars %in% colnames(exp_data)]
 

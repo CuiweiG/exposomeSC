@@ -18,7 +18,9 @@ error. \code{NA} is allowed; \code{NaN} and infinite values are
 not.}
 
 \item{sample_col}{Character. Column in \code{colData(sce)}
-containing the sample/donor ID.}
+containing the sample/donor ID. Its name is stored in the object
+(see \code{\link{sampleColumn}}), and the analysis functions read
+each cell's donor from this column.}
 
 \item{exposure_info}{\code{DataFrame} (optional). Metadata
 for exposures (for example family, unit and LOD). It must contain

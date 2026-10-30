@@ -22,7 +22,6 @@ test_that("run_interaction_test returns DataFrame", {
     ix <- run_interaction_test(scee,
         exposure = "E1",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 3L, min_donors = 3L)
     expect_s4_class(ix, "DataFrame")
     expect_true("gene" %in% colnames(ix))
@@ -49,7 +48,6 @@ test_that("interaction test errors on single celltype", {
     expect_error(run_interaction_test(scee,
         exposure = "E1",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 1L, min_donors = 1L),
         "2 cell types")
 })

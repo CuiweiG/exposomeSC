@@ -34,8 +34,7 @@ differential_edge <- S4Vectors::DataFrame(
     node_i = "G2", node_j = "M1", category = "differential",
     max_diff = 0.5, p_value = 0.01, p_adjusted = 0.02
 )
-comparison <- methods::new(
-    "NetworkComparison",
+comparison <- NetworkComparison(
     diff_edges = differential_edge,
     shared_edges = shared_edge,
     celltype_specific = list(),

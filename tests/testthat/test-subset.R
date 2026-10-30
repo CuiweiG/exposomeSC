@@ -28,7 +28,7 @@ test_that("subsetting by genes preserves exposure data", {
     expect_equal(nrow(cellSampleMap(sub)), 10L)
 })
 
-test_that("subsetting by cells updates sampleMap", {
+test_that("subsetting by cells drops donors without cells", {
     scee <- .make_scee_sub()
     ## Keep only first 5 cells (D1 only)
     sub <- scee[, 1:5]

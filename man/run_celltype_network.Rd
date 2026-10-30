@@ -5,11 +5,10 @@
 \title{Build cell-type-resolved cross-omic network}
 \usage{
 run_celltype_network(
-  scee,
+  x,
   metabolites = NULL,
   celltype,
   celltype_col = "cell_type",
-  sample_col = NULL,
   exposure = NULL,
   covariates = NULL,
   method = c("coglasso", "block_glasso"),
@@ -26,7 +25,9 @@ run_celltype_network(
 )
 }
 \arguments{
-\item{scee}{\code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{\code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{metabolites}{Numeric matrix; rows = donors,
 cols = metabolites. Row names must be donor IDs.}
@@ -36,10 +37,6 @@ the network for.}
 
 \item{celltype_col}{Character; column in \code{colData}
 identifying cell types. Default \code{"cell_type"}.}
-
-\item{sample_col}{Character or NULL. Column for donor IDs.
-If NULL, taken from the object's cell-to-sample map
-(see \code{\link{cellSampleMap}}).}
 
 \item{exposure}{Character or NULL; exposure variable to
 condition on (regressed out). Default NULL.}
@@ -100,7 +97,8 @@ block) or \code{feature_blocks} (a character vector labelling
 each feature), both optional.
 When provided, \code{metabolites}, \code{method},
 \code{stability}, and lambda parameters are ignored.
-The \code{scee} is still required for metadata extraction.}
+\code{x} must still be a
+\code{SingleCellExposomeExperiment}.}
 }
 \value{
 A \code{\linkS4class{CelltypeNetworkResult}} object.
@@ -169,7 +167,6 @@ if (requireNamespace("glasso", quietly = TRUE)) {
         scee,
         metabolites,
         celltype = "Monocyte",
-        sample_col = "donor_id",
         method = "block_glasso",
         stability = FALSE,
         min_cells = 5L,

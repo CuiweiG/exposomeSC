@@ -8,7 +8,6 @@ run_exposure_composition(
   x,
   exposure,
   celltype_col = "cell_type",
-  sample_col = "donor_id",
   replicate_col = NULL,
   covariates = NULL,
   min_cells = 10L,
@@ -24,14 +23,13 @@ run_exposure_composition(
 )
 }
 \arguments{
-\item{x}{A \code{SingleCellExposomeExperiment}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposure}{Character scalar naming the exposure variable.}
 
 \item{celltype_col}{Character scalar naming the cell-type column in
-\code{colData(x)}.}
-
-\item{sample_col}{Character scalar naming the donor-ID column in
 \code{colData(x)}.}
 
 \item{replicate_col}{Optional character scalar naming biological samples

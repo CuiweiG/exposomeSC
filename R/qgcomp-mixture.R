@@ -16,11 +16,13 @@ NULL
 #' mixture effect and, without bootstrapping, the positive and
 #' negative exposure weights estimated by \pkg{qgcomp}.
 #'
-#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposures Character vector. Exposure variable names.
 #' @param celltype Character. Target cell type.
-#' @param celltype_col Character. Column with cell type labels.
-#' @param sample_col Character. Column with donor IDs.
+#' @param celltype_col Character. \code{colData} column with cell type
+#'   labels. Default \code{"cell_type"}.
 #' @param target_genes Character vector (optional). Genes to
 #'   summarise. Default: top 20 most variable.
 #' @param covariates Character vector (optional). Columns of
@@ -98,24 +100,24 @@ NULL
 #'     mix <- run_mixture_qgcomp(scee,
 #'         exposures = c("E1", "E2", "E3"),
 #'         celltype = "Mono", celltype_col = "cell_type",
-#'         sample_col = "donor_id", min_cells = 3L)
+#'         min_cells = 3L)
 #'     mix$positive_weights
 #'     mix$negative_weights
 #' }
 run_mixture_qgcomp <- function(x, exposures, celltype,
                                 celltype_col = "cell_type",
-                                sample_col = "donor_id",
                                 target_genes = NULL,
                                 covariates = NULL,
                                 q = 4L, bootstrap = FALSE,
                                 B = 200L, min_cells = 10L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    sample_col <- sampleColumn(x)
 
     if (!requireNamespace("qgcomp", quietly = TRUE))
         stop("Package 'qgcomp' required. ",
              "install.packages('qgcomp')")
 
-    exp_data <- slot(x, "exposureData")
+    exp_data <- exposureData(x)
     missing_exp <- setdiff(exposures, colnames(exp_data))
     if (length(missing_exp) > 0)
         stop("Exposures not found: ",

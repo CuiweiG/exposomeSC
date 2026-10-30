@@ -24,7 +24,6 @@ test_that("run_multi_exwas runs multiple exposures", {
     result <- suppressWarnings(run_multi_exwas(scee,
         exposures = c("E1", "E2"),
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L,
         min_donors = 3L))
     expect_s4_class(result, "DataFrame")
@@ -47,7 +46,6 @@ test_that("run_multi_exwas defaults to all exposures", {
     scee <- .make_scee_multi()
     result <- suppressWarnings(run_multi_exwas(scee,
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L,
         min_donors = 3L))
     if (nrow(result) > 0) {
@@ -59,8 +57,7 @@ test_that("run_multi_exwas errors on bad exposure", {
     scee <- .make_scee_multi()
     expect_error(run_multi_exwas(scee,
         exposures = c("E1", "FAKE"),
-        celltype_col = "cell_type",
-        sample_col = "donor_id"), "not found")
+        celltype_col = "cell_type"), "not found")
 })
 
 test_that("run_multi_exwas rejects duplicated or missing exposure names", {

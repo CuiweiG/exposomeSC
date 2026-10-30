@@ -8,7 +8,6 @@ run_multi_exwas(
   x,
   exposures = NULL,
   celltype_col = "cell_type",
-  sample_col = "donor_id",
   covariates = NULL,
   min_cells = 10L,
   min_donors = 5L,
@@ -17,14 +16,15 @@ run_multi_exwas(
 )
 }
 \arguments{
-\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposures}{Character vector. Exposure names to test.
 Default: all exposures in \code{exposureData}.}
 
-\item{celltype_col}{Character. Column with cell type labels.}
-
-\item{sample_col}{Character. Column with donor IDs.}
+\item{celltype_col}{Character. \code{colData} column with cell type
+labels. Default \code{"cell_type"}.}
 
 \item{covariates}{Character vector (optional).}
 
@@ -66,7 +66,6 @@ scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 multi <- run_multi_exwas(scee,
     exposures = c("E1", "E2"),
     celltype_col = "cell_type",
-    sample_col = "donor_id",
     min_cells = 5L, min_donors = 3L)
 head(multi)
 }

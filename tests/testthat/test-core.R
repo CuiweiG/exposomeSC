@@ -47,7 +47,7 @@ test_that("show method prints the exposure summary to standard output", {
     scee <- .make_test_scee()
     expect_no_message(out <- utils::capture.output(show(scee)))
     expect_true(any(grepl("^exposureData\\(5 samples x 3 exposures\\)", out)))
-    expect_true(any(grepl("^sampleMap: 100 cell-sample links$", out)))
+    expect_true(any(grepl("^sampleColumn: donor_id$", out)))
 })
 
 test_that("build_scee errors on missing sample_col", {
@@ -145,7 +145,6 @@ test_that("run_sc_exwas pseudobulk works", {
     result <- run_sc_exwas(scee,
         exposure = "PM2.5",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L,
         min_donors = 3L)
     expect_s4_class(result, "DataFrame")
@@ -168,8 +167,7 @@ test_that("run_sc_exwas errors on bad exposure name", {
     scee <- .make_test_scee()
     expect_error(run_sc_exwas(scee,
         exposure = "NONEXISTENT",
-        celltype_col = "cell_type",
-        sample_col = "donor_id"), "not found")
+        celltype_col = "cell_type"), "not found")
 })
 
 test_that("run_sc_exwas respects celltypes parameter", {
@@ -178,7 +176,6 @@ test_that("run_sc_exwas respects celltypes parameter", {
         exposure = "PM2.5",
         celltype_col = "cell_type",
         celltypes = "Mono",
-        sample_col = "donor_id",
         min_cells = 5L,
         min_donors = 3L)
     expect_true(all(result$celltype == "Mono"))
@@ -189,7 +186,6 @@ test_that("run_sc_exwas with covariates", {
     result <- run_sc_exwas(scee,
         exposure = "PM2.5",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         covariates = "Pb",
         min_cells = 5L,
         min_donors = 3L)
@@ -204,7 +200,6 @@ test_that("run_sc_exwas rejects an underdetermined donor design", {
         run_sc_exwas(scee,
             exposure = "PM2.5",
             celltype_col = "cell_type",
-            sample_col = "donor_id",
             covariates = c("Pb", "BPA"),
             min_cells = 3L,
             min_donors = 3L),
@@ -230,7 +225,6 @@ test_that("run_sc_exwas returns empty DataFrame if no valid celltypes", {
     result <- suppressWarnings(run_sc_exwas(scee,
         exposure = "PM2.5",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L,
         min_donors = 5L))
     expect_s4_class(result, "DataFrame")
@@ -242,13 +236,11 @@ test_that("run_sc_exwas filter_genes=FALSE allows all genes", {
     r1 <- run_sc_exwas(scee,
         exposure = "PM2.5",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L, min_donors = 3L,
         filter_genes = TRUE)
     r2 <- run_sc_exwas(scee,
         exposure = "PM2.5",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L, min_donors = 3L,
         filter_genes = FALSE)
     expect_true(nrow(r2) >= nrow(r1))

@@ -13,16 +13,15 @@ NULL
 #' metabolomics, constructs a block-calibrated conditional
 #' independence network for a specified cell type.
 #'
-#' @param scee \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param metabolites Numeric matrix; rows = donors,
 #'   cols = metabolites. Row names must be donor IDs.
 #' @param celltype Character; which cell type to build
 #'   the network for.
 #' @param celltype_col Character; column in \code{colData}
 #'   identifying cell types. Default \code{"cell_type"}.
-#' @param sample_col Character or NULL. Column for donor IDs.
-#'   If NULL, taken from the object's cell-to-sample map
-#'   (see \code{\link{cellSampleMap}}).
 #' @param exposure Character or NULL; exposure variable to
 #'   condition on (regressed out). Default NULL.
 #' @param covariates Character vector or NULL; adjustment
@@ -70,7 +69,8 @@ NULL
 #'   each feature), both optional.
 #'   When provided, \code{metabolites}, \code{method},
 #'   \code{stability}, and lambda parameters are ignored.
-#'   The \code{scee} is still required for metadata extraction.
+#'   \code{x} must still be a
+#'   \code{SingleCellExposomeExperiment}.
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}} object.
 #'
@@ -150,7 +150,6 @@ NULL
 #'         scee,
 #'         metabolites,
 #'         celltype = "Monocyte",
-#'         sample_col = "donor_id",
 #'         method = "block_glasso",
 #'         stability = FALSE,
 #'         min_cells = 5L,
@@ -158,9 +157,8 @@ NULL
 #'     )
 #'     network
 #' }
-run_celltype_network <- function(scee, metabolites = NULL, celltype,
+run_celltype_network <- function(x, metabolites = NULL, celltype,
                                   celltype_col = "cell_type",
-                                  sample_col = NULL,
                                   exposure = NULL,
                                   covariates = NULL,
                                   method = c("coglasso",
@@ -176,7 +174,7 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
                                   lambda_b = 0.5,
                                   precomputed_network = NULL) {
 
-    stopifnot(is(scee, "SingleCellExposomeExperiment"))
+    stopifnot(is(x, "SingleCellExposomeExperiment"))
 
     ## --- Handle precomputed network (named list) ---
     if (!is.null(precomputed_network)) {
@@ -198,9 +196,8 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 
     ## --- Assemble cross-omic data ---
     assembled <- .assemble_crossomic(
-        scee, metabolites, celltype,
+        x, metabolites, celltype,
         celltype_col = celltype_col,
-        sample_col   = sample_col,
         exposure     = exposure,
         covariates   = covariates,
         min_cells    = min_cells,
@@ -329,14 +326,15 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 #' cross-omic network on the selected features only. This
 #' mirrors the two-stage approach in Cheng et al. (2024).
 #'
-#' @param scee \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param metabolites Numeric matrix; rows = donors,
 #'   cols = metabolites.
 #' @param celltype Character; cell type to analyse.
 #' @param exposure Character; exposure variable name.
 #' @param celltype_col Character; cell type column.
 #'   Default \code{"cell_type"}.
-#' @param sample_col Character or NULL; donor ID column.
 #' @param covariates Character vector or NULL.
 #' @param selection_method Character; \code{"stability"}
 #'   (default) or \code{"univariate"}.
@@ -427,15 +425,14 @@ run_celltype_network <- function(scee, metabolites = NULL, celltype,
 #' metabolites[, "M1"] <- metabolites[, "M1"] + 1.5 * exposure
 #' if (requireNamespace("glasso", quietly = TRUE)) {
 #'     net <- run_exposure_network(scee, metabolites, celltype = "Mono",
-#'         exposure = "PM2.5", sample_col = "donor_id",
+#'         exposure = "PM2.5",
 #'         selection_method = "univariate",
 #'         network_method = "block_glasso")
 #'     net
 #' }
-run_exposure_network <- function(scee, metabolites, celltype,
+run_exposure_network <- function(x, metabolites, celltype,
                                   exposure,
                                   celltype_col = "cell_type",
-                                  sample_col = NULL,
                                   covariates = NULL,
                                   selection_method = c(
                                       "stability",
@@ -447,14 +444,14 @@ run_exposure_network <- function(scee, metabolites, celltype,
                                   network_method = c("coglasso",
                                                      "block_glasso")) {
 
+    stopifnot(is(x, "SingleCellExposomeExperiment"))
     selection_method <- match.arg(selection_method)
     network_method <- match.arg(network_method)
 
     ## Assemble data WITHOUT residualization (we want exposure signal)
     assembled <- .assemble_crossomic(
-        scee, metabolites, celltype,
+        x, metabolites, celltype,
         celltype_col = celltype_col,
-        sample_col   = sample_col,
         exposure     = NULL,  # No residualization
         covariates   = covariates,
         min_cells    = min_cells)
@@ -463,7 +460,7 @@ run_exposure_network <- function(scee, metabolites, celltype,
     donors <- assembled$donors
 
     ## Get exposure values for shared donors
-    exp_data <- slot(scee, "exposureData")
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not in exposureData")
     y <- exp_data[donors, exposure]

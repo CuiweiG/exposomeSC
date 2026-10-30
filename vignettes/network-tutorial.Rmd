@@ -47,12 +47,17 @@ Network analysis describes multivariate dependence after preprocessing and
 covariate adjustment. Selection and tuning uncertainty, sample size and
 external stability must be reported separately.
 
-The fitted network object records its matrices, feature annotations, method
-and provenance-related metadata in an explicit S4 contract.
+The fitted network is a `CelltypeNetworkResult` object. It records the
+precision and adjacency matrices, edge selection frequencies, feature
+annotations, cell type, method and provenance-related metadata, which are read
+with `networkPrecision()`, `networkAdjacency()`, `networkStability()`,
+`networkNodes()`, `networkCelltype()`, `networkMethod()` and `metadata()`.
+`run_comparative_network()` returns a `NetworkComparison`, read with
+`diffEdges()`, `sharedEdges()`, `celltypeSpecificEdges()` and
+`comparisonSummary()`.
 
-```{r class-contract}
+```{r load-package}
 library(exposomeSC)
-methods::getSlots("CelltypeNetworkResult")
 ```
 
 # Input alignment
@@ -108,7 +113,6 @@ mono_net <- run_celltype_network(
     scee,
     metabolites = metabolites,
     celltype = "Monocyte",
-    sample_col = "donor_id",
     covariates = c("age", "sex"),
     method = "coglasso",
     stability = TRUE,
@@ -163,7 +167,6 @@ bcell_net <- run_celltype_network(
     scee,
     metabolites = metabolites,
     celltype = "B cell",
-    sample_col = "donor_id",
     covariates = c("age", "sex"),
     method = "coglasso",
     stability = TRUE,
@@ -201,13 +204,14 @@ exposure_net <- run_exposure_network(
     metabolites,
     celltype = "Monocyte",
     exposure = "PM2.5",
-    sample_col = "donor_id",
     covariates = c("age", "sex"),
     selection_method = "univariate",
     fdr_threshold = 0.05,
     network_method = "block_glasso"
 )
 exposure_net
+networkNodes(exposure_net)
+metadata(exposure_net)[c("selection_method", "n_donors", "transform")]
 ```
 
 # Composition and provenance

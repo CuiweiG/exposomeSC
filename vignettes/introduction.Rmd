@@ -152,7 +152,6 @@ fit <- run_sc_exwas(
     scee,
     exposure = "smoking_ever",
     celltype_col = "ann_level_3",
-    sample_col = "donor_id",
     covariates = "age_scaled",
     min_cells = 10L,
     min_donors = 10L,

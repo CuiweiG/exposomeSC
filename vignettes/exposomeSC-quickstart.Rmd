@@ -98,7 +98,12 @@ scee <- build_scee(
 
 methods::validObject(scee)
 exposureVariables(scee)
+sampleColumn(scee)
 ```
+
+The object records which `colData` column holds the donor of each cell, and
+every analysis function reads the donor from that column, so it is not passed
+again.
 
 For a multistudy atlas, construct the study indicators and nonlinear age terms
 before building the object. Never derive those terms, the cell-type universe or
@@ -111,7 +116,6 @@ fit <- run_sc_exwas(
     scee,
     exposure = "smoking_ever",
     celltype_col = "ann_level_3",
-    sample_col = "donor_id",
     min_cells = 10L,
     min_donors = 10L,
     min_group_donors = 5L,

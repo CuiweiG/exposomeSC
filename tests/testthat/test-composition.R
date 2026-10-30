@@ -86,7 +86,6 @@ library(S4Vectors)
         object,
         exposure = "X",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         replicate_col = "sample_id",
         covariates = covariates,
         min_cells = 20L,
@@ -205,8 +204,7 @@ test_that("the supported universe is exposure independent", {
     permuted <- synthetic$object
     exposure_data <- exposureData(permuted)
     exposure_data[, "X"] <- rev(exposure_data[, "X"])
-    methods::slot(permuted, "exposureData") <- exposure_data
-    methods::validObject(permuted)
+    exposureData(permuted) <- exposure_data
     result_b <- .run_synthetic_composition(permuted)
 
     support_a <- as.data.frame(S4Vectors::metadata(result_a)$support)
@@ -327,7 +325,6 @@ test_that("the omnibus refuses insufficient residual dimensions", {
             synthetic$object,
             exposure = "X",
             celltype_col = "cell_type",
-            sample_col = "donor_id",
             replicate_col = "sample_id",
             min_cells = 20L,
             support_min_donors = 2L,

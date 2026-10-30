@@ -23,7 +23,7 @@ test_that("validity catches mismatched exposureInfo nrow", {
     expect_error(exposureInfo(scee) <- bad_info)
 })
 
-test_that("validity catches sampleMap sample_id not in exposureData", {
+test_that("validity catches cell samples missing from exposureData", {
     set.seed(1)
     counts <- matrix(rpois(100, 5), nrow = 10,
         dimnames = list(paste0("G", 1:10), paste0("c", 1:10)))

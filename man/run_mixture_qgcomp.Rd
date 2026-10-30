@@ -9,7 +9,6 @@ run_mixture_qgcomp(
   exposures,
   celltype,
   celltype_col = "cell_type",
-  sample_col = "donor_id",
   target_genes = NULL,
   covariates = NULL,
   q = 4L,
@@ -19,15 +18,16 @@ run_mixture_qgcomp(
 )
 }
 \arguments{
-\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposures}{Character vector. Exposure variable names.}
 
 \item{celltype}{Character. Target cell type.}
 
-\item{celltype_col}{Character. Column with cell type labels.}
-
-\item{sample_col}{Character. Column with donor IDs.}
+\item{celltype_col}{Character. \code{colData} column with cell type
+labels. Default \code{"cell_type"}.}
 
 \item{target_genes}{Character vector (optional). Genes to
 summarise. Default: top 20 most variable.}
@@ -114,7 +114,7 @@ if (requireNamespace("qgcomp", quietly = TRUE)) {
     mix <- run_mixture_qgcomp(scee,
         exposures = c("E1", "E2", "E3"),
         celltype = "Mono", celltype_col = "cell_type",
-        sample_col = "donor_id", min_cells = 3L)
+        min_cells = 3L)
     mix$positive_weights
     mix$negative_weights
 }

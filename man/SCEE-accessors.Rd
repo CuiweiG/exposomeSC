@@ -4,22 +4,30 @@
 \alias{exposureData}
 \alias{exposureInfo}
 \alias{cellSampleMap}
+\alias{sampleColumn}
+\alias{sampleColumn<-}
 \alias{exposureVariables}
 \alias{exposureData<-}
 \alias{exposureInfo<-}
 \alias{exposureData,SingleCellExposomeExperiment-method}
 \alias{exposureInfo,SingleCellExposomeExperiment-method}
 \alias{cellSampleMap,SingleCellExposomeExperiment-method}
+\alias{sampleColumn,SingleCellExposomeExperiment-method}
+\alias{sampleColumn<-,SingleCellExposomeExperiment-method}
 \alias{exposureVariables,SingleCellExposomeExperiment-method}
 \alias{exposureData<-,SingleCellExposomeExperiment-method}
 \alias{exposureInfo<-,SingleCellExposomeExperiment-method}
-\title{Access exposure data matrix}
+\title{Accessors for SingleCellExposomeExperiment objects}
 \usage{
 exposureData(x)
 
 exposureInfo(x)
 
 cellSampleMap(x)
+
+sampleColumn(x)
+
+sampleColumn(x) <- value
 
 exposureVariables(x)
 
@@ -33,6 +41,10 @@ exposureInfo(x) <- value
 
 \S4method{cellSampleMap}{SingleCellExposomeExperiment}(x)
 
+\S4method{sampleColumn}{SingleCellExposomeExperiment}(x)
+
+\S4method{sampleColumn}{SingleCellExposomeExperiment}(x) <- value
+
 \S4method{exposureVariables}{SingleCellExposomeExperiment}(x)
 
 \S4method{exposureData}{SingleCellExposomeExperiment}(x) <- value
@@ -42,29 +54,32 @@ exposureInfo(x) <- value
 \arguments{
 \item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
 
-\item{value}{A \code{DataFrame}.}
+\item{value}{For \code{exposureData<-}, a numeric matrix with one row per
+sample, named by sample ID; for \code{exposureInfo<-}, a
+\code{DataFrame} whose \code{exposure} column equals
+\code{colnames(exposureData(x))}; for \code{sampleColumn<-}, the name of
+a \code{colData} column whose sample IDs match the rows of
+\code{exposureData(x)}.}
 }
 \value{
-Numeric matrix (samples x exposures).
-
-A \code{DataFrame}.
-
-A \code{DataFrame}.
-
-Character vector.
+\describe{
+  \item{\code{exposureData()}}{Numeric matrix, samples by exposures.}
+  \item{\code{exposureInfo()}}{\code{DataFrame} with one row per exposure.}
+  \item{\code{exposureVariables()}}{Character vector of exposure names.}
+  \item{\code{sampleColumn()}}{Character scalar: the \code{colData}
+    column holding each cell's sample (donor) ID. The analysis functions
+    read each cell's donor from this column.}
+  \item{\code{cellSampleMap()}}{\code{DataFrame} with columns
+    \code{cell_id} (the cell names) and \code{sample_id}, derived from
+    that column.}
+  \item{Replacement functions}{The modified object, after a validity
+    check.}
+}
 }
 \description{
-Access exposure data matrix
-
-Access exposure metadata
-
-Access sample-cell mapping
-
-Get exposure variable names
-
-Replace exposure data matrix
-
-Replace exposure metadata
+Get and set the donor-level exposure data of a
+\code{\linkS4class{SingleCellExposomeExperiment}} and the column of
+\code{colData} that links cells to donors.
 }
 \examples{
 library(SingleCellExperiment)
@@ -81,6 +96,7 @@ scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 exposureVariables(scee)
 exposureData(scee)
 exposureInfo(scee)
+sampleColumn(scee)
 head(cellSampleMap(scee))
 
 ## Replace the exposure matrix, here rescaling PM2.5

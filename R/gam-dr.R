@@ -15,11 +15,13 @@ NULL
 #' Unlike \code{\link{run_dose_response}}, the shape is not
 #' restricted to a polynomial.
 #'
-#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character. Exposure variable name.
 #' @param celltype Character. Target cell type.
-#' @param celltype_col Character. Column with cell type labels.
-#' @param sample_col Character. Column with donor IDs.
+#' @param celltype_col Character. \code{colData} column with cell type
+#'   labels. Default \code{"cell_type"}.
 #' @param target_genes Character vector (optional). Genes to
 #'   test. Default: top 50 most variable.
 #' @param k Integer. Maximum basis dimension for the smooth
@@ -109,23 +111,23 @@ NULL
 #' if (requireNamespace("mgcv", quietly = TRUE)) {
 #'     dr <- run_dose_response_gam(scee, exposure = "E1",
 #'         celltype = "Mono", celltype_col = "cell_type",
-#'         sample_col = "donor_id", min_cells = 3L,
+#'         min_cells = 3L,
 #'         target_genes = paste0("G", 1:3))
 #'     head(dr)
 #' }
 run_dose_response_gam <- function(x, exposure, celltype,
                                     celltype_col = "cell_type",
-                                    sample_col = "donor_id",
                                     target_genes = NULL,
                                     k = NULL,
                                     min_cells = 10L,
                                     loocv = TRUE) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    sample_col <- sampleColumn(x)
 
     if (!requireNamespace("mgcv", quietly = TRUE))
         stop("Package 'mgcv' required. install.packages('mgcv')")
 
-    exp_data <- slot(x, "exposureData")
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not found")
 

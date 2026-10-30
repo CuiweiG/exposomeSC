@@ -13,11 +13,13 @@ NULL
 #' for each exposure and combines results with a final
 #' global FDR correction across all exposures and cell types.
 #'
-#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposures Character vector. Exposure names to test.
 #'   Default: all exposures in \code{exposureData}.
-#' @param celltype_col Character. Column with cell type labels.
-#' @param sample_col Character. Column with donor IDs.
+#' @param celltype_col Character. \code{colData} column with cell type
+#'   labels. Default \code{"cell_type"}.
 #' @param covariates Character vector (optional).
 #' @param min_cells Integer. Default 10.
 #' @param min_donors Integer. Default 5.
@@ -49,12 +51,10 @@ NULL
 #' multi <- run_multi_exwas(scee,
 #'     exposures = c("E1", "E2"),
 #'     celltype_col = "cell_type",
-#'     sample_col = "donor_id",
 #'     min_cells = 5L, min_donors = 3L)
 #' head(multi)
 run_multi_exwas <- function(x, exposures = NULL,
                              celltype_col = "cell_type",
-                             sample_col = "donor_id",
                              covariates = NULL,
                              min_cells = 10L,
                              min_donors = 5L,
@@ -82,7 +82,7 @@ run_multi_exwas <- function(x, exposures = NULL,
         )
     }
 
-    exp_data <- slot(x, "exposureData")
+    exp_data <- exposureData(x)
     missing <- setdiff(exposures, colnames(exp_data))
     if (length(missing) > 0) {
         stop("Exposures not found: ",
@@ -96,7 +96,6 @@ run_multi_exwas <- function(x, exposures = NULL,
             result <- run_sc_exwas(x,
                 exposure = exp_name,
                 celltype_col = celltype_col,
-                sample_col = sample_col,
                 covariates = covariates,
                 min_cells = min_cells,
                 min_donors = min_donors,

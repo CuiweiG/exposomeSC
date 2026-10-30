@@ -545,11 +545,11 @@ NULL
 #' profile while retaining donors, rather than cells or repeated biological
 #' samples, as the independent units of inference.
 #'
-#' @param x A \code{SingleCellExposomeExperiment}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character scalar naming the exposure variable.
 #' @param celltype_col Character scalar naming the cell-type column in
-#'   \code{colData(x)}.
-#' @param sample_col Character scalar naming the donor-ID column in
 #'   \code{colData(x)}.
 #' @param replicate_col Optional character scalar naming biological samples
 #'   nested within donors. If \code{NULL}, each donor is treated as one sample.
@@ -656,7 +656,6 @@ run_exposure_composition <- function(
         x,
         exposure,
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         replicate_col = NULL,
         covariates = NULL,
         min_cells = 10L,
@@ -672,14 +671,12 @@ run_exposure_composition <- function(
     if (!methods::is(x, "SingleCellExposomeExperiment")) {
         stop("x must be a SingleCellExposomeExperiment.")
     }
+    sample_col <- sampleColumn(x)
     if (!is.character(exposure) || length(exposure) != 1L ||
             is.na(exposure) || !nzchar(exposure)) {
         stop("exposure must be one non-missing, non-empty name.")
     }
-    name_arguments <- list(
-        celltype_col = celltype_col,
-        sample_col = sample_col
-    )
+    name_arguments <- list(celltype_col = celltype_col)
     if (!is.null(replicate_col)) {
         name_arguments$replicate_col <- replicate_col
     }
@@ -715,7 +712,7 @@ run_exposure_composition <- function(
         0L
     )
 
-    exposure_data <- methods::slot(x, "exposureData")
+    exposure_data <- exposureData(x)
     if (!exposure %in% colnames(exposure_data)) {
         stop("Exposure '", exposure, "' not found in exposureData.")
     }

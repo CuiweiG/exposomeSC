@@ -10,9 +10,8 @@ run_sc_exwas(x, ...)
 \S4method{run_sc_exwas}{SingleCellExposomeExperiment}(
   x,
   exposure,
-  celltype_col,
+  celltype_col = "cell_type",
   celltypes = NULL,
-  sample_col = "donor_id",
   covariates = NULL,
   min_cells = 10L,
   min_donors = 5L,
@@ -30,7 +29,9 @@ run_sc_exwas(x, ...)
 )
 }
 \arguments{
-\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{...}{Must be empty. Any further argument is an error, so that a
 misspelled argument name cannot silently change the analysis.}
@@ -39,12 +40,10 @@ misspelled argument name cannot silently change the analysis.}
 (column in \code{exposureData}).}
 
 \item{celltype_col}{Character. Column in \code{colData}
-containing cell type annotations.}
+containing cell type annotations. Default \code{"cell_type"}.}
 
 \item{celltypes}{Character vector (optional). Which cell
 types to test. Default: all.}
-
-\item{sample_col}{Character. Column containing donor IDs.}
 
 \item{covariates}{Character vector (optional). Additional
 covariates from \code{exposureData}.}
@@ -171,8 +170,7 @@ exp_mat <- matrix(rnorm(15), nrow = 5,
     dimnames = list(paste0("D", 1:5), c("E1", "E2", "E3")))
 scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 result <- run_sc_exwas(scee, exposure = "E1",
-    celltype_col = "cell_type", sample_col = "donor_id",
-    min_cells = 5L)
+    celltype_col = "cell_type", min_cells = 5L)
 head(result)
 }
 \references{

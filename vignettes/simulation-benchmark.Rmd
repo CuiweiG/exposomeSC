@@ -122,7 +122,7 @@ simulate_null <- function(seed, n_donors = 20L, n_genes = 60L,
 null_replicate <- function(seed) {
     fit <- run_sc_exwas(simulate_null(seed), exposure = "exposure",
         covariates = "age", celltype_col = "cell_type",
-        sample_col = "donor_id", min_cells = 5L)
+        min_cells = 5L)
     c(tests = nrow(fit),
       calls = sum(fit$padj_global < 0.05, na.rm = TRUE),
       raw_p_below_0.05 = mean(fit$pvalue < 0.05, na.rm = TRUE))

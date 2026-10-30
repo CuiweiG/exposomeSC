@@ -21,7 +21,7 @@ test_that("run_mixture_qgcomp works", {
     mix <- run_mixture_qgcomp(scee,
         exposures = c("E1", "E2", "E3"),
         celltype = "Mono", celltype_col = "cell_type",
-        sample_col = "donor_id", q = 2L, min_cells = 3L)
+        q = 2L, min_cells = 3L)
 
     expect_type(mix, "list")
     expect_true("positive_weights" %in% names(mix))

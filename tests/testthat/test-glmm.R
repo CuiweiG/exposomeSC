@@ -29,7 +29,7 @@ test_that("run_sc_exwas_glmm works with lme4 backend", {
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
     res <- run_sc_exwas_glmm(scee, exposure = "E1",
-        celltype_col = "cell_type", sample_col = "donor_id",
+        celltype_col = "cell_type",
         BPPARAM = BiocParallel::SerialParam(),
         target_genes = paste0("G", 1:10))
 
@@ -69,7 +69,7 @@ test_that("GLMM SE uses vcov covariance correctly", {
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
     res <- run_sc_exwas_glmm(scee, exposure = "E1",
-        celltype_col = "cell_type", sample_col = "donor_id",
+        celltype_col = "cell_type",
         BPPARAM = BiocParallel::SerialParam(),
         target_genes = paste0("G", 1:5))
 
@@ -107,7 +107,7 @@ test_that("GLMM returns valid p-values", {
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
     res <- run_sc_exwas_glmm(scee, exposure = "E1",
-        celltype_col = "cell_type", sample_col = "donor_id",
+        celltype_col = "cell_type",
         BPPARAM = BiocParallel::SerialParam(),
         target_genes = paste0("G", 1:10))
 
@@ -141,7 +141,7 @@ test_that("GLMM models donor-by-cell-type variation without singular-fit noise",
     scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 
     expect_no_message(res <- run_sc_exwas_glmm(scee, exposure = "E1",
-        celltype_col = "cell_type", sample_col = "donor_id",
+        celltype_col = "cell_type",
         BPPARAM = BiocParallel::SerialParam(), target_genes = "G1"))
     expect_setequal(res$celltype, c("A", "B"))
     ## With donor-by-cell-type variation the df reflect donors, not cells
@@ -149,7 +149,7 @@ test_that("GLMM models donor-by-cell-type variation without singular-fit noise",
 
     one_type <- scee[, cell_type == "A"]
     res_one <- run_sc_exwas_glmm(one_type, exposure = "E1",
-        celltype_col = "cell_type", sample_col = "donor_id",
+        celltype_col = "cell_type",
         BPPARAM = BiocParallel::SerialParam(), target_genes = "G1")
     expect_equal(nrow(res_one), 1L)
 })

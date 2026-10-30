@@ -48,24 +48,23 @@ test_that("run_celltype_network works with block_glasso", {
         scee, metab,
         celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         method = "block_glasso",
         stability = FALSE,
         top_var_genes = 10)
 
     expect_s4_class(net, "CelltypeNetworkResult")
-    expect_equal(net@celltype, "Mono")
-    expect_equal(net@method, "block_glasso")
-    expect_true(nrow(net@precision_matrix) > 0)
-    expect_equal(nrow(net@precision_matrix),
-                 ncol(net@precision_matrix))
-    expect_equal(nrow(net@node_info),
-                 nrow(net@precision_matrix))
+    expect_equal(networkCelltype(net), "Mono")
+    expect_equal(networkMethod(net), "block_glasso")
+    expect_true(nrow(networkPrecision(net)) > 0)
+    expect_equal(nrow(networkPrecision(net)),
+                 ncol(networkPrecision(net)))
+    expect_equal(nrow(networkNodes(net)),
+                 nrow(networkPrecision(net)))
 
     # Check node_info
-    expect_true("omic_layer" %in% colnames(net@node_info))
-    expect_true(any(net@node_info$omic_layer == "transcript"))
-    expect_true(any(net@node_info$omic_layer == "metabolite"))
+    expect_true("omic_layer" %in% colnames(networkNodes(net)))
+    expect_true(any(networkNodes(net)$omic_layer == "transcript"))
+    expect_true(any(networkNodes(net)$omic_layer == "metabolite"))
 
     # Show method
     expect_output(show(net), "CelltypeNetworkResult")
@@ -93,24 +92,25 @@ test_that("coglasso networks return edge-level selection frequencies", {
     metab <- matrix(stats::rnorm(20 * 4), nrow = 20,
         dimnames = list(donor_ids, paste0("M", seq_len(4))))
     build <- function(...) run_celltype_network(scee, metab,
-        celltype = "Mono", sample_col = "donor_id", method = "coglasso",
+        celltype = "Mono", method = "coglasso",
         nlambda_w = 3L, nlambda_b = 3L, top_var_genes = 6L, ...)
 
     net <- build(rep_num = 4L, subsample_ratio = 0.7)
-    stab <- net@stability_scores
-    p <- nrow(net@precision_matrix)
+    stab <- networkStability(net)
+    p <- nrow(networkPrecision(net))
     ## one frequency per pair of features, not a single summary number
     expect_equal(dim(stab), c(p, p))
-    expect_identical(dimnames(stab), dimnames(net@precision_matrix))
+    expect_identical(dimnames(stab), dimnames(networkPrecision(net)))
     expect_true(isSymmetric(unname(stab)))
     expect_true(all(stab >= 0 & stab <= 1))
     ## each frequency is a count out of rep_num subsamples
     expect_true(all(abs(stab * 4 - round(stab * 4)) < 1e-8))
-    expect_equal(net@metadata$selection$rep_num, 4L)
-    expect_equal(net@metadata$selection$subsample_ratio, 0.7)
-    expect_length(net@metadata$selection$stars_variability, 1L)
+    expect_equal(metadata(net)$selection$rep_num, 4L)
+    expect_equal(metadata(net)$selection$subsample_ratio, 0.7)
+    expect_length(metadata(net)$selection$stars_variability, 1L)
 
-    expect_equal(nrow(build(rep_num = 4L, stability = FALSE)@stability_scores), 0L)
+    no_stability <- build(rep_num = 4L, stability = FALSE)
+    expect_equal(nrow(networkStability(no_stability)), 0L)
     expect_error(build(subsample_ratio = 1), "subsample_ratio")
     expect_error(build(rep_num = 1), "rep_num")
 })
@@ -155,19 +155,19 @@ test_that("a precomputed network is accepted as a named list", {
                              precomputed_network = precomputed))
 
     expect_s4_class(net, "CelltypeNetworkResult")
-    expect_equal(net@celltype, "Mono")
-    expect_equal(net@method, "precomputed")
-    expect_equal(net@metadata$source, "list")
-    expect_equal(net@metadata$n_features, 3L)
+    expect_equal(networkCelltype(net), "Mono")
+    expect_equal(networkMethod(net), "precomputed")
+    expect_equal(metadata(net)$source, "list")
+    expect_equal(metadata(net)$n_features, 3L)
     ## two undirected edges, counted once each
-    expect_equal(net@metadata$n_edges, 2L)
-    expect_identical(net@node_info$feature, c("G1", "G2", "M1"))
-    expect_identical(net@node_info$omic,
+    expect_equal(metadata(net)$n_edges, 2L)
+    expect_identical(networkNodes(net)$feature, c("G1", "G2", "M1"))
+    expect_identical(networkNodes(net)$omic,
                      c("transcript", "transcript", "metabolite"))
-    expect_identical(dimnames(net@adjacency_matrix),
+    expect_identical(dimnames(networkAdjacency(net)),
                      list(c("G1", "G2", "M1"), c("G1", "G2", "M1")))
-    expect_identical(dimnames(net@precision_matrix),
-                     dimnames(net@adjacency_matrix))
+    expect_identical(dimnames(networkPrecision(net)),
+                     dimnames(networkAdjacency(net)))
     ## metabolites and the estimation settings are not consulted
     expect_identical(
         suppressMessages(run_celltype_network(scee, celltype = "Mono",
@@ -177,10 +177,10 @@ test_that("a precomputed network is accepted as a named list", {
     ## optional elements may be omitted
     minimal <- suppressMessages(run_celltype_network(scee, celltype = "Mono",
         precomputed_network = list(adjacency = adj)))
-    expect_equal(nrow(minimal@stability_scores), 0L)
-    expect_true(all(is.na(minimal@precision_matrix)))
-    expect_identical(minimal@node_info$feature, paste0("F", seq_len(3L)))
-    expect_identical(minimal@node_info$omic, rep("unknown", 3L))
+    expect_equal(nrow(networkStability(minimal)), 0L)
+    expect_true(all(is.na(networkPrecision(minimal))))
+    expect_identical(networkNodes(minimal)$feature, paste0("F", seq_len(3L)))
+    expect_identical(networkNodes(minimal)$omic, rep("unknown", 3L))
 
     expect_error(
         run_celltype_network(scee, celltype = "Mono",

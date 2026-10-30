@@ -51,6 +51,30 @@ with warnings.
   `"statistic"` and `"stat"`, or `"log2FC"` and `"log2FoldChange"`.
 * `run_meta_exwas()` no longer returns `meta_z`, which duplicated
   `meta_statistic`.
+* A SingleCellExposomeExperiment no longer keeps a second copy of the
+  cell-to-donor mapping in a `sampleMap` slot. It stores the name of the
+  donor column of `colData`, returned by the new `sampleColumn()`, and
+  `cellSampleMap()` is derived from that column. `cbind()` now combines
+  objects (it used to fail), renaming cells no longer makes the object
+  invalid, and replacing `colData`, one of its columns or the cell names
+  checks validity, so a donor without exposure data is an error at once.
+  Objects saved with 0.99.1 need to be rebuilt with `build_scee()`.
+* The analysis functions read each cell's donor from the stored column and
+  no longer take `sample_col`. Every function that takes the container
+  calls it `x` (formerly `scee` in `run_cell_coupling()`,
+  `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()`,
+  `run_celltype_network()` and `run_exposure_network()`), and
+  `celltype_col` defaults to `"cell_type"` throughout (formerly
+  `"celltype"` in `run_cell_coupling()` and no default in `run_sc_exwas()`,
+  `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`).
+* CelltypeNetworkResult and NetworkComparison have constructors,
+  `CelltypeNetworkResult()` and `NetworkComparison()`, and accessors:
+  `networkPrecision()`, `networkAdjacency()`, `networkStability()`,
+  `networkNodes()`, `networkCelltype()`, `networkMethod()` and `metadata()`
+  for networks, and `diffEdges()`, `sharedEdges()`,
+  `celltypeSpecificEdges()` and `comparisonSummary()` for comparisons.
+  NetworkComparison now has a validity method, and CelltypeNetworkResult
+  checks its stability matrix, node table, cell type and method.
 
 ## Bug fixes
 

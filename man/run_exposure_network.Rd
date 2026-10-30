@@ -5,12 +5,11 @@
 \title{Exposure-driven network: exposure-associated features only}
 \usage{
 run_exposure_network(
-  scee,
+  x,
   metabolites,
   celltype,
   exposure,
   celltype_col = "cell_type",
-  sample_col = NULL,
   covariates = NULL,
   selection_method = c("stability", "univariate"),
   fdr_threshold = 0.05,
@@ -21,7 +20,9 @@ run_exposure_network(
 )
 }
 \arguments{
-\item{scee}{\code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{\code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{metabolites}{Numeric matrix; rows = donors,
 cols = metabolites.}
@@ -32,8 +33,6 @@ cols = metabolites.}
 
 \item{celltype_col}{Character; cell type column.
 Default \code{"cell_type"}.}
-
-\item{sample_col}{Character or NULL; donor ID column.}
 
 \item{covariates}{Character vector or NULL.}
 
@@ -128,7 +127,7 @@ metabolites <- matrix(stats::rnorm(20 * 3), nrow = 20,
 metabolites[, "M1"] <- metabolites[, "M1"] + 1.5 * exposure
 if (requireNamespace("glasso", quietly = TRUE)) {
     net <- run_exposure_network(scee, metabolites, celltype = "Mono",
-        exposure = "PM2.5", sample_col = "donor_id",
+        exposure = "PM2.5",
         selection_method = "univariate",
         network_method = "block_glasso")
     net

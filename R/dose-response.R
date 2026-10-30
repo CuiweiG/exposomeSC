@@ -15,11 +15,13 @@ NULL
 #' such as endocrine-disrupting chemicals, show non-monotonic
 #' dose responses (Vandenberg et al. 2012).
 #'
-#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character. Exposure variable name.
 #' @param celltype Character. Target cell type.
-#' @param celltype_col Character. Column with cell type labels.
-#' @param sample_col Character. Column with donor IDs.
+#' @param celltype_col Character. \code{colData} column with cell type
+#'   labels. Default \code{"cell_type"}.
 #' @param target_genes Character vector (optional). Genes to
 #'   test. Default: top 50 most variable genes.
 #' @param max_degree Integer. Maximum polynomial degree to
@@ -73,19 +75,19 @@ NULL
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 #' dr <- run_dose_response(scee, exposure = "E1",
 #'     celltype = "Mono", celltype_col = "cell_type",
-#'     sample_col = "donor_id", min_cells = 3L,
+#'     min_cells = 3L,
 #'     max_degree = 2L)
 #' head(dr)
 run_dose_response <- function(x, exposure, celltype,
                                celltype_col = "cell_type",
-                               sample_col = "donor_id",
                                target_genes = NULL,
                                max_degree = 3L,
                                min_cells = 10L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    sample_col <- sampleColumn(x)
     max_degree <- min(max_degree, 3L)
 
-    exp_data <- slot(x, "exposureData")
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not found")
 

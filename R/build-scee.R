@@ -21,7 +21,9 @@ NULL
 #'   error. \code{NA} is allowed; \code{NaN} and infinite values are
 #'   not.
 #' @param sample_col Character. Column in \code{colData(sce)}
-#'   containing the sample/donor ID.
+#'   containing the sample/donor ID. Its name is stored in the object
+#'   (see \code{\link{sampleColumn}}), and the analysis functions read
+#'   each cell's donor from this column.
 #' @param exposure_info \code{DataFrame} (optional). Metadata
 #'   for exposures (for example family, unit and LOD). It must contain
 #'   an \code{exposure} column equal to
@@ -60,6 +62,10 @@ build_scee <- function(sce, exposure_matrix, sample_col,
     }
     if (any(is.infinite(exposure_matrix)) || any(is.nan(exposure_matrix))) {
         stop("exposure_matrix may contain NA, but not NaN or infinite values.")
+    }
+    if (!is.character(sample_col) || length(sample_col) != 1L ||
+            is.na(sample_col) || !nzchar(sample_col)) {
+        stop("sample_col must be a single column name.")
     }
     cd <- colData(sce)
     if (!sample_col %in% colnames(cd)) {
@@ -106,11 +112,6 @@ build_scee <- function(sce, exposure_matrix, sample_col,
         stop("sce must have unique, non-missing cell column names.")
     }
 
-    sample_map <- S4Vectors::DataFrame(
-        cell_id = colnames(sce),
-        sample_id = cell_samples
-    )
-
     if (is.null(exposure_info)) {
         exposure_info <- S4Vectors::DataFrame(
             exposure = colnames(exposure_matrix),
@@ -139,5 +140,5 @@ build_scee <- function(sce, exposure_matrix, sample_col,
         sce,
         exposureData = exposure_matrix,
         exposureInfo = exposure_info,
-        sampleMap = sample_map)
+        sampleColumn = sample_col)
 }

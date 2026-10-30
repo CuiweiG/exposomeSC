@@ -22,22 +22,22 @@ test_that("stability selection works when features outnumber donors", {
     metab[, "M1"] <- metab[, "M1"] + 1.5 * exposure
     metab[, "M3"] <- 1
     net <- run_exposure_network(scee, metab, celltype = "Mono",
-        exposure = "PM2.5", sample_col = "donor_id",
+        exposure = "PM2.5",
         selection_method = "stability", stability_q = 6L,
         network_method = "block_glasso")
-    md <- net@metadata
+    md <- metadata(net)
     expect_equal(md$pfer_bound, 36 / (0.2 * 43))
     expect_true(md$transform %in% c("vst", "log_cpm"))
-    expect_setequal(net@node_info$feature, c(paste0("G", 1:4), "M1"))
-    expect_false("M3" %in% net@node_info$feature)
+    expect_setequal(networkNodes(net)$feature, c(paste0("G", 1:4), "M1"))
+    expect_false("M3" %in% networkNodes(net)$feature)
     expect_error(run_exposure_network(scee, metab, celltype = "Mono",
-        exposure = "PM2.5", sample_col = "donor_id",
+        exposure = "PM2.5",
         selection_method = "stability", pi_threshold = 0.5), "pi_threshold")
     uni <- run_exposure_network(scee, metab, celltype = "Mono",
-        exposure = "PM2.5", sample_col = "donor_id",
+        exposure = "PM2.5",
         selection_method = "univariate", fdr_threshold = 0.2,
         network_method = "block_glasso")
-    expect_false("M3" %in% uni@node_info$feature)
+    expect_false("M3" %in% networkNodes(uni)$feature)
 })
 
 test_that("run_exposure_network honours network_method", {
@@ -61,12 +61,12 @@ test_that("run_exposure_network honours network_method", {
         dimnames = list(donors, paste0("M", 1:3)))
     metab[, "M1"] <- metab[, "M1"] + 1.5 * exposure
     net <- run_exposure_network(scee, metab, celltype = "Mono",
-        exposure = "PM2.5", sample_col = "donor_id",
+        exposure = "PM2.5",
         selection_method = "univariate", network_method = "block_glasso")
     expect_s4_class(net, "CelltypeNetworkResult")
-    expect_setequal(net@node_info$feature, c(paste0("G", 1:4), "M1"))
-    expect_identical(net@metadata$network_method, "block_glasso")
+    expect_setequal(networkNodes(net)$feature, c(paste0("G", 1:4), "M1"))
+    expect_identical(metadata(net)$network_method, "block_glasso")
     expect_error(run_exposure_network(scee, metab, celltype = "Mono",
-        exposure = "PM2.5", sample_col = "donor_id",
+        exposure = "PM2.5",
         selection_method = "univariate", network_method = "lasso"))
 })

@@ -5,13 +5,12 @@
 \title{Cell-Level Gene-Protein Coupling Analysis}
 \usage{
 run_cell_coupling(
-  scee,
+  x,
   genes,
   proteins,
   exposure,
   celltype,
-  celltype_col = "celltype",
-  sample_col = "donor",
+  celltype_col = "cell_type",
   altexp_name = "CITE",
   confounders = NULL,
   min_cells = 30L,
@@ -22,9 +21,10 @@ run_cell_coupling(
 )
 }
 \arguments{
-\item{scee}{A \code{SingleCellExposomeExperiment} object.
-Must contain an altExp named \code{altexp_name} with
-cell-level protein counts.}
+\item{x}{A \code{SingleCellExposomeExperiment} object.
+Each cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}. Must contain an altExp named
+\code{altexp_name} with cell-level protein counts.}
 
 \item{genes}{Character vector of gene names to test.}
 
@@ -32,21 +32,18 @@ cell-level protein counts.}
 (must be present in \code{altExp}).}
 
 \item{exposure}{Character; name of the exposure variable
-in \code{exposureData(scee)}.}
+in \code{exposureData(x)}.}
 
 \item{celltype}{Character; cell type to analyse.}
 
 \item{celltype_col}{Character; column in \code{colData}
-containing cell type labels. Default \code{"celltype"}.}
-
-\item{sample_col}{Character; column in \code{colData}
-containing donor/sample IDs. Default \code{"donor"}.}
+containing cell type labels. Default \code{"cell_type"}.}
 
 \item{altexp_name}{Character; name of the altExp containing
 protein data. Default \code{"CITE"}.}
 
 \item{confounders}{Character vector of column names in
-\code{colData(scee)} to partial out (e.g.,
+\code{colData(x)} to partial out (e.g.,
 \code{c("S.Score", "G2M.Score", "percent.mt")}).
 Library sizes (nCount_RNA, nCount_protein) are always
 controlled regardless of this parameter.
@@ -61,7 +58,7 @@ cells. Default 10.}
 \item{meta_moderators}{Formula or character vector of
 additional donor-level moderators for the meta-regression
 (e.g., \code{"age"} or \code{c("age", "sex")}).
-These must be columns in \code{exposureData(scee)}.
+These must be columns in \code{exposureData(x)}.
 Default \code{NULL} (exposure only).}
 
 \item{var_method}{Character. Method for estimating the
@@ -149,14 +146,13 @@ protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
     dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
 sce <- SingleCellExperiment::SingleCellExperiment(
     assays = list(counts = gene),
-    colData = S4Vectors::DataFrame(donor = donor, celltype = "T",
-        pseudotime = stats::runif(length(donor))))
+    colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T"))
 SingleCellExperiment::altExp(sce, "CITE") <-
     SummarizedExperiment::SummarizedExperiment(
         assays = list(counts = protein))
 exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
     dimnames = list(donors, "exposure"))
-scee <- build_scee(sce, exp_mat, sample_col = "donor")
+scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 if (requireNamespace("metafor", quietly = TRUE) &&
     requireNamespace("ppcor", quietly = TRUE)) {
     run_cell_coupling(scee, genes = "Gene1", proteins = "Prot1",

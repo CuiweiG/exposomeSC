@@ -19,7 +19,7 @@ test_that("run_dose_response_gam works", {
 
     dr <- run_dose_response_gam(scee, exposure = "E1",
         celltype = "Mono", celltype_col = "cell_type",
-        sample_col = "donor_id", min_cells = 3L,
+        min_cells = 3L,
         target_genes = paste0("G", 1:10))
 
     expect_s4_class(dr, "DataFrame")
@@ -49,7 +49,7 @@ test_that("GAM LOOCV R² is computed", {
 
     dr <- run_dose_response_gam(scee, exposure = "E1",
         celltype = "Mono", celltype_col = "cell_type",
-        sample_col = "donor_id", min_cells = 3L,
+        min_cells = 3L,
         target_genes = paste0("G", 1:5), loocv = TRUE)
 
     expect_true(all(!is.na(dr$R2_loocv_linear)))

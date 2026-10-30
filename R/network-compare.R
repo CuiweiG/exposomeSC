@@ -62,17 +62,14 @@ NULL
 #'     adjacency <- (precision != 0) * 1L
 #'     diag(adjacency) <- 0L
 #'     dimnames(precision) <- dimnames(adjacency) <- list(features, features)
-#'     methods::new(
-#'         "CelltypeNetworkResult",
-#'         precision_matrix = precision,
-#'         adjacency_matrix = adjacency,
-#'         stability_scores = matrix(nrow = 0, ncol = 0),
+#'     CelltypeNetworkResult(
+#'         precision = precision,
+#'         adjacency = adjacency,
 #'         node_info = S4Vectors::DataFrame(
 #'             feature = features,
 #'             omic_layer = c("transcript", "transcript", "metabolite")
 #'         ),
 #'         celltype = celltype,
-#'         method = "precomputed",
 #'         metadata = list(n_donors = 20L)
 #'     )
 #' }
@@ -98,18 +95,19 @@ run_comparative_network <- function(...,
     }
 
     ## Get cell type names
-    ct_names <- vapply(nets, function(n) n@celltype, character(1))
+    ct_names <- vapply(nets, networkCelltype, character(1))
     if (any(duplicated(ct_names)))
         stop("Duplicate cell types found: ",
              paste(ct_names[duplicated(ct_names)],
                    collapse = ", "))
 
     ## Check feature alignment
-    ref_features <- nets[[1]]@node_info$feature
+    ref_nodes <- networkNodes(nets[[1]])
+    ref_features <- ref_nodes$feature
     p <- length(ref_features)
 
     for (i in seq_along(nets)[-1]) {
-        fi <- nets[[i]]@node_info$feature
+        fi <- networkNodes(nets[[i]])$feature
         if (length(fi) != p || !all(fi == ref_features))
             stop("All networks must have identical features. ",
                  "Network for '", ct_names[i],
@@ -129,15 +127,15 @@ run_comparative_network <- function(...,
 
     ## --- Partial correlations from the precision matrices ---
     precisions <- lapply(nets, function(n) {
-        theta <- n@precision_matrix
+        theta <- networkPrecision(n)
         root_diag <- sqrt(diag(theta))
         partial <- -theta / outer(root_diag, root_diag)
         diag(partial) <- 1
         partial
     })
-    adjacencies <- lapply(nets, function(n) n@adjacency_matrix)
+    adjacencies <- lapply(nets, networkAdjacency)
     n_donors <- vapply(nets, function(n) {
-        md <- n@metadata
+        md <- metadata(n)
         if (!is.null(md$n_donors)) md$n_donors else NA_integer_
     }, integer(1))
 
@@ -216,10 +214,10 @@ run_comparative_network <- function(...,
             edge_list[[idx]] <- data.frame(
                 node_i     = ref_features[i],
                 node_j     = ref_features[j],
-                layer_i    = nets[[1]]@node_info$omic_layer[i],
-                layer_j    = nets[[1]]@node_info$omic_layer[j],
-                cross_omic = nets[[1]]@node_info$omic_layer[i] !=
-                    nets[[1]]@node_info$omic_layer[j],
+                layer_i    = ref_nodes$omic_layer[i],
+                layer_j    = ref_nodes$omic_layer[j],
+                cross_omic = ref_nodes$omic_layer[i] !=
+                    ref_nodes$omic_layer[j],
                 category   = category,
                 max_diff   = max(pcor_vals) - min(pcor_vals),
                 p_value    = pval,

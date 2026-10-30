@@ -27,7 +27,7 @@ test_that("run_cell_coupling works on minimal data", {
     sce <- SingleCellExperiment::SingleCellExperiment(
         assays = list(counts = Matrix::Matrix(gene_mat, sparse = TRUE)),
         colData = S4Vectors::DataFrame(
-            donor = cell_donor, celltype = "T"))
+            donor = cell_donor, cell_type = "T"))
     colnames(sce) <- cell_ids
 
     prot_se <- SummarizedExperiment::SummarizedExperiment(
@@ -67,7 +67,8 @@ test_that("run_cell_coupling validates inputs", {
     rownames(gene_mat) <- c("G1", "G2")
     sce <- SingleCellExperiment::SingleCellExperiment(
         assays = list(counts = gene_mat),
-        colData = S4Vectors::DataFrame(donor = rep(donors, each = n_c), celltype = "X"))
+        colData = S4Vectors::DataFrame(donor = rep(donors, each = n_c),
+            cell_type = "X"))
     colnames(sce) <- cell_ids
     prot_mat <- Matrix::Matrix(rpois(2 * n_d * n_c, 5), nrow = 2, sparse = TRUE)
     colnames(prot_mat) <- cell_ids
@@ -115,7 +116,7 @@ test_that("run_cell_coupling with confounders", {
     sce <- SingleCellExperiment::SingleCellExperiment(
         assays = list(counts = gene_mat),
         colData = S4Vectors::DataFrame(
-            donor = cell_donor, celltype = "T",
+            donor = cell_donor, cell_type = "T",
             cc_score = runif(n_d * n_c)))
     colnames(sce) <- cell_ids
     prot_se <- SummarizedExperiment::SummarizedExperiment(assays = list(counts = prot_mat))

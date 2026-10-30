@@ -5,29 +5,26 @@
 \title{Donor offset-pseudobulk negative-binomial sc-ExWAS}
 \usage{
 run_sc_exwas_pb_offset(
-  scee,
+  x,
   exposure,
-  celltype_col,
-  sample_col = "donor_id",
+  celltype_col = "cell_type",
   covariates = NULL,
   target_genes = NULL,
   BPPARAM = BiocParallel::SerialParam()
 )
 }
 \arguments{
-\item{scee}{A \linkS4class{SingleCellExposomeExperiment}.}
+\item{x}{A \linkS4class{SingleCellExposomeExperiment}.}
 
-\item{exposure}{Character; a donor-level column of \code{exposureData(scee)}.}
+\item{exposure}{Character; a donor-level column of \code{exposureData(x)}.}
 
 \item{celltype_col}{Character; \code{colData} column with cell-type labels.}
-
-\item{sample_col}{Character; donor id column (default \code{"donor_id"}).}
 
 \item{covariates}{Character vector; donor covariate columns in
 \code{exposureData} (numeric), added as GLM main effects.}
 
 \item{target_genes}{Character; genes to test (default: all rows of
-\code{scee}).}
+\code{x}).}
 
 \item{BPPARAM}{A \code{BiocParallel} param used to parallelise over genes.
 Defaults to \code{BiocParallel::SerialParam()}, so no worker process is

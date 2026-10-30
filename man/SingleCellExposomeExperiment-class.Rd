@@ -5,11 +5,26 @@
 \alias{SingleCellExposomeExperiment-class}
 \alias{.SCEE}
 \alias{[,SingleCellExposomeExperiment,ANY,ANY,ANY-method}
+\alias{cbind,SingleCellExposomeExperiment-method}
+\alias{colData<-,SingleCellExposomeExperiment,DataFrame-method}
+\alias{colData<-,SingleCellExposomeExperiment,NULL-method}
+\alias{dimnames<-,SingleCellExposomeExperiment,list-method}
+\alias{dimnames<-,SingleCellExposomeExperiment,NULL-method}
 \alias{show,SingleCellExposomeExperiment-method}
 \title{SingleCellExposomeExperiment: Container for single-cell
 exposome data}
 \usage{
 \S4method{[}{SingleCellExposomeExperiment,ANY,ANY,ANY}(x, i, j, ..., drop = TRUE)
+
+\S4method{cbind}{SingleCellExposomeExperiment}(..., deparse.level = 1)
+
+\S4method{colData}{SingleCellExposomeExperiment,DataFrame}(x, ...) <- value
+
+\S4method{colData}{SingleCellExposomeExperiment,NULL}(x, ...) <- value
+
+\S4method{dimnames}{SingleCellExposomeExperiment,list}(x) <- value
+
+\S4method{dimnames}{SingleCellExposomeExperiment,NULL}(x) <- value
 
 \S4method{show}{SingleCellExposomeExperiment}(object)
 }
@@ -24,21 +39,43 @@ exposome data}
 
 \item{drop}{Logical. Ignored (kept for S4 compatibility).}
 
+\item{deparse.level}{Ignored.}
+
+\item{value}{The replacement \code{colData} or \code{dimnames}.}
+
 \item{object}{A SingleCellExposomeExperiment.}
 }
 \value{
 The subsetting method returns a valid
   \code{SingleCellExposomeExperiment}. When cells are subset, its
-  \code{sampleMap} is reordered to the retained cells and its
-  \code{exposureData} is restricted to represented donors; feature
-  subsetting leaves the donor-level slots unchanged. The \code{show} method
-  is called for its display side effect and returns \code{NULL} invisibly.
+  \code{exposureData} is restricted to the donors that keep at least one
+  cell; feature subsetting leaves the donor-level slots unchanged.
+  \code{cbind} combines objects with the same exposure variables, exposure
+  metadata and sample column; donors present in more than one object must
+  have identical exposure values. The replacement methods return the
+  modified object. The \code{show} method is called for its display side
+  effect and returns \code{NULL} invisibly.
 }
 \description{
 Extends \code{\link[SingleCellExperiment]{SingleCellExperiment}} with
-sample-level environmental exposure measurements and a
-sample-to-cell mapping. This enables cell-type-specific
-exposome-wide association studies (sc-ExWAS).
+sample-level environmental exposure measurements. This enables
+cell-type-specific exposome-wide association studies (sc-ExWAS).
+}
+\details{
+The donor of each cell is read from one column of \code{colData}, whose
+name is stored in the object (see \code{\link{sampleColumn}}). The
+cell-to-donor mapping is not stored a second time, so renaming cells,
+combining objects and editing \code{colData} cannot leave two copies out
+of step. The object is valid when every donor in that column has exactly
+one row in \code{exposureData} and every row of \code{exposureData}
+belongs to at least one cell.
+
+Replacing \code{colData}, or a column of it with \code{$<-} or
+\code{[[<-}, checks validity again, so an edit that removes the donor
+column or introduces a donor without exposure data is an error; so does
+replacing the cell names with \code{colnames<-}. To change donor
+identifiers, edit \code{exposureData} and \code{colData} together and
+rebuild the object with \code{\link{build_scee}}.
 }
 \section{Slots}{
 
@@ -49,8 +86,8 @@ columns = exposure variables.}
 \item{\code{exposureInfo}}{\code{DataFrame}. Metadata for each
 exposure (family, unit, LOD).}
 
-\item{\code{sampleMap}}{\code{DataFrame}. Maps cell barcodes to
-sample/donor IDs.}
+\item{\code{sampleColumn}}{Character scalar. Name of the \code{colData} column
+holding each cell's sample (donor) identifier.}
 }}
 
 \section{Data hierarchy}{

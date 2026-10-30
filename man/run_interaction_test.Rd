@@ -8,7 +8,6 @@ run_interaction_test(
   x,
   exposure,
   celltype_col = "cell_type",
-  sample_col = "donor_id",
   target_genes = NULL,
   covariates = NULL,
   min_cells = 10L,
@@ -16,13 +15,14 @@ run_interaction_test(
 )
 }
 \arguments{
-\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposure}{Character. Exposure variable name.}
 
-\item{celltype_col}{Character. Column with cell type labels.}
-
-\item{sample_col}{Character. Column with donor IDs.}
+\item{celltype_col}{Character. \code{colData} column with cell type
+labels. Default \code{"cell_type"}.}
 
 \item{target_genes}{Character vector (optional). Genes to
 test. Default: top 50 most variable genes across all
@@ -81,8 +81,7 @@ exp_mat <- matrix(rnorm(20), nrow = 10,
     dimnames = list(paste0("D", 1:10), c("E1", "E2")))
 scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 ix <- run_interaction_test(scee, exposure = "E1",
-    celltype_col = "cell_type", sample_col = "donor_id",
-    min_cells = 3L, min_donors = 3L)
+    celltype_col = "cell_type", min_cells = 3L, min_donors = 3L)
 head(ix)
 }
 \references{

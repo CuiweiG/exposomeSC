@@ -52,15 +52,15 @@ test_that("run_comparative_network works with fisher_z", {
     expect_no_warning(run_comparative_network(net1, net2,
                                               method = "fisher_z"))
     ## Edge g1-m1 has precision 0.3 in net1 only: partial correlation -0.3
-    edge <- rbind(as.data.frame(comp@diff_edges),
-                  as.data.frame(comp@shared_edges))
+    edge <- rbind(as.data.frame(diffEdges(comp)),
+                  as.data.frame(sharedEdges(comp)))
     edge <- edge[edge$node_i == "g1" & edge$node_j == "m1", ]
     expect_equal(edge$max_diff, 0.3, tolerance = 1e-12)
 
     expect_s4_class(comp, "NetworkComparison")
-    expect_true(nrow(comp@shared_edges) > 0 ||
-                nrow(comp@diff_edges) > 0)
-    expect_equal(comp@summary$celltypes, c("Mono", "NK"))
+    expect_true(nrow(sharedEdges(comp)) > 0 ||
+                nrow(diffEdges(comp)) > 0)
+    expect_equal(comparisonSummary(comp)$celltypes, c("Mono", "NK"))
 
     # Show method
     expect_output(show(comp), "NetworkComparison")
@@ -104,6 +104,6 @@ test_that("run_comparative_network is descriptive by default", {
     exposomeSC:::.reset_experimental_warnings()
     expect_no_warning(
         comp <- run_comparative_network(make("A", -0.4), make("B", -0.1)))
-    expect_true(all(is.na(comp@shared_edges$p_value)))
-    expect_equal(comp@summary$method, "descriptive")
+    expect_true(all(is.na(sharedEdges(comp)$p_value)))
+    expect_equal(comparisonSummary(comp)$method, "descriptive")
 })

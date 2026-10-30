@@ -51,17 +51,14 @@ precision[1, 3] <- precision[3, 1] <- -0.4
 adjacency <- (precision != 0) * 1L
 diag(adjacency) <- 0L
 dimnames(precision) <- dimnames(adjacency) <- list(features, features)
-network <- methods::new(
-    "CelltypeNetworkResult",
-    precision_matrix = precision,
-    adjacency_matrix = adjacency,
-    stability_scores = matrix(nrow = 0, ncol = 0),
+network <- CelltypeNetworkResult(
+    precision = precision,
+    adjacency = adjacency,
     node_info = S4Vectors::DataFrame(
         feature = features,
         omic_layer = c("transcript", "transcript", "metabolite")
     ),
     celltype = "Monocyte",
-    method = "precomputed",
     metadata = list(n_donors = 20L)
 )
 plot_packages <- c("igraph", "ggraph", "ggplot2", "tidygraph")

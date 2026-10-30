@@ -14,10 +14,12 @@ NULL
 #' affects cell type A but not B" based on separate per-
 #' celltype p-values (Gelman & Stern 2006).
 #'
-#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character. Exposure variable name.
-#' @param celltype_col Character. Column with cell type labels.
-#' @param sample_col Character. Column with donor IDs.
+#' @param celltype_col Character. \code{colData} column with cell type
+#'   labels. Default \code{"cell_type"}.
 #' @param target_genes Character vector (optional). Genes to
 #'   test. Default: top 50 most variable genes across all
 #'   cell types.
@@ -74,19 +76,18 @@ NULL
 #'     dimnames = list(paste0("D", 1:10), c("E1", "E2")))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 #' ix <- run_interaction_test(scee, exposure = "E1",
-#'     celltype_col = "cell_type", sample_col = "donor_id",
-#'     min_cells = 3L, min_donors = 3L)
+#'     celltype_col = "cell_type", min_cells = 3L, min_donors = 3L)
 #' head(ix)
 run_interaction_test <- function(x, exposure,
                                   celltype_col = "cell_type",
-                                  sample_col = "donor_id",
                                   target_genes = NULL,
                                   covariates = NULL,
                                   min_cells = 10L,
                                   min_donors = 5L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    sample_col <- sampleColumn(x)
 
-    exp_data <- slot(x, "exposureData")
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not found")
     covariates <- as.character(covariates)

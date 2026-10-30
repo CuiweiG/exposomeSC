@@ -42,17 +42,14 @@ utils::globalVariables(".data")
 #' adjacency <- (precision != 0) * 1L
 #' diag(adjacency) <- 0L
 #' dimnames(precision) <- dimnames(adjacency) <- list(features, features)
-#' network <- methods::new(
-#'     "CelltypeNetworkResult",
-#'     precision_matrix = precision,
-#'     adjacency_matrix = adjacency,
-#'     stability_scores = matrix(nrow = 0, ncol = 0),
+#' network <- CelltypeNetworkResult(
+#'     precision = precision,
+#'     adjacency = adjacency,
 #'     node_info = S4Vectors::DataFrame(
 #'         feature = features,
 #'         omic_layer = c("transcript", "transcript", "metabolite")
 #'     ),
 #'     celltype = "Monocyte",
-#'     method = "precomputed",
 #'     metadata = list(n_donors = 20L)
 #' )
 #' plot_packages <- c("igraph", "ggraph", "ggplot2", "tidygraph")
@@ -95,18 +92,18 @@ plot_celltype_network <- function(network,
 
     ## Build edge list
     edges <- .extract_edges(
-        network@adjacency_matrix,
-        network@node_info,
-        precision = network@precision_matrix,
-        stability = if (nrow(network@stability_scores) > 0)
-            network@stability_scores else NULL)
+        networkAdjacency(network),
+        networkNodes(network),
+        precision = networkPrecision(network),
+        stability = if (nrow(networkStability(network)) > 0)
+            networkStability(network) else NULL)
 
     if (nrow(edges) == 0) {
         message("[exposomeSC] No edges to plot.")
         return(ggplot2::ggplot() +
             ggplot2::theme_void() +
             ggplot2::ggtitle(paste0(
-                network@celltype, ": no edges detected")))
+                networkCelltype(network), ": no edges detected")))
     }
 
     ## Build igraph
@@ -120,9 +117,9 @@ plot_celltype_network <- function(network,
             stringsAsFactors = FALSE),
         directed = FALSE,
         vertices = data.frame(
-            name = as.character(network@node_info$feature),
+            name = as.character(networkNodes(network)$feature),
             omic_layer = as.character(
-                network@node_info$omic_layer),
+                networkNodes(network)$omic_layer),
             stringsAsFactors = FALSE)
     )
 
@@ -242,15 +239,15 @@ plot_celltype_network <- function(network,
         "%d edges (%d cross-omic) | %d donors",
         nrow(edges),
         sum(as.logical(edges$cross_omic)),
-        if (!is.null(network@metadata$n_donors))
-            network@metadata$n_donors else 0L)
+        if (!is.null(metadata(network)$n_donors))
+            metadata(network)$n_donors else 0L)
 
     p <- p +
         ## theme_graph() defaults to Arial Narrow, which most systems do
         ## not have and which warns for every text element
         ggraph::theme_graph(base_family = "sans") +
         ggplot2::ggtitle(
-            paste0("Cross-omic network: ", network@celltype),
+            paste0("Cross-omic network: ", networkCelltype(network)),
             subtitle = subtitle)
 
     p
@@ -281,8 +278,7 @@ plot_celltype_network <- function(network,
 #'     node_i = "G2", node_j = "M1", category = "differential",
 #'     max_diff = 0.5, p_value = 0.01, p_adjusted = 0.02
 #' )
-#' comparison <- methods::new(
-#'     "NetworkComparison",
+#' comparison <- NetworkComparison(
 #'     diff_edges = differential_edge,
 #'     shared_edges = shared_edge,
 #'     celltype_specific = list(),
@@ -314,8 +310,8 @@ plot_network_comparison <- function(comparison,
 
     ## Build edge-by-celltype heatmap
     edge_tables <- list(
-        comparison@shared_edges,
-        comparison@diff_edges
+        sharedEdges(comparison),
+        diffEdges(comparison)
     )
     non_empty <- vapply(edge_tables, nrow, integer(1)) > 0L
     edge_tables <- edge_tables[non_empty]
@@ -335,8 +331,8 @@ plot_network_comparison <- function(comparison,
 
     ## Edges to plot
     selected <- switch(highlight,
-        differential = comparison@diff_edges,
-        shared       = comparison@shared_edges,
+        differential = diffEdges(comparison),
+        shared       = sharedEdges(comparison),
         all          = all_edges)
     if (is.null(selected) || nrow(selected) == 0) {
         return(ggplot2::ggplot() +
@@ -351,14 +347,14 @@ plot_network_comparison <- function(comparison,
     edge_df$edge <- factor(edge_df$edge, levels = rev(unique(edge_df$edge)))
 
     ## Subtitle: edge counts per cell type and pairwise Jaccard overlap
-    n_edges <- comparison@summary$n_edges
+    n_edges <- comparisonSummary(comparison)$n_edges
     counts_text <- if (length(n_edges)) {
         paste(sprintf("%s: %d edges", names(n_edges),
                       as.integer(n_edges)), collapse = "; ")
     } else {
         ""
     }
-    jac <- comparison@summary$jaccard
+    jac <- comparisonSummary(comparison)$jaccard
     jac_text <- if (length(jac)) {
         paste(vapply(names(jac), function(nm) {
             sprintf("%s J=%.2f", nm, jac[[nm]])
@@ -412,17 +408,15 @@ plot_network_comparison <- function(comparison,
 #' stability[1, 3] <- stability[3, 1] <- 0.85
 #' precision <- diag(3)
 #' dimnames(precision) <- list(features, features)
-#' network <- methods::new(
-#'     "CelltypeNetworkResult",
-#'     precision_matrix = precision,
-#'     adjacency_matrix = (stability > 0) * 1L,
-#'     stability_scores = stability,
+#' network <- CelltypeNetworkResult(
+#'     precision = precision,
+#'     adjacency = (stability > 0) * 1L,
+#'     stability = stability,
 #'     node_info = S4Vectors::DataFrame(
 #'         feature = features,
 #'         omic_layer = c("transcript", "transcript", "metabolite")
 #'     ),
 #'     celltype = "Monocyte",
-#'     method = "precomputed",
 #'     metadata = list(n_donors = 20L)
 #' )
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -441,7 +435,7 @@ plot_edge_stability <- function(network, threshold = NULL) {
         stop("threshold must be NULL or a single number between 0 and 1.")
     }
 
-    stab <- network@stability_scores
+    stab <- networkStability(network)
     if (nrow(stab) == 0) {
         message("[exposomeSC] No stability scores available: they are ",
                 "produced only by method = \"coglasso\" with stability = TRUE.")
@@ -453,7 +447,7 @@ plot_edge_stability <- function(network, threshold = NULL) {
     ## Extract upper triangle stability scores
     ut <- upper.tri(stab)
     stab_vals <- stab[ut]
-    ni <- network@node_info
+    ni <- networkNodes(network)
 
     ## Build heatmap data
     pairs <- which(ut, arr.ind = TRUE)
@@ -507,7 +501,7 @@ plot_edge_stability <- function(network, threshold = NULL) {
             expand = ggplot2::expansion(mult = c(0, 0.02))) +
         ggplot2::labs(
             title = paste0("Edge stability: ",
-                           network@celltype),
+                           networkCelltype(network)),
             x = "Selection frequency",
             y = NULL) +
         ggplot2::theme_minimal(base_size = 12) +

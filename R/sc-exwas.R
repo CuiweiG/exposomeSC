@@ -17,14 +17,15 @@ NULL
 #' pseudoreplication, then uses an empirical-Bayes pseudobulk model for
 #' inference.
 #'
-#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}.
+#' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+#'   cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}.
 #' @param exposure Character. Name of the exposure variable
 #'   (column in \code{exposureData}).
 #' @param celltype_col Character. Column in \code{colData}
-#'   containing cell type annotations.
+#'   containing cell type annotations. Default \code{"cell_type"}.
 #' @param celltypes Character vector (optional). Which cell
 #'   types to test. Default: all.
-#' @param sample_col Character. Column containing donor IDs.
 #' @param covariates Character vector (optional). Additional
 #'   covariates from \code{exposureData}.
 #' @param min_cells Integer. Minimum cells per donor-celltype
@@ -150,13 +151,11 @@ NULL
 #'     dimnames = list(paste0("D", 1:5), c("E1", "E2", "E3")))
 #' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 #' result <- run_sc_exwas(scee, exposure = "E1",
-#'     celltype_col = "cell_type", sample_col = "donor_id",
-#'     min_cells = 5L)
+#'     celltype_col = "cell_type", min_cells = 5L)
 #' head(result)
 setMethod("run_sc_exwas",
     "SingleCellExposomeExperiment",
-    function(x, exposure, celltype_col, celltypes = NULL,
-             sample_col = "donor_id",
+    function(x, exposure, celltype_col = "cell_type", celltypes = NULL,
              covariates = NULL,
              min_cells = 10L,
              min_donors = 5L,
@@ -174,6 +173,7 @@ setMethod("run_sc_exwas",
 
     method <- match.arg(method)
     .stop_on_unused_dots("run_sc_exwas", ...)
+    sample_col <- sampleColumn(x)
 
     if (method != "edgeR" && !is.null(test_features)) {
         stop(
@@ -228,8 +228,8 @@ setMethod("run_sc_exwas",
     }
 
     cd <- SummarizedExperiment::colData(x)
-    if (!all(c(sample_col, celltype_col) %in% colnames(cd))) {
-        stop("sample_col and celltype_col must be present in colData(x).")
+    if (!celltype_col %in% colnames(cd)) {
+        stop("celltype_col '", celltype_col, "' is not a column of colData(x).")
     }
     counts_mat <- SummarizedExperiment::assay(x, "counts")
     samples <- as.character(cd[[sample_col]])
@@ -458,8 +458,8 @@ setMethod("run_sc_exwas",
     }
 
     cd <- SummarizedExperiment::colData(x)
-    if (!all(c(sample_col, celltype_col) %in% colnames(cd))) {
-        stop("sample_col and celltype_col must be present in colData(x).")
+    if (!celltype_col %in% colnames(cd)) {
+        stop("celltype_col '", celltype_col, "' is not a column of colData(x).")
     }
     counts_mat <- SummarizedExperiment::assay(x, "counts")
     feature_ids <- rownames(counts_mat)
@@ -844,8 +844,8 @@ setMethod("run_sc_exwas",
     }
 
     cd <- SummarizedExperiment::colData(x)
-    if (!all(c(sample_col, celltype_col) %in% colnames(cd))) {
-        stop("sample_col and celltype_col must be present in colData(x).")
+    if (!celltype_col %in% colnames(cd)) {
+        stop("celltype_col '", celltype_col, "' is not a column of colData(x).")
     }
     counts_mat <- SummarizedExperiment::assay(x, "counts")
     samples <- as.character(cd[[sample_col]])

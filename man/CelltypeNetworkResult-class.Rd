@@ -12,12 +12,17 @@
 \item{object}{A \code{CelltypeNetworkResult} object.}
 }
 \value{
-A \code{CelltypeNetworkResult} object.
+The \code{show} method prints a summary and returns
+  \code{NULL} invisibly.
 }
 \description{
 Stores the estimated precision matrix, adjacency matrix,
 stability scores, and node metadata from
-\code{\link{run_celltype_network}}.
+\code{\link{run_celltype_network}} and
+\code{\link{run_exposure_network}}. Use the accessors in
+\code{\link{network-accessors}} to extract them, and
+\code{\link{CelltypeNetworkResult}()} to wrap a network estimated
+elsewhere.
 }
 \section{Slots}{
 
@@ -40,8 +45,10 @@ feature name, and optional module/community assignment.}
 \item{\code{celltype}}{Character. The cell type this network
 represents.}
 
-\item{\code{method}}{Character. Estimation method used
-("coglasso" or "block_glasso").}
+\item{\code{method}}{Character. Estimation method: \code{"coglasso"} or
+\code{"block_glasso"} from \code{run_celltype_network()},
+\code{"exposure_driven"} from \code{run_exposure_network()}, or
+\code{"precomputed"} for a network supplied by the user.}
 
 \item{\code{metadata}}{List. Additional parameters: n_donors,
 n_features, lambda values, exposure, covariates.}
@@ -49,4 +56,8 @@ n_features, lambda values, exposure, covariates.}
 
 \examples{
 showClass("CelltypeNetworkResult")
+}
+\seealso{
+\code{\link{network-accessors}},
+  \code{\link{CelltypeNetworkResult}}
 }

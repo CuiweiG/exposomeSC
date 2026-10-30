@@ -29,6 +29,7 @@ License: Artistic-2.0
 Depends: R (>= 4.6.0)
 Imports:
     methods,
+    BiocGenerics,
     Matrix,
     S4Vectors (>= 0.32.0),
     SummarizedExperiment,
@@ -91,6 +92,7 @@ Collate:
     'mixture.R'
     'sc-exwas.R'
     'multi-exwas.R'
+    'network-accessors.R'
     'network-utils.R'
     'network-build.R'
     'network-compare.R'

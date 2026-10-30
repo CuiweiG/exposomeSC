@@ -9,7 +9,6 @@ run_sc_mixture(
   exposures,
   celltype,
   celltype_col = "cell_type",
-  sample_col = "donor_id",
   target_genes = NULL,
   covariates = NULL,
   q = 4L,
@@ -17,15 +16,16 @@ run_sc_mixture(
 )
 }
 \arguments{
-\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposures}{Character vector. Exposure variable names.}
 
 \item{celltype}{Character. Which cell type to analyse.}
 
-\item{celltype_col}{Character. Column with cell type labels.}
-
-\item{sample_col}{Character. Column with donor IDs.}
+\item{celltype_col}{Character. \code{colData} column with cell type
+labels. Default \code{"cell_type"}.}
 
 \item{target_genes}{Character vector (optional). Genes to
 test. Default: top 20 most variable genes.}
@@ -110,7 +110,7 @@ exp_mat <- matrix(rnorm(30), nrow = 10,
 scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 mix <- run_sc_mixture(scee, exposures = c("E1", "E2", "E3"),
     celltype = "Mono", celltype_col = "cell_type",
-    sample_col = "donor_id", min_cells = 3L)
+    min_cells = 3L)
 mix$weights
 }
 \references{

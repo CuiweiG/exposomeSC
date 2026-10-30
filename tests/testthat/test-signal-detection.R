@@ -48,7 +48,6 @@ test_that("run_sc_exwas detects planted exposure signal", {
     result <- run_sc_exwas(scee,
         exposure = "E1",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 5L,
         min_donors = 5L)
 

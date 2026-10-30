@@ -21,33 +21,20 @@
     build_scee(sce, exposures, sample_col = "donor_id")
 }
 
-test_that("sampleMap requires a complete ordered one-to-one cell mapping", {
+test_that("the cell-to-sample map is derived from colData", {
     scee <- .make_scee_invariant()
+    expect_identical(sampleColumn(scee), "donor_id")
+    map <- cellSampleMap(scee)
+    expect_identical(as.character(map$cell_id), colnames(scee))
+    expect_identical(as.character(map$sample_id),
+                     as.character(scee$donor_id))
 
-    missing_columns <- S4Vectors::DataFrame(
-        wrong_cell = colnames(scee),
-        wrong_sample = rep(c("D1", "D2"), each = 5)
-    )
-    methods::slot(scee, "sampleMap") <- missing_columns
-    expect_error(methods::validObject(scee), "missing required column")
-
-    scee <- .make_scee_invariant()
-    duplicate_map <- cellSampleMap(scee)
-    duplicate_map$cell_id[[2]] <- duplicate_map$cell_id[[1]]
-    methods::slot(scee, "sampleMap") <- duplicate_map
-    expect_error(methods::validObject(scee), "must be unique")
-
-    scee <- .make_scee_invariant()
-    reversed_map <- cellSampleMap(scee)[
-        rev(seq_len(nrow(cellSampleMap(scee)))),
-        ,
-        drop = FALSE
-    ]
-    methods::slot(scee, "sampleMap") <- reversed_map
-    expect_error(methods::validObject(scee), "match colnames")
+    ## cells need unique, non-missing names
+    expect_error(colnames(scee) <- rep("c1", ncol(scee)), "unique")
+    expect_error(colnames(scee) <- NULL, "non-missing names")
 })
 
-test_that("cell subsetting preserves sampleMap order and rejects duplicates", {
+test_that("cell subsetting keeps cell order and rejects duplicates", {
     scee <- .make_scee_invariant()
     selected <- c(8L, 2L, 7L, 1L)
     subset <- scee[, selected]
@@ -74,8 +61,7 @@ test_that("exposure metadata names must match exposure columns", {
     scee <- .make_scee_invariant()
     info <- exposureInfo(scee)
     info$exposure <- rev(info$exposure)
-    methods::slot(scee, "exposureInfo") <- info
-    expect_error(methods::validObject(scee), "must match")
+    expect_error(exposureInfo(scee) <- info, "must match")
 })
 
 test_that("exposure data enforce numeric finite and exact sample support", {
@@ -93,16 +79,14 @@ test_that("exposure data enforce numeric finite and exact sample support", {
 
     infinite_data <- exposureData(scee)
     infinite_data[1, 1] <- Inf
-    methods::slot(scee, "exposureData") <- infinite_data
-    expect_error(methods::validObject(scee), "not NaN or infinite")
+    expect_error(exposureData(scee) <- infinite_data, "not NaN or infinite")
 
     scee <- .make_scee_invariant()
     extra_data <- rbind(
         exposureData(scee),
         D3 = c(E1 = 0, E2 = 0)
     )
-    methods::slot(scee, "exposureData") <- extra_data
-    expect_error(methods::validObject(scee), "not represented in sampleMap")
+    expect_error(exposureData(scee) <- extra_data, "without cells")
 })
 
 test_that("build_scee rejects malformed matrices and extra samples", {
@@ -139,10 +123,10 @@ test_that("build_scee rejects malformed matrices and extra samples", {
 })
 
 test_that("CelltypeNetworkResult reports a dimension mismatch as one message", {
-    obj <- methods::new("CelltypeNetworkResult")
-    obj@precision_matrix <- diag(2)
-    obj@adjacency_matrix <- matrix(0L, 3L, 3L)
-    message_text <- tryCatch(methods::validObject(obj),
+    message_text <- tryCatch(
+        CelltypeNetworkResult(precision = diag(2),
+            adjacency = matrix(0L, 3L, 3L),
+            node_info = S4Vectors::DataFrame(), celltype = "Mono"),
         error = conditionMessage)
     expect_match(message_text,
         "adjacency_matrix dimensions must match precision_matrix",

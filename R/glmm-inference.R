@@ -98,14 +98,13 @@ NULL
 #' P-values are Wald tests with an estimated dispersion and can be
 #' anticonservative when there are few donors.
 #'
-#' @param scee A \linkS4class{SingleCellExposomeExperiment}.
-#' @param exposure Character; a donor-level column of \code{exposureData(scee)}.
+#' @param x A \linkS4class{SingleCellExposomeExperiment}.
+#' @param exposure Character; a donor-level column of \code{exposureData(x)}.
 #' @param celltype_col Character; \code{colData} column with cell-type labels.
-#' @param sample_col Character; donor id column (default \code{"donor_id"}).
 #' @param covariates Character vector; donor covariate columns in
 #'   \code{exposureData} (numeric), added as GLM main effects.
 #' @param target_genes Character; genes to test (default: all rows of
-#'   \code{scee}).
+#'   \code{x}).
 #' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes.
 #'   Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
 #'   started unless one is asked for; pass, for example,
@@ -169,23 +168,24 @@ NULL
 #' )
 #' head(offset_result)
 #' @export
-run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
-                                    sample_col = "donor_id",
+run_sc_exwas_pb_offset <- function(x, exposure,
+                                    celltype_col = "cell_type",
                                     covariates = NULL, target_genes = NULL,
                                     BPPARAM = BiocParallel::SerialParam()) {
-    stopifnot(methods::is(scee, "SingleCellExposomeExperiment"))
+    stopifnot(methods::is(x, "SingleCellExposomeExperiment"))
+    sample_col <- sampleColumn(x)
     if (!requireNamespace("MASS", quietly = TRUE))
         stop("Package 'MASS' is required for the negative-binomial GLM")
 
-    exp_data <- exposureData(scee)
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
-        stop("Exposure '", exposure, "' not found in exposureData(scee)")
+        stop("Exposure '", exposure, "' not found in exposureData(x)")
     if (length(covariates) && !all(covariates %in% colnames(exp_data)))
         stop("Covariate(s) not in exposureData: ",
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
 
-    cd <- SummarizedExperiment::colData(scee)
-    counts_mat <- SummarizedExperiment::assay(scee, "counts")
+    cd <- SummarizedExperiment::colData(x)
+    counts_mat <- SummarizedExperiment::assay(x, "counts")
     samples <- as.character(cd[[sample_col]])
     cell_types <- as.character(cd[[celltype_col]])
     celltypes <- sort(unique(cell_types))
@@ -277,14 +277,13 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
 #' equivalent and far faster (Lee & Han 2024). The \code{ddf} argument is
 #' ignored for \code{family = "nbinom"}.
 #'
-#' @param scee A \linkS4class{SingleCellExposomeExperiment}.
-#' @param exposure Character; a donor-level column of \code{exposureData(scee)}.
+#' @param x A \linkS4class{SingleCellExposomeExperiment}.
+#' @param exposure Character; a donor-level column of \code{exposureData(x)}.
 #' @param celltype_col Character; \code{colData} column with cell-type labels.
-#' @param sample_col Character; donor id column (default \code{"donor_id"}).
 #' @param covariates Character vector; donor covariate columns in
 #'   \code{exposureData} (numeric), added as fixed-effect main effects.
 #' @param target_genes Character; genes to test (default: all rows of
-#'   \code{scee}). A cell-level LMM per gene is costly -- passing a focused gene
+#'   \code{x}). A cell-level LMM per gene is costly -- passing a focused gene
 #'   set is strongly recommended.
 #' @param ddf Denominator degrees-of-freedom method for
 #'   \code{family = "gaussian"}: \code{"Satterthwaite"} (default) or
@@ -363,13 +362,14 @@ run_sc_exwas_pb_offset <- function(scee, exposure, celltype_col,
 #'     mixed_result
 #' }
 #' @export
-run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
-                              sample_col = "donor_id",
+run_sc_exwas_glmm <- function(x, exposure,
+                              celltype_col = "cell_type",
                               covariates = NULL, target_genes = NULL,
                               ddf = c("Satterthwaite", "Kenward-Roger"),
                               family = c("gaussian", "nbinom"),
                               BPPARAM = BiocParallel::SerialParam()) {
-    stopifnot(methods::is(scee, "SingleCellExposomeExperiment"))
+    stopifnot(methods::is(x, "SingleCellExposomeExperiment"))
+    sample_col <- sampleColumn(x)
     ddf <- match.arg(ddf); family <- match.arg(family)
     if (!requireNamespace("lmerTest", quietly = TRUE))
         stop("Package 'lmerTest' is required (REML LMM + Satterthwaite/KR df)")
@@ -381,20 +381,20 @@ run_sc_exwas_glmm <- function(scee, exposure, celltype_col,
     if (family == "nbinom" && !requireNamespace("MASS", quietly = TRUE))
         stop("Package 'MASS' is required for lme4::glmer.nb (theta estimation)")
 
-    exp_data <- exposureData(scee)
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
-        stop("Exposure '", exposure, "' not found in exposureData(scee)")
+        stop("Exposure '", exposure, "' not found in exposureData(x)")
     if (length(covariates) && !all(covariates %in% colnames(exp_data)))
         stop("Covariate(s) not in exposureData: ",
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
 
-    cd <- SummarizedExperiment::colData(scee)
-    counts_mat <- SummarizedExperiment::assay(scee, "counts")
+    cd <- SummarizedExperiment::colData(x)
+    counts_mat <- SummarizedExperiment::assay(x, "counts")
     samples <- as.character(cd[[sample_col]])
     cell_types <- as.character(cd[[celltype_col]])
-    genes <- if (is.null(target_genes)) rownames(scee)
-             else intersect(target_genes, rownames(scee))
-    if (!length(genes)) stop("No target genes present in scee")
+    genes <- if (is.null(target_genes)) rownames(x)
+             else intersect(target_genes, rownames(x))
+    if (!length(genes)) stop("No target genes present in x")
 
     ## shared cell-level design (donor, cell type, exposure, covariates) ----
     ct_f <- factor(cell_types)

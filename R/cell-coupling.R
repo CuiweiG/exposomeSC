@@ -11,23 +11,22 @@ utils::globalVariables(c("yi", "vi"))
 #' then uses random-effects meta-regression to test whether
 #' coupling strength varies with a donor-level exposure.
 #'
-#' @param scee A \code{SingleCellExposomeExperiment} object.
-#'   Must contain an altExp named \code{altexp_name} with
-#'   cell-level protein counts.
+#' @param x A \code{SingleCellExposomeExperiment} object.
+#'   Each cell's donor is read from the \code{colData} column named by
+#'   \code{\link{sampleColumn}(x)}. Must contain an altExp named
+#'   \code{altexp_name} with cell-level protein counts.
 #' @param genes Character vector of gene names to test.
 #' @param proteins Character vector of protein names to test
 #'   (must be present in \code{altExp}).
 #' @param exposure Character; name of the exposure variable
-#'   in \code{exposureData(scee)}.
+#'   in \code{exposureData(x)}.
 #' @param celltype Character; cell type to analyse.
 #' @param celltype_col Character; column in \code{colData}
-#'   containing cell type labels. Default \code{"celltype"}.
-#' @param sample_col Character; column in \code{colData}
-#'   containing donor/sample IDs. Default \code{"donor"}.
+#'   containing cell type labels. Default \code{"cell_type"}.
 #' @param altexp_name Character; name of the altExp containing
 #'   protein data. Default \code{"CITE"}.
 #' @param confounders Character vector of column names in
-#'   \code{colData(scee)} to partial out (e.g.,
+#'   \code{colData(x)} to partial out (e.g.,
 #'   \code{c("S.Score", "G2M.Score", "percent.mt")}).
 #'   Library sizes (nCount_RNA, nCount_protein) are always
 #'   controlled regardless of this parameter.
@@ -39,7 +38,7 @@ utils::globalVariables(c("yi", "vi"))
 #' @param meta_moderators Formula or character vector of
 #'   additional donor-level moderators for the meta-regression
 #'   (e.g., \code{"age"} or \code{c("age", "sex")}).
-#'   These must be columns in \code{exposureData(scee)}.
+#'   These must be columns in \code{exposureData(x)}.
 #'   Default \code{NULL} (exposure only).
 #' @param var_method Character. Method for estimating the
 #'   sampling variance of Fisher z-transformed correlations.
@@ -135,27 +134,25 @@ utils::globalVariables(c("yi", "vi"))
 #'     dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
 #' sce <- SingleCellExperiment::SingleCellExperiment(
 #'     assays = list(counts = gene),
-#'     colData = S4Vectors::DataFrame(donor = donor, celltype = "T",
-#'         pseudotime = stats::runif(length(donor))))
+#'     colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T"))
 #' SingleCellExperiment::altExp(sce, "CITE") <-
 #'     SummarizedExperiment::SummarizedExperiment(
 #'         assays = list(counts = protein))
 #' exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
 #'     dimnames = list(donors, "exposure"))
-#' scee <- build_scee(sce, exp_mat, sample_col = "donor")
+#' scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 #' if (requireNamespace("metafor", quietly = TRUE) &&
 #'     requireNamespace("ppcor", quietly = TRUE)) {
 #'     run_cell_coupling(scee, genes = "Gene1", proteins = "Prot1",
 #'         exposure = "exposure", celltype = "T",
 #'         min_cells = 20L, min_donors = 10L)
 #' }
-run_cell_coupling <- function(scee,
+run_cell_coupling <- function(x,
                               genes,
                               proteins,
                               exposure,
                               celltype,
-                              celltype_col = "celltype",
-                              sample_col = "donor",
+                              celltype_col = "cell_type",
                               altexp_name = "CITE",
                               confounders = NULL,
                               min_cells = 30L,
@@ -165,8 +162,9 @@ run_cell_coupling <- function(scee,
                                   "bootstrap"),
                               n_boot = 200L) {
 
-    stopifnot(is(scee, "SingleCellExposomeExperiment"))
-    stopifnot(altexp_name %in% altExpNames(scee))
+    stopifnot(is(x, "SingleCellExposomeExperiment"))
+    stopifnot(altexp_name %in% altExpNames(x))
+    sample_col <- sampleColumn(x)
     var_method <- match.arg(var_method)
 
     if (!requireNamespace("metafor", quietly = TRUE))
@@ -177,7 +175,7 @@ run_cell_coupling <- function(scee,
              "Install with: install.packages('ppcor')")
 
     ## Validate exposure
-    exp_data <- exposureData(scee)
+    exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
         stop("Exposure '", exposure, "' not in exposureData")
     exp_vec <- setNames(exp_data[, exposure], rownames(exp_data))
@@ -193,7 +191,7 @@ run_cell_coupling <- function(scee,
     }
 
     ## Validate altExp
-    prot_se <- altExp(scee, altexp_name)
+    prot_se <- altExp(x, altexp_name)
     missing_prot <- setdiff(proteins, rownames(prot_se))
     if (length(missing_prot) > 0)
         warning("Proteins not found in altExp: ",
@@ -203,16 +201,16 @@ run_cell_coupling <- function(scee,
         stop("No matching proteins in altExp")
 
     ## Validate genes
-    missing_genes <- setdiff(genes, rownames(scee))
+    missing_genes <- setdiff(genes, rownames(x))
     if (length(missing_genes) > 0)
         warning("Genes not found: ",
                 paste(head(missing_genes, 5), collapse = ", "))
-    genes <- intersect(genes, rownames(scee))
+    genes <- intersect(genes, rownames(x))
     if (length(genes) == 0)
         stop("No matching genes in SCE")
 
     ## Validate confounders
-    cd <- colData(scee)
+    cd <- colData(x)
     if (!is.null(confounders)) {
         missing_conf <- setdiff(confounders, colnames(cd))
         if (length(missing_conf) > 0)
@@ -228,7 +226,7 @@ run_cell_coupling <- function(scee,
     ct_donors <- as.character(cd[[sample_col]][ct_idx])
 
     ## Pre-compute library sizes (always controlled)
-    ncount_rna  <- Matrix::colSums(counts(scee)[, ct_idx, drop = FALSE])
+    ncount_rna  <- Matrix::colSums(counts(x)[, ct_idx, drop = FALSE])
     prot_counts <- assay(prot_se, "counts")
     ncount_prot <- Matrix::colSums(prot_counts[, ct_idx, drop = FALSE])
 
@@ -270,8 +268,8 @@ run_cell_coupling <- function(scee,
     idx <- 0L
 
     for (gene in genes) {
-        gene_row <- match(gene, rownames(scee))
-        rna_all <- counts(scee)[gene_row, ct_idx]
+        gene_row <- match(gene, rownames(x))
+        rna_all <- counts(x)[gene_row, ct_idx]
         if (is(rna_all, "sparseVector"))
             rna_all <- as.numeric(rna_all)
 

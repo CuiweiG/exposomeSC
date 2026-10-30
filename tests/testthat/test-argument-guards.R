@@ -32,12 +32,11 @@ test_that("run_multi_exwas rejects arguments run_sc_exwas does not accept", {
 test_that("the run_multi_exwas pass-through list matches run_sc_exwas", {
     method <- methods::getMethod("run_sc_exwas",
                                  "SingleCellExposomeExperiment")
-    body_expr <- body(method@.Data)
+    body_expr <- body(method)
     local_fn <- eval(body_expr[[2]][[3]])
     method_args <- setdiff(names(formals(local_fn)), "...")
-    set_by_wrapper <- c("x", "exposure", "celltype_col", "sample_col",
-                        "covariates", "min_cells", "min_donors",
-                        "filter_genes")
+    set_by_wrapper <- c("x", "exposure", "celltype_col", "covariates",
+                        "min_cells", "min_donors", "filter_genes")
     expect_setequal(exposomeSC:::.run_sc_exwas_passthrough,
                     setdiff(method_args, set_by_wrapper))
 })

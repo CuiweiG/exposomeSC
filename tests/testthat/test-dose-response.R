@@ -22,7 +22,6 @@ test_that("run_dose_response returns valid DataFrame", {
     dr <- run_dose_response(scee,
         exposure = "E1", celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 3L, max_degree = 2L)
     expect_s4_class(dr, "DataFrame")
     expect_true("gene" %in% colnames(dr))
@@ -37,8 +36,7 @@ test_that("run_dose_response errors on bad exposure", {
     scee <- .make_scee_dr()
     expect_error(run_dose_response(scee,
         exposure = "FAKE", celltype = "Mono",
-        celltype_col = "cell_type",
-        sample_col = "donor_id"), "not found")
+        celltype_col = "cell_type"), "not found")
 })
 
 test_that("run_dose_response errors on too few donors", {
@@ -58,6 +56,5 @@ test_that("run_dose_response errors on too few donors", {
     expect_error(run_dose_response(scee,
         exposure = "E1", celltype = "A",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 1L, max_degree = 2L), "donors")
 })

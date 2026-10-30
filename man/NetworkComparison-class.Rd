@@ -12,23 +12,26 @@
 \item{object}{A \code{NetworkComparison} object.}
 }
 \value{
-A \code{NetworkComparison} object.
+The \code{show} method prints a summary and returns
+  \code{NULL} invisibly.
 }
 \description{
 Stores results from \code{\link{run_comparative_network}},
-including differential, shared, and cell-type-specific edges.
+including differential, shared, and cell-type-specific edges. Use the
+accessors in \code{\link{network-accessors}} to extract them.
 }
 \section{Slots}{
 
 \describe{
-\item{\code{diff_edges}}{\code{DataFrame}. Edges with significantly
-different partial correlations across cell types, with
-p-values and adjusted p-values.}
+\item{\code{diff_edges}}{\code{DataFrame}. Edges present in some but not all
+of the compared networks (including edges unique to one cell type),
+with the range of their partial correlations and, for
+\code{method = "fisher_z"}, p-values and adjusted p-values.}
 
 \item{\code{shared_edges}}{\code{DataFrame}. Edges present in all
 compared cell types.}
 
-\item{\code{celltype_specific}}{List of \code{DataFrame}s. Edges
+\item{\code{celltype_specific}}{Named list of \code{DataFrame}s. Edges
 unique to each cell type.}
 
 \item{\code{summary}}{List. Summary statistics: Jaccard similarity,
@@ -37,4 +40,8 @@ edge counts, cell types compared.}
 
 \examples{
 showClass("NetworkComparison")
+}
+\seealso{
+\code{\link{network-accessors}},
+  \code{\link{NetworkComparison}}
 }

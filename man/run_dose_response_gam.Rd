@@ -9,7 +9,6 @@ run_dose_response_gam(
   exposure,
   celltype,
   celltype_col = "cell_type",
-  sample_col = "donor_id",
   target_genes = NULL,
   k = NULL,
   min_cells = 10L,
@@ -17,15 +16,16 @@ run_dose_response_gam(
 )
 }
 \arguments{
-\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}.}
+\item{x}{A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
+cell's donor is read from the \code{colData} column named by
+\code{\link{sampleColumn}(x)}.}
 
 \item{exposure}{Character. Exposure variable name.}
 
 \item{celltype}{Character. Target cell type.}
 
-\item{celltype_col}{Character. Column with cell type labels.}
-
-\item{sample_col}{Character. Column with donor IDs.}
+\item{celltype_col}{Character. \code{colData} column with cell type
+labels. Default \code{"cell_type"}.}
 
 \item{target_genes}{Character vector (optional). Genes to
 test. Default: top 50 most variable.}
@@ -114,7 +114,7 @@ scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 if (requireNamespace("mgcv", quietly = TRUE)) {
     dr <- run_dose_response_gam(scee, exposure = "E1",
         celltype = "Mono", celltype_col = "cell_type",
-        sample_col = "donor_id", min_cells = 3L,
+        min_cells = 3L,
         target_genes = paste0("G", 1:3))
     head(dr)
 }

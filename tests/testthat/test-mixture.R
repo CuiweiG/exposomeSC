@@ -25,7 +25,6 @@ test_that("run_sc_mixture returns weights that sum to 1", {
         exposures = c("E1", "E2", "E3"),
         celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 3L)
     expect_type(mix, "list")
     expect_equal(length(mix$weights), 3L)
@@ -38,8 +37,7 @@ test_that("run_sc_mixture errors on bad exposure", {
     expect_error(run_sc_mixture(scee,
         exposures = c("E1", "FAKE"),
         celltype = "Mono",
-        celltype_col = "cell_type",
-        sample_col = "donor_id"), "not found")
+        celltype_col = "cell_type"), "not found")
 })
 
 test_that("run_sc_mixture errors on too few donors", {
@@ -48,7 +46,6 @@ test_that("run_sc_mixture errors on too few donors", {
         exposures = c("E1", "E2"),
         celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 1L), "Need >= 5")
 })
 
@@ -57,8 +54,7 @@ test_that("run_sc_mixture errors on bad celltype", {
     expect_error(run_sc_mixture(scee,
         exposures = c("E1", "E2"),
         celltype = "NONEXIST",
-        celltype_col = "cell_type",
-        sample_col = "donor_id"), "not found")
+        celltype_col = "cell_type"), "not found")
 })
 
 test_that("run_sc_mixture returns mixture_coef", {
@@ -67,7 +63,6 @@ test_that("run_sc_mixture returns mixture_coef", {
         exposures = c("E1", "E2", "E3"),
         celltype = "NK",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 3L)
     expect_true("mixture_coef" %in% names(mix))
     expect_true(is.numeric(mix$mixture_coef))
@@ -79,7 +74,6 @@ test_that("run_sc_mixture with target_genes", {
         exposures = c("E1", "E2"),
         celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         target_genes = c("G1", "G2", "G3"),
         min_cells = 3L)
     expect_equal(mix$n_genes, 3L)
@@ -92,7 +86,6 @@ test_that("run_sc_mixture with covariates", {
         exposures = c("E1", "E2"),
         celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         covariates = "E3",
         min_cells = 3L)
     expect_type(mix, "list")
@@ -105,7 +98,6 @@ test_that("run_sc_mixture method field is quantile_linear", {
         exposures = c("E1", "E2"),
         celltype = "Mono",
         celltype_col = "cell_type",
-        sample_col = "donor_id",
         min_cells = 3L)
     expect_equal(mix$method, "quantile_linear")
 })
@@ -114,8 +106,7 @@ test_that("run_sc_mixture weights average absolute per-gene coefficients", {
     scee <- .make_scee()
     genes <- paste0("G", 1:3)
     mix <- run_sc_mixture(scee, exposures = c("E1", "E2"), celltype = "Mono",
-        celltype_col = "cell_type", sample_col = "donor_id",
-        target_genes = genes, min_cells = 3L)
+        celltype_col = "cell_type", target_genes = genes, min_cells = 3L)
     cd <- SummarizedExperiment::colData(scee)
     pb <- exposomeSC:::.pseudobulk_aggregate(
         SummarizedExperiment::assay(scee, "counts"),
@@ -139,10 +130,10 @@ test_that("run_sc_mixture handles tied exposures and rejects unknown covariates"
     exposure_matrix[1:6, "E3"] <- 0.01
     exposureData(scee) <- exposure_matrix
     mix <- run_sc_mixture(scee, exposures = c("E1", "E3"), celltype = "Mono",
-        celltype_col = "cell_type", sample_col = "donor_id", min_cells = 3L)
+        celltype_col = "cell_type", min_cells = 3L)
     expect_equal(sum(mix$weights), 1)
     expect_error(run_sc_mixture(scee, exposures = c("E1", "E2"),
         celltype = "Mono", celltype_col = "cell_type",
-        sample_col = "donor_id", covariates = "nope", min_cells = 3L),
+        covariates = "nope", min_cells = 3L),
         "Covariates not found")
 })
