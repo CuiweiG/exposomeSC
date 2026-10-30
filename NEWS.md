@@ -53,6 +53,9 @@ with warnings.
 * `run_exposure_network(network_method = "coglasso")` stops with an
   installation hint when coglasso is not installed, instead of switching to
   the block graphical lasso.
+* The `residual_df` diagnostic of the edgeR backend of `run_sc_exwas()`
+  gives the adjusted residual degrees of freedom of the quasi-likelihood fit
+  instead of the nominal ones (see Bug fixes).
 
 ## Interface
 
@@ -141,6 +144,10 @@ with warnings.
   column that is collinear with the other model terms. The dropped columns
   were recorded in `metadata(result)$diagnostics` but the result otherwise
   looked adjusted for them.
+* The `residual_df` diagnostic of the edgeR backend reads the adjusted
+  residual degrees of freedom that `glmQLFit(legacy = FALSE)` returns
+  (`df.residual.adj`). It looked for the legacy field `df.residual.zeros`
+  and so reported the nominal residual degrees of freedom.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

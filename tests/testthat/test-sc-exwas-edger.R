@@ -420,3 +420,19 @@ test_that("a collinear covariate is dropped with a warning and recorded", {
     expect_identical(diag$Mono$design_columns, c("(Intercept)", "exposure"))
     expect_identical(diag$NK$dropped_design_columns, "exposure_copy")
 })
+
+test_that("the residual df diagnostic uses edgeR's adjusted residual df", {
+    skip_if_not_installed("edgeR")
+    scee <- .make_edger_scee()
+    ## G80 is zero in 16 of the 20 donors; keep it in the fit
+    result <- run_sc_exwas(scee, exposure = "exposure",
+        celltype_col = "cell_type",
+        covariates = c("age_scaled", "study_b"),
+        min_donors = 15L, filter_min_donors = 2L,
+        robust = FALSE)
+    diag <- S4Vectors::metadata(result)$diagnostics$Mono
+    nominal <- diag$n_donors - length(diag$design_columns)
+    expect_true(is.finite(diag$residual_df))
+    expect_gt(diag$residual_df, 0)
+    expect_lt(diag$residual_df, nominal - 0.5)
+})

@@ -678,7 +678,9 @@ setMethod("run_sc_exwas",
             dropped_design_columns = dropped_design,
             design_rank = qr(design)$rank,
             residual_df = min(
-                if (!is.null(fit_result$fit$df.residual.zeros)) {
+                if (!is.null(fit_result$fit$df.residual.adj)) {
+                    fit_result$fit$df.residual.adj
+                } else if (!is.null(fit_result$fit$df.residual.zeros)) {
                     fit_result$fit$df.residual.zeros
                 } else {
                     fit_result$fit$df.residual
