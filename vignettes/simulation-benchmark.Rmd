@@ -209,15 +209,14 @@ mean count and shrink its term in the standard error, but they do not add to
 
 # Comparator alignment
 
-`run_sc_exwas()` offers four backends, and a comparison is only meaningful
+`run_sc_exwas()` offers three backends, and a comparison is only meaningful
 between backends that target the same estimand. `"edgeR"` is the default and
-fits a robust quasi-likelihood model to donor pseudobulk; it reports a signed
-square root of the F statistic and no coefficient standard error. `"DESeq2"`,
-with `"pseudobulk"` as its alias, gives a Wald test on the same donor
-pseudobulk. `"dreamlet"` applies variancePartition's
-`voomWithDreamWeights()` and `dream()` without a random effect, which is a
-moderated *t* test; it does not call the dreamlet package, so the label
-voom-dream describes it better.
+fits the edgeR v4 quasi-likelihood model to donor pseudobulk; it reports a
+signed square root of the F statistic and no coefficient standard error.
+`"DESeq2"` gives a Wald test on the same donor pseudobulk. `"voom_dream"`
+applies variancePartition's `voomWithDreamWeights()` and `dream()` without a
+random effect, which is a moderated *t* test; it does not use the dreamlet
+package.
 
 Two exported functions leave donor pseudobulk. `run_sc_exwas_glmm()` fits a
 cell-level mixed model with a donor random intercept, either a linear model

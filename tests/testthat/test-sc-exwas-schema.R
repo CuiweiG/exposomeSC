@@ -91,7 +91,7 @@ test_that("voom-dream backend emits the current result contract", {
         .make_backend_schema_scee(),
         exposure = "smoking",
         celltype_col = "cell_type",
-        method = "dreamlet",
+        method = "voom_dream",
         min_cells = 5L,
         min_donors = 6L,
         filter_genes = FALSE
@@ -151,7 +151,7 @@ test_that("non-edgeR backends never ignore test_features", {
             empty,
             exposure = "smoking",
             celltype_col = "cell_type",
-            method = "dreamlet",
+            method = "voom_dream",
             test_features = "G1"
         ),
         "supported only by method='edgeR'"

@@ -35,18 +35,17 @@ NULL
 #' @param filter_genes Logical. If \code{TRUE} (default), filter
 #'   low-expression genes before model fitting. The edgeR backend defaults to
 #'   exposure-label-independent donor-support filtering; the DESeq2 and
-#'   dreamlet backends retain genes detected in at least 20\% of donors.
+#'   voom-dream backends retain genes detected in at least 20\% of donors.
 #' @param method Character. Backend for differential expression.
-#'   \code{"edgeR"} (default) uses robust quasi-likelihood inference with
-#'   empirical-Bayes dispersion shrinkage. \code{"DESeq2"} (and its retained
-#'   alias \code{"pseudobulk"}) uses DESeq2 on aggregated counts.
-#'   \code{"dreamlet"} uses variancePartition's
+#'   \code{"edgeR"} (default) uses the edgeR v4 quasi-likelihood pipeline
+#'   (see Details). \code{"DESeq2"} uses DESeq2 on aggregated counts.
+#'   \code{"voom_dream"} uses variancePartition's
 #'   \code{voomWithDreamWeights()} and \code{dream()} with precision
-#'   weights from the mean-variance trend. Pseudobulk data have one
-#'   observation per donor and the model has no random effects, so
-#'   \code{dream()} fits it with limma and the moderated t statistic uses
-#'   the residual degrees of freedom; it does not call the
-#'   \pkg{dreamlet} package.
+#'   weights from the mean-variance trend (Hoffman and Roussos 2021).
+#'   Pseudobulk data have one observation per donor and the model has no
+#'   random effects, so \code{dream()} fits it with limma and the
+#'   moderated t statistic uses the residual degrees of freedom. This
+#'   backend does not use the \pkg{dreamlet} package.
 #' @param min_group_donors Integer. For a binary exposure, minimum complete
 #'   donors required in each group for the edgeR backend. Default 5.
 #' @param filter_min_count Numeric. Minimum count passed to
@@ -69,8 +68,9 @@ NULL
 #'   tested cell type, otherwise the call fails rather than silently changing
 #'   the requested hypothesis family. Currently supported only by the edgeR
 #'   backend; other backends fail explicitly rather than ignoring it.
-#' @param robust Logical. Use robust empirical-Bayes dispersion and
-#'   quasi-likelihood fitting in edgeR. Default \code{TRUE}.
+#' @param robust Logical. For the edgeR backend, moderate the
+#'   quasi-likelihood dispersions with robust empirical Bayes
+#'   (\code{glmQLFit(robust = TRUE)}). Default \code{TRUE}.
 #' @param ... Must be empty. Any further argument is an error, so that a
 #'   misspelled argument name cannot silently change the analysis.
 #'
@@ -91,13 +91,21 @@ NULL
 #' observation per donor per cell type. This correctly
 #' treats cells from the same donor as non-independent,
 #' avoiding the inflated Type I error rates that plague
-#' cell-level analyses (Squair et al. 2021 *Nat Commun*).
+#' cell-level analyses (Squair et al. 2021, \emph{Nat Commun}).
 #'
 #' The exposure variable and specified covariates enter one donor-level design
-#' matrix. The default edgeR backend estimates robust negative-binomial
-#' dispersions and uses quasi-likelihood F-tests. Complete-transcriptome library
-#' sizes are retained when expression filtering or \code{test_features}
-#' restricts the reported hypothesis family.
+#' matrix. The default edgeR backend fits the edgeR v4 quasi-likelihood
+#' model, \code{glmQLFit(legacy = FALSE)}, which sets the negative-binomial
+#' dispersion internally from the most highly expressed genes and moderates
+#' the quasi-likelihood dispersions by empirical Bayes; the exposure
+#' coefficient is tested with a quasi-likelihood F-test (Chen et al. 2025).
+#' No separate \code{estimateDisp()} step is run: from edgeR 4.10.0 the
+#' method gives the same result whether or not the data hold such estimates,
+#' whereas earlier edgeR 4.x releases did not. The edgeR version and
+#' \code{legacy = FALSE} are recorded in \code{metadata(result)$parameters}.
+#' Complete-transcriptome library sizes are retained when expression
+#' filtering or \code{test_features} restricts the reported hypothesis
+#' family.
 #'
 #' \code{edgeR::glmQLFTest} does not return a coefficient standard error.
 #' Consequently, the edgeR backend never reconstructs \code{se} from the ratio
@@ -113,10 +121,18 @@ NULL
 #' single-cell differential expression. \emph{Nat Commun}
 #' 12:5692. \doi{10.1038/s41467-021-25960-2}
 #'
-#' Chen Y, Lun ATL, Smyth GK (2016). From reads to genes to pathways:
-#' differential expression analysis of RNA-Seq experiments using Rsubread and
-#' the edgeR quasi-likelihood pipeline. \emph{F1000Research} 5:1438.
-#' \doi{10.12688/f1000research.8987.2}
+#' Chen Y, Chen L, Lun ATL, Baldoni PL, Smyth GK (2025). edgeR v4: powerful
+#' differential analysis of sequencing data with expanded functionality and
+#' improved support for small counts and larger datasets. \emph{Nucleic Acids
+#' Research} 53(2):gkaf018. \doi{10.1093/nar/gkaf018}
+#'
+#' Hoffman GE, Roussos P (2021). Dream: powerful differential expression
+#' analysis for repeated measures designs. \emph{Bioinformatics}
+#' 37(2):192--201. \doi{10.1093/bioinformatics/btaa687}
+#'
+#' Hoffman GE, Schadt EE (2016). variancePartition: interpreting drivers of
+#' variation in complex gene expression studies. \emph{BMC Bioinformatics}
+#' 17:483. \doi{10.1186/s12859-016-1323-z}
 #'
 #' @export
 #' @rdname run_sc_exwas
@@ -145,7 +161,7 @@ setMethod("run_sc_exwas",
              min_cells = 10L,
              min_donors = 5L,
              filter_genes = TRUE,
-             method = c("edgeR", "DESeq2", "pseudobulk", "dreamlet"),
+             method = c("edgeR", "DESeq2", "voom_dream"),
              min_group_donors = 5L,
              filter_min_count = 10L,
              filter_min_total_count = 15L,
@@ -189,8 +205,8 @@ setMethod("run_sc_exwas",
         ))
     }
 
-    if (method == "dreamlet") {
-        return(.run_sc_exwas_dreamlet(
+    if (method == "voom_dream") {
+        return(.run_sc_exwas_voom_dream(
             x, exposure, celltype_col, celltypes,
             sample_col, covariates, min_cells, min_donors,
             filter_genes))
@@ -609,15 +625,13 @@ setMethod("run_sc_exwas",
         dge <- edgeR::normLibSizes(dge, method = "TMM")
 
         fit_result <- tryCatch({
-            dge <- edgeR::estimateDisp(
-                dge,
-                design,
-                robust = robust
-            )
+            ## edgeR v4 quasi-likelihood: the NB dispersion is set inside
+            ## glmQLFit(), so no estimateDisp() step is needed.
             fit <- edgeR::glmQLFit(
                 dge,
                 design,
-                robust = robust
+                robust = robust,
+                legacy = FALSE
             )
             test <- edgeR::glmQLFTest(fit, coef = "exposure")
             list(
@@ -756,6 +770,8 @@ setMethod("run_sc_exwas",
             length(test_features)
         },
         robust = robust,
+        edger_version = as.character(utils::packageVersion("edgeR")),
+        ql_legacy = FALSE,
         schema_version = "exposomeSC_sc_exwas_edger_v2",
         se_method = "not_available_edgeR_QL",
         statistic_type = "signed_sqrt_qlf",
@@ -799,7 +815,7 @@ setMethod("run_sc_exwas",
 
 
 # -------------------------------------------------------
-# dreamlet backend (internal)
+# voom-dream backend (internal)
 # Uses the variancePartition voom-dream functions:
 #   1. Pseudobulk aggregation per donor x celltype
 #   2. voomWithDreamWeights: precision weights from the mean-variance trend
@@ -807,13 +823,13 @@ setMethod("run_sc_exwas",
 #      are no random effects, so dream() delegates to limma and the moderated
 #      t statistic uses the residual degrees of freedom.
 # -------------------------------------------------------
-.run_sc_exwas_dreamlet <- function(x, exposure, celltype_col,
+.run_sc_exwas_voom_dream <- function(x, exposure, celltype_col,
     celltypes, sample_col, covariates, min_cells, min_donors,
     filter_genes) {
 
     for (pkg in c("variancePartition", "limma", "edgeR")) {
         if (!requireNamespace(pkg, quietly = TRUE))
-            stop("Package '", pkg, "' required for method='dreamlet'. ",
+            stop("Package '", pkg, "' required for method='voom_dream'. ",
                  "BiocManager::install('", pkg, "')")
     }
 
