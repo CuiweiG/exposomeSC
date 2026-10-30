@@ -362,8 +362,8 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #'   selected features. \code{"coglasso"} requires the \pkg{coglasso}
 #'   package (an error otherwise) and at least one selected transcript and
 #'   metabolite; when only one omic layer is selected the block graphical
-#'   lasso is used. The estimator used is recorded in
-#'   \code{metadata(result)$network_method}.
+#'   lasso is used instead, with a warning. The estimator used is recorded
+#'   in \code{metadata(result)$network_method}.
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}}
 #'   restricted to exposure-associated features. Its metadata record
@@ -565,6 +565,13 @@ run_exposure_network <- function(x, metabolites, celltype,
              "network_method = 'coglasso'. Install it with ",
              "install.packages('coglasso'), or use ",
              "network_method = 'block_glasso'.")
+    }
+    if (network_method == "coglasso" && !use_coglasso) {
+        warning(
+            "Only one omic layer was selected for cell type '", celltype,
+            "', so the block graphical lasso is used instead of coglasso.",
+            call. = FALSE
+        )
     }
     if (use_coglasso) {
         cg_path <- coglasso::coglasso(

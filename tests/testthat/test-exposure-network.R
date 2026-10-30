@@ -70,3 +70,34 @@ test_that("run_exposure_network honours network_method", {
         exposure = "PM2.5",
         selection_method = "univariate", network_method = "lasso"))
 })
+
+test_that("the switch from coglasso to the block graphical lasso is announced", {
+    skip_if_not_installed("glasso")
+    set.seed(3)
+    donors <- sprintf("D%02d", 1:20)
+    donor <- rep(donors, each = 40)
+    exposure <- stats::setNames(stats::rnorm(20), donors)
+    counts <- matrix(stats::rpois(20 * length(donor), 20), nrow = 20,
+        dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+    effect <- c(0.8, 0.8, -0.8, -0.8)
+    for (g in 1:4)
+        counts[g, ] <- stats::rpois(length(donor),
+            20 * exp(effect[g] * exposure[donor]))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+    scee <- build_scee(sce, matrix(exposure, ncol = 1,
+        dimnames = list(donors, "PM2.5")), sample_col = "donor_id")
+    ## no metabolite is associated with the exposure, so only transcripts
+    ## pass the univariate screen
+    metab <- matrix(stats::rnorm(60), nrow = 20,
+        dimnames = list(donors, paste0("M", 1:3)))
+    expect_warning(
+        net <- suppressMessages(run_exposure_network(scee, metab,
+            celltype = "Mono", exposure = "PM2.5",
+            selection_method = "univariate", network_method = "coglasso")),
+        "one omic layer"
+    )
+    expect_identical(metadata(net)$network_method, "block_glasso")
+    expect_true(all(networkNodes(net)$omic_layer == "transcript"))
+})

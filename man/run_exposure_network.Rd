@@ -61,8 +61,8 @@ expected number of falsely selected features is at most 1 (when
 selected features. \code{"coglasso"} requires the \pkg{coglasso}
 package (an error otherwise) and at least one selected transcript and
 metabolite; when only one omic layer is selected the block graphical
-lasso is used. The estimator used is recorded in
-\code{metadata(result)$network_method}.}
+lasso is used instead, with a warning. The estimator used is recorded
+in \code{metadata(result)$network_method}.}
 }
 \value{
 A \code{\linkS4class{CelltypeNetworkResult}}

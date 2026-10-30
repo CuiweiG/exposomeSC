@@ -148,6 +148,9 @@ with warnings.
   residual degrees of freedom that `glmQLFit(legacy = FALSE)` returns
   (`df.residual.adj`). It looked for the legacy field `df.residual.zeros`
   and so reported the nominal residual degrees of freedom.
+* `run_exposure_network(network_method = "coglasso")` warns when only one
+  omic layer passes the selection stage and the block graphical lasso is
+  used instead; the switch used to be silent.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
