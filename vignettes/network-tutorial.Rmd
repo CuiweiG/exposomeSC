@@ -142,7 +142,7 @@ adequate result record.
 
 ```{r inspect-network, eval=has_coglasso && has_plot_packages}
 mono_net
-plot_stability_surface(mono_net)
+plot_edge_stability(mono_net)
 plot_celltype_network(
     mono_net,
     layout = "fr",
@@ -265,8 +265,12 @@ cohort.
 
 # References
 
-- Albanese A, Kohlen W, Behrouzi P (2024). Collaborative graphical lasso.
-  arXiv:2403.18602.
+- Albanese A, Kohlen W, Behrouzi P (2026). Multi-omics network reconstruction
+  with collaborative graphical lasso. *Bioinformatics* 42(7):btag477.
+  doi:10.1093/bioinformatics/btag477.
+- Friedman J, Hastie T, Tibshirani R (2008). Sparse inverse covariance
+  estimation with the graphical lasso. *Biostatistics* 9(3):432-441.
+  doi:10.1093/biostatistics/kxm045.
 - Liu H, Roeder K, Wasserman L (2010). Stability Approach to Regularization
   Selection (StARS) for High Dimensional Graphical Models. *Advances in Neural
   Information Processing Systems* 23.

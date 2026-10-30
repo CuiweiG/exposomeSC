@@ -72,7 +72,7 @@ reference:
     contents:
       - plot_celltype_network
       - plot_network_comparison
-      - plot_stability_surface
+      - plot_edge_stability
       - plot_temporal_dynamics
 
   - title: "Sensitivity and Power"

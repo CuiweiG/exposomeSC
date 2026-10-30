@@ -388,14 +388,20 @@ plot_network_comparison <- function(comparison,
 
 #' Edge stability plot
 #'
-#' Plots the selection probability of the most stable edges (up to
-#' 50) with a reference line at 0.6. The network object stores
-#' stability at the selected penalty only, so this is not a
-#' lambda-by-pi surface; keep the tuning grid from the estimator if
-#' a calibration surface is required.
+#' Plots the stability-selection frequency of the most stable edges
+#' (up to 50) at the selected penalty, coloured by whether the edge
+#' joins two omic layers. The network object stores frequencies at
+#' the selected penalty only, so this is not a stability surface over
+#' the tuning grid; keep the grid from the estimator if one is
+#' needed. A reference line is drawn only when \code{threshold} is
+#' given.
 #'
 #' @param network \code{\linkS4class{CelltypeNetworkResult}}
 #'   with \code{stability=TRUE}.
+#' @param threshold A single number between 0 and 1, or \code{NULL}
+#'   (default). If given, a dashed reference line is drawn at this
+#'   selection frequency, for example the cut-off used to call stable
+#'   edges.
 #'
 #' @return A \code{ggplot} object.
 #'
@@ -420,15 +426,20 @@ plot_network_comparison <- function(comparison,
 #'     metadata = list(n_donors = 20L)
 #' )
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
-#'     stability_plot <- plot_stability_surface(network)
+#'     stability_plot <- plot_edge_stability(network, threshold = 0.8)
 #'     inherits(stability_plot, "ggplot")
 #' }
-plot_stability_surface <- function(network) {
+plot_edge_stability <- function(network, threshold = NULL) {
 
     if (!requireNamespace("ggplot2", quietly = TRUE))
         stop("Package 'ggplot2' required")
 
     stopifnot(is(network, "CelltypeNetworkResult"))
+    if (!is.null(threshold) &&
+        (!is.numeric(threshold) || length(threshold) != 1L ||
+            !is.finite(threshold) || threshold < 0 || threshold > 1)) {
+        stop("threshold must be NULL or a single number between 0 and 1.")
+    }
 
     stab <- network@stability_scores
     if (nrow(stab) == 0) {
@@ -475,28 +486,42 @@ plot_stability_surface <- function(network) {
     df_top$edge_label <- factor(df_top$edge_label,
         levels = rev(df_top$edge_label))
 
-    ggplot2::ggplot(df_top, ggplot2::aes(
+    df_top$edge_type <- factor(
+        ifelse(df_top$cross_omic, "Cross-omic", "Within-omic"),
+        levels = c("Within-omic", "Cross-omic"))
+
+    ## Colours are matched to labels by name, so a plot with a single
+    ## edge type is labelled correctly; the Okabe-Ito blue and orange
+    ## stay distinct in greyscale.
+    p <- ggplot2::ggplot(df_top, ggplot2::aes(
         x = .data$stability,
         y = .data$edge_label,
-        fill = .data$cross_omic)) +
-        ggplot2::geom_col(alpha = 0.8) +
-        ggplot2::geom_vline(
-            xintercept = 0.6,
-            linetype = "dashed", color = "red") +
+        fill = .data$edge_type)) +
+        ggplot2::geom_col() +
         ggplot2::scale_fill_manual(
-            values = c("FALSE" = "#3498DB",
-                       "TRUE" = "#E74C3C"),
-            labels = c("Within-omic", "Cross-omic"),
+            values = c("Within-omic" = "#0072B2",
+                       "Cross-omic" = "#E69F00"),
             name = "Edge type") +
+        ggplot2::scale_x_continuous(
+            limits = c(0, 1),
+            expand = ggplot2::expansion(mult = c(0, 0.02))) +
         ggplot2::labs(
             title = paste0("Edge stability: ",
                            network@celltype),
-            subtitle = "Dashed line: reference at pi = 0.6",
-            x = "Stability selection probability",
+            x = "Selection frequency",
             y = NULL) +
         ggplot2::theme_minimal(base_size = 12) +
         ggplot2::theme(
             axis.text.y = ggplot2::element_text(size = 7))
+    if (!is.null(threshold)) {
+        p <- p +
+            ggplot2::geom_vline(
+                xintercept = threshold,
+                linetype = "dashed", colour = "grey20") +
+            ggplot2::labs(subtitle = sprintf(
+                "Dashed line: selection frequency %.2f", threshold))
+    }
+    p
 }
 
 
@@ -596,15 +621,22 @@ plot_temporal_dynamics <- function(temporal,
     if (!is.null(track_node))
         title <- paste0(title, ": ", track_node)
 
+    ## Colours are matched to labels by name and both keys are kept,
+    ## so a panel in which every edge is present (or absent) is
+    ## labelled correctly.
+    plot_df$presence <- factor(
+        ifelse(plot_df$present, "Present", "Absent"),
+        levels = c("Absent", "Present"))
+
     ggplot2::ggplot(plot_df, ggplot2::aes(
         x = .data$timepoint,
         y = .data$edge,
-        fill = .data$present)) +
+        fill = .data$presence)) +
         ggplot2::geom_tile(color = "white", linewidth = 0.5) +
         ggplot2::scale_fill_manual(
-            values = c("TRUE" = "#2C3E50",
-                       "FALSE" = "#ECF0F1"),
-            labels = c("Absent", "Present"),
+            values = c("Absent" = "#E5E5E5",
+                       "Present" = "#0072B2"),
+            drop = FALSE,
             name = "Edge") +
         ggplot2::facet_grid(
             .data$status ~ .,
