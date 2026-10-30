@@ -7,7 +7,8 @@
 exposure_impute_lod(
   exposure_matrix,
   lod,
-  method = c("lod_sqrt2", "lod_2", "kaplan_meier", "multiple"),
+  method = c("lod_sqrt2", "lod_2", "ros", "multiple"),
+  censored = NULL,
   M = 5L,
   verbose = TRUE
 )
@@ -16,69 +17,94 @@ exposure_impute_lod(
 \item{exposure_matrix}{Numeric matrix. Rows = samples,
 columns = exposure variables.}
 
-\item{lod}{Named numeric vector. LOD for each exposure.
-Names must match column names of \code{exposure_matrix}.
-Exposures not in \code{lod} are left unchanged.}
+\item{lod}{Named numeric vector of positive, finite detection limits, one
+per exposure. Names must match column names of
+\code{exposure_matrix}. Exposures not in \code{lod} are left unchanged.}
 
 \item{method}{Character. Imputation method:
 \describe{
-  \item{\code{"lod_sqrt2"}}{LOD / sqrt(2). Simple,
-    commonly used. Unbiased under lognormal assumption
-    when censoring < 30\%.}
-  \item{\code{"lod_2"}}{LOD / 2. Common but
-    slightly biased.}
-  \item{\code{"kaplan_meier"}}{Reverse Kaplan-Meier
-    (ROS method). Uses observed distribution to impute.
-    Best for moderate censoring (10-50\%).}
-  \item{\code{"multiple"}}{Multiple imputation via
-    truncated lognormal. Returns \code{M} imputed
-    datasets for subsequent pooling. Gold standard
-    for heavy censoring.}
+  \item{\code{"lod_sqrt2"}}{Substitution with LOD / sqrt(2).}
+  \item{\code{"lod_2"}}{Substitution with LOD / 2.}
+  \item{\code{"ros"}}{Regression on order statistics (ROS) for one
+    detection limit per exposure; see Details.}
+  \item{\code{"multiple"}}{Multiple imputation from a log-normal model
+    fitted by censored maximum likelihood to a bootstrap sample of the
+    data, as proposed by Lubin et al. (2004); returns \code{M}
+    completed matrices.}
 }}
+
+\item{censored}{\code{NULL} (default) or a logical matrix with the same
+dimensions as \code{exposure_matrix}, \code{TRUE} where a value was
+reported as below the LOD. The numeric value at a censored position is
+ignored and may be \code{NA}. With \code{NULL}, a value is censored when
+it is not \code{NA} and is at or below the LOD. Either way, \code{NA}
+values that are not marked as censored are missing and stay \code{NA}.}
 
 \item{M}{Integer. Number of imputations (only for
 \code{method = "multiple"}). Default 5.}
 
-\item{verbose}{Logical. Print summary of below-LOD
-proportions. Default TRUE.}
+\item{verbose}{Logical. Report the numbers of censored and missing
+values per exposure. Default TRUE.}
 }
 \value{
-For \code{method != "multiple"}: imputed numeric
-  matrix (same dimensions as input).
-  For \code{method = "multiple"}: list of \code{M} imputed
-  matrices.
+For \code{method != "multiple"}: the numeric matrix with censored
+  values replaced, of the same dimensions as the input. For
+  \code{method = "multiple"}: an \code{S4Vectors::SimpleList} of \code{M}
+  such matrices. In both cases a \code{data.frame} with one row per
+  exposure in \code{lod} (\code{exposure}, \code{n_detected},
+  \code{n_censored}, \code{n_missing}, \code{method}) records what was
+  done; it is the \code{"lod_summary"} attribute of the matrix, or
+  \code{metadata(result)$lod_summary} for the list.
 }
 \description{
-Environmental exposure measurements frequently contain
-values below the limit of detection (LOD). Naive
-approaches (substitution with LOD/2, LOD/sqrt(2), or 0)
-introduce bias. This function provides multiple
-principled imputation methods.
+Environmental exposure measurements often contain values reported only as
+below the limit of detection (LOD), that is, left-censored values. This
+function replaces them by substitution, by regression on order statistics
+or by multiple imputation from a censored log-normal model. Missing
+values are kept apart from censored ones and are never imputed.
 }
 \details{
-Below-LOD values are identified as observations <= LOD for
-each exposure. The percentage of below-LOD values per
-exposure is reported if \code{verbose = TRUE}.
+\strong{Substitution} is simple, but it distorts variances and
+associations, increasingly so as the censored fraction grows
+(Lubin et al. 2004).
 
-\strong{Choosing a method:}
-\tabular{lll}{
-  Censoring \tab Recommended \tab Rationale \cr
-  < 10\% \tab lod_sqrt2 \tab Minimal bias \cr
-  10-30\% \tab kaplan_meier \tab Distribution-based \cr
-  30-50\% \tab multiple \tab Proper uncertainty \cr
-  > 50\% \tab Exclude variable \tab Too much missing \cr
-}
+\strong{ROS.} With a single detection limit every censored value lies
+below every detected value, so the censored values take the lowest ranks
+among the non-missing values of the exposure. Blom plotting positions
+\eqn{(i - 3/8) / (n + 1/4)} are computed for all \eqn{n} non-missing
+values, the logarithms of the detected values are regressed on the normal
+quantiles of their plotting positions, and each censored value is
+replaced by the value of the fitted line at one of the lowest plotting
+positions, capped just below the LOD (Helsel 2012). ROS reproduces the
+distribution of the censored values, not their individual values: the
+imputed values are assigned to the censored samples in row order, so they
+carry no information on which censored sample had the larger true value.
+Use the ROS values for summaries of the distribution; for association
+analyses prefer \code{method = "multiple"}. ROS is not the reverse
+Kaplan-Meier estimator, which is not implemented here.
 
-The \code{kaplan_meier} method implements Regression on
-Order Statistics (ROS): observed values are probability-
-plotted, a lognormal line is fit, and below-LOD values
-are imputed from the fitted distribution.
+\strong{Multiple imputation.} For each of the \code{M} imputations the
+non-missing values of an exposure are resampled with replacement, the
+mean and standard deviation of the log values are estimated by maximum
+likelihood with the censored values contributing
+\eqn{P(X \le \mathrm{LOD})}, and every censored value is drawn from the
+fitted log-normal distribution truncated to \eqn{(0, \mathrm{LOD}]}. The
+bootstrap step carries the uncertainty of the fitted distribution into
+the imputations (Lubin et al. 2004). Analyse each completed matrix and
+combine the estimates with Rubin's rules (Rubin 1987). The draws use the
+random-number stream of the session, so call \code{set.seed()} first for
+reproducible imputations.
 
-The \code{multiple} method draws from a truncated
-lognormal distribution (truncated at LOD) fitted to
-observed data, generating \code{M} complete datasets.
-Analysis should be run on each dataset and results
-pooled using Rubin's rules.
+ROS and multiple imputation assume a log-normal distribution and need at
+least three detected values; an exposure with fewer is imputed with
+LOD / sqrt(2), with a warning, and this is recorded in
+\code{lod_summary}. An exposure with more than 80\% of its non-missing
+values censored gives a warning.
+
+Other implementations: \code{rexposome::ilod()} and
+\code{rexposome::imputeLOD()} impute values below the LOD with the QRILC
+or MinProb methods of the \pkg{imputeLCMD} package, which are not the
+methods offered here.
 }
 \examples{
 set.seed(1)
@@ -86,19 +112,27 @@ mat <- matrix(rlnorm(200, 0, 1), nrow = 40, ncol = 5,
     dimnames = list(paste0("S", 1:40),
         c("Pb", "Cd", "Hg", "As", "BPA")))
 lod <- c(Pb = 0.5, Cd = 0.3, Hg = 0.2, As = 0.1, BPA = 0.4)
-## Set some values below LOD
-for (j in seq_len(5)) {
-    below <- mat[, j] < lod[j]
-    mat[below, j] <- NA
-}
-imputed <- exposure_impute_lod(mat, lod, method = "lod_sqrt2")
-dim(imputed)
+## Values reported as below the LOD, and one genuinely missing value
+censored <- sweep(mat, 2, lod[colnames(mat)], "<")
+mat[censored] <- NA
+mat["S1", "Pb"] <- NA
+censored["S1", "Pb"] <- FALSE
+imputed <- exposure_impute_lod(mat, lod, method = "ros",
+    censored = censored)
+attr(imputed, "lod_summary")
+imputations <- exposure_impute_lod(mat, lod, method = "multiple",
+    censored = censored, M = 3L, verbose = FALSE)
+length(imputations)
 }
 \references{
-Lubin JH et al. (2004). Epidemiologic evaluation of measurement
-data in the presence of detection limits.
-\emph{Environ Health Perspect} 112:1691-1696.
+Lubin JH, Colt JS, Camann D, et al. (2004). Epidemiologic evaluation of
+measurement data in the presence of detection limits.
+\emph{Environ Health Perspect} 112(17):1691--1696.
+\doi{10.1289/ehp.7199}
 
-Helsel DR (2012). Statistics for Censored Environmental
-Data Using Minitab and R. 2nd ed. Wiley.
+Helsel DR (2012). Statistics for Censored Environmental Data Using Minitab
+and R. 2nd ed. Wiley. \doi{10.1002/9781118162729}
+
+Rubin DB (1987). Multiple Imputation for Nonresponse in Surveys. Wiley.
+\doi{10.1002/9780470316696}
 }
