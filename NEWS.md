@@ -133,6 +133,10 @@ with warnings.
   of its node table `omic`, so `show()`, `plot_celltype_network()` and
   `run_comparative_network()` failed on a wrapped network. The column is now
   `omic_layer`, with an integer `block` index, as for estimated networks.
+* `run_sc_exwas()` refuses a covariate called `exposure`. That name is the
+  model's exposure term, and a covariate of the same name silently replaced
+  the exposure in the design, so the reported test was of the wrong
+  variable.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

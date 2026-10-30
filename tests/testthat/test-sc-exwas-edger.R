@@ -381,3 +381,13 @@ test_that("empty edgeR results retain the uncertainty schema", {
     expect_type(result$se, "double")
     expect_identical(colnames(result), exposomeSC:::.sc_exwas_columns)
 })
+
+test_that("a covariate named 'exposure' is refused", {
+    skip_if_not_installed("edgeR")
+    scee <- .make_edger_scee()
+    expect_error(
+        run_sc_exwas(scee, exposure = "age_scaled", celltype_col = "cell_type",
+            covariates = "exposure", min_donors = 15L),
+        "cannot be called 'exposure'"
+    )
+})

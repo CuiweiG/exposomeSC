@@ -182,6 +182,13 @@ NULL
             paste(missing_fields, collapse = ", ")
         )
     }
+    if ("exposure" %in% covariates) {
+        stop(
+            "A covariate cannot be called 'exposure': that name is used for ",
+            "the exposure term of the model. Rename the variable in ",
+            "exposureData(x)."
+        )
+    }
     cd <- SummarizedExperiment::colData(x)
     if (!celltype_col %in% colnames(cd)) {
         stop("celltype_col '", celltype_col, "' is not a column of colData(x).")
