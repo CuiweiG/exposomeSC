@@ -133,6 +133,7 @@ setGeneric("exposureInfo<-", function(x, value)
 #' }
 #'
 #' @name network-accessors
+#' @aliases networkPrecision
 #' @export
 #' @examples
 #' features <- c("G1", "G2", "M1")

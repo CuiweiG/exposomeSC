@@ -2,6 +2,7 @@
 % Please edit documentation in R/AllGenerics.R, R/network-accessors.R
 \name{network-accessors}
 \alias{network-accessors}
+\alias{networkPrecision}
 \alias{networkAdjacency}
 \alias{networkStability}
 \alias{networkNodes}
