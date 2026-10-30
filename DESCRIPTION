@@ -1,7 +1,7 @@
 Package: exposomeSC
 Title: Single-Cell Exposome-Wide Association Studies
     with Cross-Omic Network Inference
-Version: 0.99.1
+Version: 0.99.2
 Authors@R:
     person(given = "Cuiwei",
            family = "Gao",
@@ -23,7 +23,7 @@ Description: A framework for cell-type-specific exposome-wide
     Exploratory decomposition and mediation utilities report model-based
     associations; they do not by themselves identify causal effects.
 License: Artistic-2.0
-Depends: R (>= 4.5.0)
+Depends: R (>= 4.6.0)
 Imports:
     methods,
     Matrix,
@@ -33,7 +33,7 @@ Imports:
     stats,
     BiocParallel,
     MASS,
-    edgeR (>= 4.0.0),
+    edgeR (>= 4.10.0),
     limma,
     withr
 Suggests:
@@ -49,19 +49,17 @@ Suggests:
     glasso,
     Biobase,
     SpatialExperiment,
-    coglasso,
+    coglasso (>= 1.1.0),
     igraph,
     ggraph,
     tidygraph,
     ggplot2,
     metafor,
     ppcor,
-    statmod,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
-    BiocStyle,
-    BiocCheck
+    BiocStyle
 Config/testthat/edition: 3
 biocViews: SingleCell, GeneExpression, DifferentialExpression,
     Transcriptomics, CellBiology, StatisticalMethod, Network,

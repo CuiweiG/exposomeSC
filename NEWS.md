@@ -1,3 +1,51 @@
+# exposomeSC 0.99.2
+
+## Changes that can alter results
+
+* `run_sc_exwas(method = "edgeR")` now calls `glmQLFit(legacy = FALSE)`
+  without a preceding `estimateDisp()`. Earlier edgeR 4.x releases used
+  those estimates in different ways, so one call could give different
+  results on different edgeR versions; from edgeR 4.10.0 they are ignored.
+  edgeR 4.10.0 is now required, and the edgeR version is recorded in
+  `metadata(result)$parameters`.
+* `method = "block_glasso"` in `run_celltype_network()` and
+  `run_exposure_network()` is now the graphical lasso (`glasso::glasso()`)
+  on the correlation matrix, with separate within- and between-layer
+  penalties. It used to threshold a ridge-regularised inverse, which is not
+  the graphical lasso. It needs the glasso package.
+
+## Interface
+
+* `run_sc_exwas(method = "dreamlet")` is now `method = "voom_dream"`, which is
+  what it runs; it never used the dreamlet package. The `"pseudobulk"` alias
+  for DESeq2 is removed.
+* `plot_stability_surface()` is renamed `plot_edge_stability()`. The fixed
+  dashed line at 0.6 is gone; pass `threshold` to draw one.
+* `run_exposure_composition()` and `run_spatial_exwas()` default to
+  `seed = NULL` and then draw from the caller's random-number stream, so
+  `set.seed()` before the call works as expected. An integer seed still
+  works as before.
+
+## Bug fixes
+
+* `plot_edge_stability()` and `plot_temporal_dynamics()` matched legend
+  labels to colours by position, so a plot with a single edge type, or with
+  every edge present, was labelled wrongly. Labels are now matched by name.
+* `show()` for a SingleCellExposomeExperiment printed part of its summary
+  with `message()`; all of it now goes to standard output.
+* A dimension mismatch in a CelltypeNetworkResult is reported as one
+  validity message instead of two fragments.
+
+## Documentation
+
+* The demo data are described as what they are: independent Poisson counts
+  with an added PM2.5 signal, and simulated exposures without units.
+* References added or corrected: edgeR v4, the graphical lasso, the
+  published coglasso paper, dream and variancePartition, the volume and
+  pages of SpatialExperiment, and DOIs for Lee and Han (2024) and Smith and
+  VanderWeele (2019).
+* Requires R 4.6.0. BiocCheck and statmod are no longer suggested.
+
 # exposomeSC 0.99.1
 
 * `run_state_coupling()` returned an `NA` p-value for its slope-heterogeneity
