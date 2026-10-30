@@ -35,7 +35,13 @@ NULL
 #'   \code{bootstrap = TRUE}). Default 200.
 #' @param min_cells Integer. Default 10.
 #'
-#' @return A list with components:
+#' @return A one-row \code{DataFrame} with columns \code{celltype},
+#'   \code{mixture_effect} (the overall mixture effect \eqn{\psi}),
+#'   \code{mixture_se}, \code{ci_lower} and \code{ci_upper} (95\%
+#'   confidence interval for \eqn{\psi}), \code{mixture_pvalue},
+#'   \code{n_donors}, \code{n_genes} and \code{method}
+#'   (\code{"qgcomp.noboot"} or \code{"qgcomp.boot"}).
+#'   \code{metadata(result)} holds:
 #' \describe{
 #'   \item{positive_weights}{Named numeric. Exposures that
 #'     increase the response, with relative weights;
@@ -44,15 +50,9 @@ NULL
 #'   \item{negative_weights}{Named numeric. Exposures that
 #'     decrease the response; \code{NULL} when
 #'     \code{bootstrap = TRUE}.}
-#'   \item{mixture_effect}{Overall mixture effect estimate
-#'     (\eqn{\psi}).}
-#'   \item{mixture_ci}{95\% confidence interval for \eqn{\psi}.}
-#'   \item{mixture_pvalue}{P-value for \eqn{\psi}.}
+#'   \item{target_genes}{The genes whose mean log-CPM is the response.}
 #'   \item{fit}{The \code{qgcomp} model object (for
 #'     plotting and further analysis).}
-#'   \item{method}{Character: \code{"qgcomp.noboot"} or
-#'     \code{"qgcomp.boot"}.}
-#'   \item{celltype, n_donors, n_genes}{Analysis metadata.}
 #' }
 #'
 #' @details
@@ -101,8 +101,9 @@ NULL
 #'         exposures = c("E1", "E2", "E3"),
 #'         celltype = "Mono", celltype_col = "cell_type",
 #'         min_cells = 3L)
-#'     mix$positive_weights
-#'     mix$negative_weights
+#'     mix
+#'     metadata(mix)$positive_weights
+#'     metadata(mix)$negative_weights
 #' }
 run_mixture_qgcomp <- function(x, exposures, celltype,
                                 celltype_col = "cell_type",
@@ -114,8 +115,8 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
     sample_col <- sampleColumn(x)
 
     if (!requireNamespace("qgcomp", quietly = TRUE))
-        stop("Package 'qgcomp' required. ",
-             "install.packages('qgcomp')")
+        stop("Package 'qgcomp' is required. ",
+             "Install it with install.packages('qgcomp').")
 
     exp_data <- exposureData(x)
     missing_exp <- setdiff(exposures, colnames(exp_data))
@@ -203,17 +204,22 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
             lower.tail = FALSE)
     }
 
-    list(
+    result <- S4Vectors::DataFrame(
+        celltype = celltype,
+        mixture_effect = unname(mixture_effect),
+        mixture_se = unname(mixture_se),
+        ci_lower = mixture_ci[1],
+        ci_upper = mixture_ci[2],
+        mixture_pvalue = unname(mixture_pval),
+        n_donors = length(valid),
+        n_genes = length(target_genes),
+        method = if (bootstrap) "qgcomp.boot" else "qgcomp.noboot"
+    )
+    S4Vectors::metadata(result) <- list(
         positive_weights = fit$pos.weights,
         negative_weights = fit$neg.weights,
-        mixture_effect = mixture_effect,
-        mixture_ci = mixture_ci,
-        mixture_pvalue = mixture_pval,
-        fit = fit,
-        method = if (bootstrap) "qgcomp.boot" else
-            "qgcomp.noboot",
-        celltype = celltype,
-        n_donors = length(valid),
-        n_genes = length(target_genes)
+        target_genes = target_genes,
+        fit = fit
     )
+    result
 }

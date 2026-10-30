@@ -102,6 +102,28 @@ The method estimates relative composition within the supported, retained
 cell-type universe. It does not identify absolute cell abundance, and the
 Dirichlet prior handles observed zeros but does not model dissociation,
 capture, annotation, or tissue-sampling selection mechanisms.
+
+\strong{Relation to other methods.} \code{speckle::propeller()}
+(Phipson et al. 2022) transforms the cell-type proportions of each sample
+(logit or arcsine square root) and fits a \pkg{limma} linear model for
+each cell type to compare groups of samples. \code{crumblr::crumblr()}
+(Hoffman and Roussos 2026) returns centred log-ratio transformed counts
+with observation-level precision weights for weighted linear or linear
+mixed models. \pkg{sccomp} (Mangiola et al. 2023) fits a Bayesian
+beta-binomial model of composition and variability. voomCLR (Assefa et
+al. 2026), distributed outside Bioconductor, applies the centred
+log-ratio transform with observation-level variances from a voom-type
+mean-variance trend and offers a bias correction of the fitted
+coefficients. \code{run_exposure_composition()} differs from these in
+three respects: by default (\code{replicate_aggregation =
+"equal_replicate"}) repeated samples of a donor are averaged in log-ratio
+space, so that each donor carries equal weight; the omnibus test of the
+whole composition uses orthonormal isometric log-ratio coordinates and
+does not depend on which basis is chosen; and the permutation test can be
+restricted to exchangeability strata such as studies
+(\code{permutation_strata}). Its per-cell-type contrasts use HC3
+standard errors, without precision weights or empirical Bayes moderation
+of the variances.
 }
 \examples{
 library(SingleCellExperiment)
@@ -149,4 +171,23 @@ Chapman and Hall.
 Freedman D, Lane D (1983). A nonstochastic interpretation of reported
 significance levels. Journal of Business and Economic Statistics, 1,
 292--298.
+
+Phipson B, Sim CB, Porrello ER, Hewitt AW, Powell J, Oshlack A (2022).
+propeller: testing for differences in cell type proportions in single
+cell data. \emph{Bioinformatics} 38(20):4720--4726.
+\doi{10.1093/bioinformatics/btac582}
+
+Hoffman GE, Roussos P (2026). Fast, flexible analysis of differences in
+cellular composition with crumblr. \emph{Nat Commun} 17:9598.
+\doi{10.1038/s41467-026-75681-7}
+
+Mangiola S, Roth-Schulze AJ, Trussart M, et al. (2023). sccomp: robust
+differential composition and variability analysis for single-cell data.
+\emph{Proc Natl Acad Sci USA} 120(33):e2203828120.
+\doi{10.1073/pnas.2203828120}
+
+Assefa AT, Verbist B, Van den Berge K (2026). Assessing differential cell
+composition in single-cell studies using voomCLR.
+\emph{Bioinformatics} 42(1):btaf637.
+\doi{10.1093/bioinformatics/btaf637}
 }

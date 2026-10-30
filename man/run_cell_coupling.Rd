@@ -75,7 +75,8 @@ per donor when \code{var_method = "bootstrap"}.
 Default 200.}
 }
 \value{
-A \code{data.frame} with one row per gene-protein pair:
+A \code{DataFrame} with one row per gene-protein pair
+  (zero rows when too few donors qualify):
   \describe{
     \item{gene, protein}{Feature names.}
     \item{n_donors}{Number of donors included.}

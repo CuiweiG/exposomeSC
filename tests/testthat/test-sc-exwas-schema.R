@@ -48,9 +48,9 @@ test_that("backend result construction follows the current schema", {
         colnames(result),
         c(
             "gene", "celltype", "log2FC", "se", "statistic", "pvalue",
-            "pvalue_underflow_clamped", "padj", "exposure", "n_donors",
-            "n_unexposed", "n_exposed", "min_cells", "median_cells",
-            "method"
+            "pvalue_underflow_clamped", "padj", "logCPM", "exposure",
+            "n_donors", "n_unexposed", "n_exposed", "min_cells",
+            "median_cells", "method"
         )
     )
     expect_identical(result$pvalue_underflow_clamped, c(TRUE, FALSE))
@@ -76,7 +76,7 @@ test_that("DESeq2 backend emits the current result contract", {
     expect_gt(nrow(result), 0L)
     expect_true(all(c(
         "log2FC", "se", "statistic", "pvalue", "padj", "padj_global",
-        "baseMean", "exposure", "method"
+        "logCPM", "exposure", "method"
     ) %in% colnames(result)))
     expect_false(any(c(
         "log2FoldChange", "lfcSE", "stat"
@@ -230,4 +230,80 @@ test_that("GSEA keeps exposure-specific hypothesis strata separate", {
     expect_gt(nrow(enrichment), 0L)
     expect_setequal(unique(enrichment$exposure), c("E1", "E2"))
     expect_true(all(enrichment$celltype == "Mono"))
+})
+
+test_that("all backends share one result schema", {
+    skip_if_not_installed("DESeq2")
+    skip_if_not_installed("variancePartition")
+    scee <- .make_backend_schema_scee()
+    results <- lapply(c("edgeR", "DESeq2", "voom_dream"), function(method) {
+        suppressWarnings(run_sc_exwas(
+            scee,
+            exposure = "smoking",
+            celltype_col = "cell_type",
+            method = method,
+            min_cells = 5L,
+            min_donors = 6L,
+            min_group_donors = 4L,
+            filter_min_donors = 4L,
+            filter_genes = FALSE
+        ))
+    })
+    names(results) <- c("edgeR", "DESeq2", "voom_dream")
+    expected_se <- c(
+        edgeR = "not_available_edgeR_QL",
+        DESeq2 = "DESeq2_lfcSE",
+        voom_dream = "limma_moderated_from_t"
+    )
+    expected_statistic <- c(
+        edgeR = "signed_sqrt_qlf",
+        DESeq2 = "wald_z",
+        voom_dream = "moderated_t"
+    )
+    for (method in names(results)) {
+        result <- results[[method]]
+        expect_s4_class(result, "DataFrame")
+        expect_gt(nrow(result), 0L)
+        expect_identical(colnames(result), exposomeSC:::.sc_exwas_columns)
+        expect_false(is.unsorted(result$padj_global))
+        expect_equal(
+            result$padj_global,
+            stats::p.adjust(result$pvalue, method = "BH")
+        )
+        expect_true(all(is.finite(result$logCPM)))
+        parameters <- S4Vectors::metadata(result)$parameters
+        expect_identical(parameters$method, method)
+        expect_identical(parameters$se_method, expected_se[[method]])
+        expect_identical(parameters$statistic_type,
+                         expected_statistic[[method]])
+        expect_identical(parameters$schema_version, "exposomeSC_sc_exwas_v3")
+        expect_true(length(parameters$backend_version) >= 1L)
+        diagnostics <- S4Vectors::metadata(result)$diagnostics
+        expect_identical(names(diagnostics), "Mono")
+        expect_identical(diagnostics$Mono$n_donors, 8L)
+        expect_identical(diagnostics$Mono$n_genes_tested, nrow(result))
+    }
+    ## the three backends test the same genes on these data
+    expect_setequal(results$DESeq2$gene, results$voom_dream$gene)
+})
+
+test_that("empty results from every backend keep the full schema", {
+    skip_if_not_installed("DESeq2")
+    skip_if_not_installed("variancePartition")
+    scee <- .make_backend_schema_scee()
+    for (method in c("edgeR", "DESeq2", "voom_dream")) {
+        result <- suppressWarnings(run_sc_exwas(
+            scee,
+            exposure = "smoking",
+            celltype_col = "cell_type",
+            method = method,
+            min_cells = 50L
+        ))
+        expect_identical(nrow(result), 0L)
+        expect_identical(colnames(result), exposomeSC:::.sc_exwas_columns)
+        expect_identical(
+            S4Vectors::metadata(result)$parameters$method,
+            method
+        )
+    }
 })

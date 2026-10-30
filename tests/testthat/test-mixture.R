@@ -26,10 +26,13 @@ test_that("run_sc_mixture returns weights that sum to 1", {
         celltype = "Mono",
         celltype_col = "cell_type",
         min_cells = 3L)
-    expect_type(mix, "list")
-    expect_equal(length(mix$weights), 3L)
-    expect_true(abs(sum(mix$weights) - 1) < 0.01)
-    expect_equal(mix$celltype, "Mono")
+    expect_s4_class(mix, "DataFrame")
+    expect_identical(colnames(mix), c("gene", "mixture_effect"))
+    meta <- metadata(mix)
+    expect_equal(length(meta$weights), 3L)
+    expect_true(abs(sum(meta$weights) - 1) < 0.01)
+    expect_equal(meta$celltype, "Mono")
+    expect_equal(meta$mixture_coef, mean(mix$mixture_effect))
 })
 
 test_that("run_sc_mixture errors on bad exposure", {
@@ -64,8 +67,8 @@ test_that("run_sc_mixture returns mixture_coef", {
         celltype = "NK",
         celltype_col = "cell_type",
         min_cells = 3L)
-    expect_true("mixture_coef" %in% names(mix))
-    expect_true(is.numeric(mix$mixture_coef))
+    expect_true("mixture_coef" %in% names(metadata(mix)))
+    expect_true(is.numeric(metadata(mix)$mixture_coef))
 })
 
 test_that("run_sc_mixture with target_genes", {
@@ -76,8 +79,9 @@ test_that("run_sc_mixture with target_genes", {
         celltype_col = "cell_type",
         target_genes = c("G1", "G2", "G3"),
         min_cells = 3L)
-    expect_equal(mix$n_genes, 3L)
-    expect_s4_class(mix$gene_results, "DataFrame")
+    expect_equal(metadata(mix)$n_genes, 3L)
+    expect_s4_class(mix, "DataFrame")
+    expect_setequal(mix$gene, c("G1", "G2", "G3"))
 })
 
 test_that("run_sc_mixture with covariates", {
@@ -88,8 +92,8 @@ test_that("run_sc_mixture with covariates", {
         celltype_col = "cell_type",
         covariates = "E3",
         min_cells = 3L)
-    expect_type(mix, "list")
-    expect_equal(length(mix$weights), 2L)
+    expect_s4_class(mix, "DataFrame")
+    expect_equal(length(metadata(mix)$weights), 2L)
 })
 
 test_that("run_sc_mixture method field is quantile_linear", {
@@ -99,7 +103,7 @@ test_that("run_sc_mixture method field is quantile_linear", {
         celltype = "Mono",
         celltype_col = "cell_type",
         min_cells = 3L)
-    expect_equal(mix$method, "quantile_linear")
+    expect_equal(metadata(mix)$method, "quantile_linear")
 })
 
 test_that("run_sc_mixture weights average absolute per-gene coefficients", {
@@ -121,7 +125,8 @@ test_that("run_sc_mixture weights average absolute per-gene coefficients", {
         stats::coef(lm(log_cpm[g, pb$valid_donors] ~ E1 + E2, data = q_df))[
             c("E1", "E2")], numeric(2)))
     expected <- colMeans(abs(coefs))
-    expect_equal(unname(mix$weights), unname(expected / sum(expected)))
+    expect_equal(unname(metadata(mix)$weights),
+                 unname(expected / sum(expected)))
 })
 
 test_that("run_sc_mixture handles tied exposures and rejects unknown covariates", {
@@ -131,7 +136,7 @@ test_that("run_sc_mixture handles tied exposures and rejects unknown covariates"
     exposureData(scee) <- exposure_matrix
     mix <- run_sc_mixture(scee, exposures = c("E1", "E3"), celltype = "Mono",
         celltype_col = "cell_type", min_cells = 3L)
-    expect_equal(sum(mix$weights), 1)
+    expect_equal(sum(metadata(mix)$weights), 1)
     expect_error(run_sc_mixture(scee, exposures = c("E1", "E2"),
         celltype = "Mono", celltype_col = "cell_type",
         covariates = "nope", min_cells = 3L),

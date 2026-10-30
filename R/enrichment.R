@@ -78,8 +78,8 @@ run_gsea <- function(exwas_result, gene_sets,
                       max_size = 500L) {
 
     if (!requireNamespace("fgsea", quietly = TRUE))
-        stop("Package 'fgsea' required. ",
-             "BiocManager::install('fgsea')")
+        stop("Package 'fgsea' is required. ",
+             "Install it with BiocManager::install('fgsea').")
 
     stopifnot(is.data.frame(exwas_result) ||
               is(exwas_result, "DataFrame"))
@@ -109,7 +109,7 @@ run_gsea <- function(exwas_result, gene_sets,
         res$exposure <- NA_character_
     }
     strata <- unique(res[, c("celltype", "exposure"), drop = FALSE])
-    all_gsea <- list()
+    all_gsea <- vector("list", nrow(strata))
 
     for (stratum_index in seq_len(nrow(strata))) {
         ct <- strata$celltype[[stratum_index]]
@@ -158,8 +158,9 @@ run_gsea <- function(exwas_result, gene_sets,
             function(x) paste(x, collapse = ";"),
             character(1))
 
-        all_gsea <- c(all_gsea, list(gsea_df))
+        all_gsea[[stratum_index]] <- gsea_df
     }
+    all_gsea <- Filter(Negate(is.null), all_gsea)
 
     if (length(all_gsea) == 0) {
         return(S4Vectors::DataFrame(

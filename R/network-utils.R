@@ -82,9 +82,21 @@ NULL
         }, error = function(e) NULL)
     }
     ## log-CPM when VST is not requested, DESeq2 is absent or VST fails
-    ## (for example with fewer genes than its subsampling needs)
+    ## (for example with fewer genes than its subsampling needs). The switch
+    ## is announced and recorded in the result's metadata.
     transform <- if (is.null(tx_mat)) "log_cpm" else "vst"
-    if (is.null(tx_mat)) tx_mat <- t(.log_cpm(pb$pb_mat))
+    if (is.null(tx_mat)) {
+        if (vst) {
+            message("[exposomeSC] DESeq2 VST ",
+                    if (requireNamespace("DESeq2", quietly = TRUE)) {
+                        "failed"
+                    } else {
+                        "is unavailable (DESeq2 is not installed)"
+                    },
+                    "; using log-CPM values for '", celltype, "'.")
+        }
+        tx_mat <- t(.log_cpm(pb$pb_mat))
+    }
     ## tx_mat: donors x genes
 
     ## --- Optional: select top variable genes ---

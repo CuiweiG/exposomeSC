@@ -96,3 +96,21 @@ test_that("run_multi_exwas has a stable empty current-result schema", {
         "n_donors", "method", "padj_all"
     ) %in% colnames(result)))
 })
+
+test_that("run_multi_exwas keeps the per-exposure metadata and schema", {
+    scee <- .make_scee_multi()
+    result <- suppressWarnings(run_multi_exwas(scee,
+        exposures = c("E1", "E2"),
+        celltype_col = "cell_type",
+        min_cells = 5L,
+        min_donors = 3L,
+        min_group_donors = 2L,
+        filter_min_donors = 3L))
+    expect_identical(colnames(result),
+        c(exposomeSC:::.sc_exwas_columns, "padj_all"))
+    per_exposure <- S4Vectors::metadata(result)$per_exposure
+    expect_identical(names(per_exposure), c("E1", "E2"))
+    expect_identical(per_exposure$E2$parameters$exposure, "E2")
+    expect_true(all(c("parameters", "diagnostics") %in%
+        names(per_exposure$E1)))
+})

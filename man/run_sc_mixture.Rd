@@ -41,7 +41,9 @@ give fewer bins.}
 \item{min_cells}{Integer. Minimum cells per donor. Default 10.}
 }
 \value{
-A \code{list} with components:
+A \code{DataFrame} with one row per target gene with a fitted
+  model: \code{gene} and \code{mixture_effect} (the sum of that gene's
+  quantile-scored exposure coefficients). \code{metadata(result)} holds:
 \describe{
   \item{weights}{Named numeric vector. Relative contribution
     of each exposure (sums to 1): the mean over target genes
@@ -50,8 +52,6 @@ A \code{list} with components:
   \item{mixture_coef}{Overall mixture coefficient (sum of
     quantile-scored exposure coefficients, averaged across
     target genes).}
-  \item{gene_results}{\code{DataFrame} with per-gene mixture
-    effect estimates.}
   \item{method}{Character. Always \code{"quantile_linear"}.}
   \item{celltype}{Character. Cell type analysed.}
   \item{n_donors}{Integer. Donors with complete exposure and
@@ -93,8 +93,9 @@ quantile sum regression (Carrico et al. 2015). The approach:
 
 For rigorous mixture analyses suitable for publication,
 consider \code{qgcomp::qgcomp.noboot()} or
-\code{gWQS::gwqs()} applied to the pseudobulk data
-returned by this package's internal aggregation.
+\code{gWQS::gwqs()} applied to the pseudobulk counts
+returned by \code{\link{donor_pseudobulk}}, or
+\code{\link{run_mixture_qgcomp}}.
 }
 \examples{
 library(SingleCellExperiment); library(S4Vectors)
@@ -111,7 +112,7 @@ scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 mix <- run_sc_mixture(scee, exposures = c("E1", "E2", "E3"),
     celltype = "Mono", celltype_col = "cell_type",
     min_cells = 3L)
-mix$weights
+metadata(mix)$weights
 }
 \references{
 Keil AP et al. (2020). A quantile-based g-computation

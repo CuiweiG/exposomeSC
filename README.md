@@ -98,7 +98,7 @@ not absolute tissue abundance.
 | Group | Functions |
 |---|---|
 | Container | `build_scee()`, `as_scee()` (from a rexposome `ExposomeSet`), `seurat_to_exposure()`, `exposure_impute_lod()`; accessors `exposureData()`, `exposureInfo()`, `exposureVariables()`, `sampleColumn()`, `cellSampleMap()` |
-| Primary analysis | `run_sc_exwas()` (edgeR, DESeq2 or voom-dream backends), `run_sc_exwas_pb_offset()`, `run_multi_exwas()`, `run_sc_exwas_glmm()`, `run_meta_exwas()` |
+| Primary analysis | `run_sc_exwas()` (edgeR, DESeq2 or voom-dream backends), `donor_pseudobulk()`, `run_sc_exwas_pb_offset()`, `run_multi_exwas()`, `run_sc_exwas_glmm()`, `run_meta_exwas()` |
 | Design | `estimate_power()` |
 | Exposure modelling | `run_dose_response()`, `run_dose_response_gam()`, `run_interaction_test()`, `run_mixture_qgcomp()`, `run_sc_mixture()` |
 | Composition | `run_exposure_composition()` |

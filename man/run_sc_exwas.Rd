@@ -107,16 +107,34 @@ quasi-likelihood dispersions with robust empirical Bayes
 \value{
 A \code{DataFrame} of results.
 
-A \code{DataFrame} with common columns including gene, celltype,
-  log2FC, se, statistic, pvalue, padj (within-cell-type BH),
-  padj_global (cross-cell-type BH), exposure, donor-support diagnostics and
-  method. Backend-specific abundance summaries are reported as logCPM for
-  edgeR/voom-dream and baseMean for DESeq2. Uncertainty fields are
-  backend-specific: edgeR QL reports \code{se} as numeric \code{NA} and
-  \code{statistic} as the directional signed square root of the QL F
-  statistic; DESeq2 reports its coefficient standard error and Wald
-  statistic; voom-dream reports its coefficient standard error and
-  moderated t statistic.
+A \code{DataFrame} with one row per tested gene and cell type and
+  the same columns, in the same order, for every backend: \code{gene},
+  \code{celltype}, \code{log2FC}, \code{se}, \code{statistic},
+  \code{pvalue}, \code{pvalue_underflow_clamped} (\code{TRUE} where a
+  p-value of exactly zero was replaced by the smallest positive double),
+  \code{padj} (BH within the cell type), \code{padj_global} (BH across all
+  tested gene-by-cell-type hypotheses), \code{logCPM}, \code{exposure},
+  \code{n_donors}, \code{n_unexposed} and \code{n_exposed} (group sizes
+  when the exposure takes two values, otherwise \code{NA}),
+  \code{min_cells} and \code{median_cells} (cells per donor in the
+  cell type), and \code{method}. Rows are ordered by \code{padj_global},
+  then \code{pvalue}.
+
+  \code{logCPM} is the average log2 count per million reported by the
+  backend: edgeR's \code{logCPM} for the edgeR backend, the mean of the
+  voom log-CPM values for voom-dream, and \code{edgeR::aveLogCPM()} of the
+  filtered pseudobulk counts for DESeq2.
+
+  Uncertainty fields are backend-specific: edgeR QL reports \code{se} as
+  numeric \code{NA} and \code{statistic} as the directional signed square
+  root of the QL F statistic; DESeq2 reports its coefficient standard error
+  and Wald statistic; voom-dream reports the moderated standard error
+  (\code{|log2FC / t|}) and the moderated t statistic.
+  \code{metadata(result)$parameters} records the settings, the backend and
+  its package version, \code{se_method} and \code{statistic_type};
+  \code{metadata(result)$diagnostics} holds, for each fitted cell type,
+  the donors used, the numbers of genes before and after filtering and the
+  design columns.
 }
 \description{
 Performs pseudobulk differential expression analysis with
@@ -132,6 +150,8 @@ observation per donor per cell type. This correctly
 treats cells from the same donor as non-independent,
 avoiding the inflated Type I error rates that plague
 cell-level analyses (Squair et al. 2021, \emph{Nat Commun}).
+The pseudobulk counts that enter the models are available as
+\code{SummarizedExperiment} objects from \code{\link{donor_pseudobulk}}.
 
 The exposure variable and specified covariates enter one donor-level design
 matrix. The default edgeR backend fits the edgeR v4 quasi-likelihood
@@ -155,6 +175,34 @@ t statistic, and must not be used to derive a coefficient confidence
 interval. The edgeR result metadata records
 \code{se_method = "not_available_edgeR_QL"} and
 \code{statistic_type = "signed_sqrt_qlf"}.
+
+\strong{What is delegated and what is kept.} The raw counts of each
+donor and cell type are summed with
+\code{scrapper::aggregateAcrossCells()}, and the models are fitted by
+\pkg{edgeR}, \pkg{DESeq2} or \pkg{variancePartition} and \pkg{limma}.
+Four choices are made by \pkg{exposomeSC} itself, on purpose, because
+they define the hypotheses of an exposome-wide study:
+\enumerate{
+  \item The exposure is a donor-level variable from
+    \code{exposureData(x)}, continuous or binary, and enters the design
+    matrix together with the covariates; cells are never grouped by
+    exposure.
+  \item Gene filtering does not use the exposure. The default edgeR rule
+    (\code{filter_method = "fixed_support"}) keeps genes with at least
+    \code{filter_min_cpm} CPM in \code{filter_min_donors} donors, and the
+    DESeq2 and voom-dream backends keep genes detected in 20\% of donors,
+    so every exposure is tested on the same genes. By contrast,
+    \code{scran::pseudoBulkDGE()}, for example, filters each label with
+    \code{edgeR::filterByExpr()} using the design matrix.
+  \item In the edgeR backend the library sizes are the column sums of the
+    complete pseudobulk transcriptome, computed before filtering, and are
+    kept when filtering or \code{test_features} reduces the tested genes.
+    The voom-dream backend computes library sizes from the retained genes
+    and DESeq2 uses its own size factors.
+  \item \code{padj_global} applies the Benjamini-Hochberg procedure once
+    across all tested gene-by-cell-type hypotheses, next to the
+    within-cell-type \code{padj}.
+}
 }
 \examples{
 library(SingleCellExperiment)
@@ -172,6 +220,7 @@ scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
 result <- run_sc_exwas(scee, exposure = "E1",
     celltype_col = "cell_type", min_cells = 5L)
 head(result)
+metadata(result)$parameters$statistic_type
 }
 \references{
 Squair JW et al. (2021). Confronting false discoveries in
@@ -190,4 +239,8 @@ analysis for repeated measures designs. \emph{Bioinformatics}
 Hoffman GE, Schadt EE (2016). variancePartition: interpreting drivers of
 variation in complex gene expression studies. \emph{BMC Bioinformatics}
 17:483. \doi{10.1186/s12859-016-1323-z}
+}
+\seealso{
+\code{\link{donor_pseudobulk}} for the pseudobulk counts,
+  \code{\link{run_multi_exwas}} for several exposures.
 }

@@ -46,7 +46,7 @@ started unless one is asked for; pass, for example,
 \code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.}
 }
 \value{
-A \code{data.frame}, one row per gene x cell type: \code{gene},
+A \code{DataFrame}, one row per gene x cell type: \code{gene},
   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic} (Satterthwaite
   /KR \eqn{t} for gaussian, LR \eqn{\chi^2} for nbinom), \code{df} (finite
   denominator df; 1 for the nbinom LRT), \code{pvalue}, BH-adjusted

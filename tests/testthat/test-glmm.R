@@ -33,7 +33,7 @@ test_that("run_sc_exwas_glmm works with lme4 backend", {
         BPPARAM = BiocParallel::SerialParam(),
         target_genes = paste0("G", 1:10))
 
-    expect_s3_class(res, "data.frame")
+    expect_s4_class(res, "DataFrame")
     expect_true(nrow(res) > 0)
     expect_true("log2FC" %in% colnames(res))
     expect_true("se" %in% colnames(res))
@@ -152,4 +152,46 @@ test_that("GLMM models donor-by-cell-type variation without singular-fit noise",
         celltype_col = "cell_type",
         BPPARAM = BiocParallel::SerialParam(), target_genes = "G1")
     expect_equal(nrow(res_one), 1L)
+})
+
+test_that("run_sc_exwas_pb_offset matches a direct MASS::glm.nb fit", {
+    set.seed(11)
+    donors <- paste0("D", seq_len(10L))
+    cell_donor <- rep(donors, each = 12L)
+    counts <- matrix(rnbinom(3L * length(cell_donor), mu = 6, size = 3),
+        nrow = 3L, dimnames = list(c("G1", "G2", "G3"),
+            paste0("c", seq_along(cell_donor))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = cell_donor,
+            cell_type = "T"))
+    exposure <- matrix(c(rnorm(10L), seq(20, 65, by = 5)), ncol = 2L,
+        dimnames = list(donors, c("E1", "age")))
+    scee <- build_scee(sce, exposure, sample_col = "donor_id")
+
+    res <- run_sc_exwas_pb_offset(scee, exposure = "E1",
+        covariates = "age", target_genes = c("G1", "G2"))
+    expect_s4_class(res, "DataFrame")
+    expect_identical(nrow(res), 2L)
+    expect_false(is.unsorted(res$padj))
+
+    pb <- vapply(donors, function(d) {
+        rowSums(counts[, cell_donor == d, drop = FALSE])
+    }, numeric(3L))
+    for (g in c("G1", "G2")) {
+        d <- data.frame(y = pb[g, ], A = exposure[, "E1"],
+            age = exposure[, "age"], logoff = log(colSums(pb)))
+        fit <- MASS::glm.nb(y ~ A + offset(logoff) + age, data = d)
+        s <- stats::coef(summary(fit))
+        row <- res[res$gene == g, ]
+        expect_equal(row$log2FC, s["A", "Estimate"] / log(2))
+        expect_equal(row$se, s["A", "Std. Error"] / log(2))
+        expect_equal(row$pvalue, s["A", "Pr(>|z|)"])
+    }
+
+    ## the plain lapply path (BPPARAM = NULL) gives the same fits
+    res_bp <- run_sc_exwas_pb_offset(scee, exposure = "E1",
+        covariates = "age", target_genes = c("G1", "G2"),
+        BPPARAM = NULL)
+    expect_equal(as.data.frame(res_bp), as.data.frame(res))
 })

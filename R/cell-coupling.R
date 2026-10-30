@@ -52,7 +52,8 @@ utils::globalVariables(c("yi", "vi"))
 #'   per donor when \code{var_method = "bootstrap"}.
 #'   Default 200.
 #'
-#' @return A \code{data.frame} with one row per gene-protein pair:
+#' @return A \code{DataFrame} with one row per gene-protein pair
+#'   (zero rows when too few donors qualify):
 #'   \describe{
 #'     \item{gene, protein}{Feature names.}
 #'     \item{n_donors}{Number of donors included.}
@@ -247,7 +248,7 @@ run_cell_coupling <- function(x,
     if (length(valid_donors) < min_donors) {
         warning("Only ", length(valid_donors), " donors with >= ",
                 min_for_pcor, " cells (need ", min_donors, ")")
-        return(data.frame())
+        return(S4Vectors::DataFrame())
     }
 
     n_pairs <- length(genes) * length(proteins)
@@ -280,110 +281,41 @@ run_cell_coupling <- function(x,
             if (is(prot_all, "sparseVector"))
                 prot_all <- as.numeric(prot_all)
 
-            ## Per-donor partial correlation
-            donor_z <- numeric()
-            donor_v <- numeric()
-            donor_r <- numeric()
-            donor_n <- integer()
-            donor_exp <- numeric()
-            donor_ids <- character()
-
-            for (d in valid_donors) {
+            ## Per-donor partial correlation, Fisher z and its variance
+            n_valid <- length(valid_donors)
+            donor_z <- rep(NA_real_, n_valid)
+            donor_v <- rep(NA_real_, n_valid)
+            donor_r <- rep(NA_real_, n_valid)
+            donor_n <- rep(NA_integer_, n_valid)
+            for (k in seq_len(n_valid)) {
+                d <- valid_donors[k]
                 d_idx <- which(ct_donors == d)
-                n_d <- length(d_idx)
-                if (n_d < min_for_pcor) next
-
-                rna_d  <- rna_all[d_idx]
-                prot_d <- prot_all[d_idx]
-
-                if (sd(rna_d) < 1e-10 || sd(prot_d) < 1e-10) next
-
-                ## Build data frame for ppcor
-                ## Columns: gene, protein, lib_rna, lib_prot, [confounders]
-                dat <- data.frame(
-                    gene = rank(rna_d),
-                    protein = rank(prot_d),
-                    lib_rna = rank(ncount_rna[d_idx]),
-                    lib_prot = rank(ncount_prot[d_idx]))
-
-                ## Add confounders if specified
-                if (!is.null(conf_data)) {
-                    for (cv in confounders) {
-                        dat[[cv]] <- rank(conf_data[[cv]][d_idx],
-                                          na.last = "keep")
-                    }
-                    ## Remove rows with NA confounders
-                    complete <- complete.cases(dat)
-                    if (sum(complete) < min_for_pcor) next
-                    dat <- dat[complete, , drop = FALSE]
-                    n_d <- nrow(dat)
-                }
-
-                ## A conditioning variable that is constant within this
-                ## donor carries no information and would make the partial
-                ## correlation singular, so it is dropped for this donor
-                conditioning <- setdiff(names(dat), c("gene", "protein"))
-                constant <- conditioning[vapply(dat[conditioning],
-                    function(v) isTRUE(sd(v) < 1e-10), logical(1))]
-                if (length(constant))
-                    dat <- dat[, setdiff(names(dat), constant), drop = FALSE]
-                q_d <- ncol(dat) - 2L
-
-                r_p <- if (q_d == 0L) {
-                    stats::cor(dat$gene, dat$protein, method = "spearman")
-                } else {
-                    pc <- tryCatch(
-                        ppcor::pcor(dat, method = "spearman"),
-                        error = function(e) NULL)
-                    if (is.null(pc)) NA_real_ else pc$estimate[1, 2]
-                }
-                if (!is.finite(r_p)) next
-                r_clamped <- max(min(r_p, 0.999), -0.999)
-                z_val <- atanh(r_clamped)
-
-                ## Variance estimation
-                if (var_method == "bootstrap") {
-                    ## Bootstrap within-donor variance
-                    boot_z <- vapply(seq_len(n_boot), function(b) {
-                        bi <- sample(nrow(dat), replace = TRUE)
-                        dat_b <- dat[bi, , drop = FALSE]
-                        ## Check variance
-                        if (sd(dat_b$gene) < 1e-10 ||
-                            sd(dat_b$protein) < 1e-10)
-                            return(NA_real_)
-                        r_b <- if (q_d == 0L) {
-                            stats::cor(dat_b$gene, dat_b$protein,
-                                       method = "spearman")
-                        } else {
-                            pc_b <- tryCatch(
-                                ppcor::pcor(dat_b, method = "spearman"),
-                                error = function(e) NULL)
-                            if (is.null(pc_b)) NA_real_ else
-                                pc_b$estimate[1, 2]
-                        }
-                        if (!is.finite(r_b)) return(NA_real_)
-                        r_b <- max(min(r_b, 0.999), -0.999)
-                        atanh(r_b)
-                    }, numeric(1))
-                    boot_z <- boot_z[is.finite(boot_z)]
-                    if (length(boot_z) < n_boot * 0.5) next
-                    v_val <- var(boot_z)
-                } else {
-                    ## Asymptotic: 1.06 / (n - q - 3)
-                    v_val <- 1.06 / (n_d - q_d - 3)
-                }
-                if (v_val <= 0 || !is.finite(v_val)) next
-
-                e_d <- exp_vec[d]
-                if (is.na(e_d)) next
-
-                donor_z <- c(donor_z, z_val)
-                donor_v <- c(donor_v, v_val)
-                donor_r <- c(donor_r, r_p)
-                donor_n <- c(donor_n, n_d)
-                donor_exp <- c(donor_exp, e_d)
-                donor_ids <- c(donor_ids, d)
+                stat <- .coupling_donor_stat(
+                    rna_d = rna_all[d_idx],
+                    prot_d = prot_all[d_idx],
+                    lib_rna_d = ncount_rna[d_idx],
+                    lib_prot_d = ncount_prot[d_idx],
+                    conf_d = if (is.null(conf_data)) NULL else
+                        conf_data[d_idx, , drop = FALSE],
+                    min_for_pcor = min_for_pcor,
+                    var_method = var_method,
+                    n_boot = n_boot
+                )
+                ## the exposure is checked after the donor statistic so that
+                ## bootstrap draws do not depend on missing exposures
+                if (is.null(stat) || is.na(exp_vec[d])) next
+                donor_z[k] <- stat[["z"]]
+                donor_v[k] <- stat[["v"]]
+                donor_r[k] <- stat[["r"]]
+                donor_n[k] <- as.integer(stat[["n"]])
             }
+            used <- !is.na(donor_z)
+            donor_ids <- valid_donors[used]
+            donor_z <- donor_z[used]
+            donor_v <- donor_v[used]
+            donor_r <- donor_r[used]
+            donor_n <- donor_n[used]
+            donor_exp <- unname(exp_vec[donor_ids])
 
             if (length(donor_z) < min_donors) next
 
@@ -432,5 +364,83 @@ run_cell_coupling <- function(x,
 
     message(sprintf("[exposomeSC] %d pairs tested for %s",
                     nrow(out), celltype))
-    out
+    S4Vectors::DataFrame(out, check.names = FALSE)
+}
+
+# Spearman partial correlation of gene and protein given the other columns
+# of dat (all already ranked); NA when it cannot be computed.
+.coupling_partial_r <- function(dat, q_d) {
+    if (q_d == 0L) {
+        return(stats::cor(dat$gene, dat$protein, method = "spearman"))
+    }
+    pc <- tryCatch(
+        ppcor::pcor(dat, method = "spearman"),
+        error = function(e) NULL)
+    if (is.null(pc)) NA_real_ else pc$estimate[1, 2]
+}
+
+# Bootstrap variance of the Fisher z of one donor, resampling its cells; NA
+# when fewer than half of the replicates give a finite value.
+.coupling_boot_var <- function(dat, q_d, n_boot) {
+    boot_z <- vapply(seq_len(n_boot), function(b) {
+        dat_b <- dat[sample(nrow(dat), replace = TRUE), , drop = FALSE]
+        if (sd(dat_b$gene) < 1e-10 || sd(dat_b$protein) < 1e-10)
+            return(NA_real_)
+        r_b <- .coupling_partial_r(dat_b, q_d)
+        if (!is.finite(r_b)) return(NA_real_)
+        atanh(max(min(r_b, 0.999), -0.999))
+    }, numeric(1))
+    boot_z <- boot_z[is.finite(boot_z)]
+    if (length(boot_z) < n_boot * 0.5) return(NA_real_)
+    var(boot_z)
+}
+
+# Stage 1 for one donor: Spearman partial correlation of gene and protein
+# given library sizes and confounders, its Fisher z and the variance of z.
+# Returns NULL when the donor cannot contribute.
+.coupling_donor_stat <- function(rna_d, prot_d, lib_rna_d, lib_prot_d,
+                                 conf_d, min_for_pcor, var_method, n_boot) {
+    n_d <- length(rna_d)
+    if (n_d < min_for_pcor) return(NULL)
+    if (sd(rna_d) < 1e-10 || sd(prot_d) < 1e-10) return(NULL)
+
+    ## Columns: gene, protein, lib_rna, lib_prot, [confounders]
+    dat <- data.frame(
+        gene = rank(rna_d),
+        protein = rank(prot_d),
+        lib_rna = rank(lib_rna_d),
+        lib_prot = rank(lib_prot_d))
+    if (!is.null(conf_d)) {
+        for (cv in colnames(conf_d)) {
+            dat[[cv]] <- rank(conf_d[[cv]], na.last = "keep")
+        }
+        ## Remove rows with NA confounders
+        complete <- complete.cases(dat)
+        if (sum(complete) < min_for_pcor) return(NULL)
+        dat <- dat[complete, , drop = FALSE]
+        n_d <- nrow(dat)
+    }
+
+    ## A conditioning variable that is constant within this donor carries
+    ## no information and would make the partial correlation singular, so it
+    ## is dropped for this donor
+    conditioning <- setdiff(names(dat), c("gene", "protein"))
+    constant <- conditioning[vapply(dat[conditioning],
+        function(v) isTRUE(sd(v) < 1e-10), logical(1))]
+    if (length(constant))
+        dat <- dat[, setdiff(names(dat), constant), drop = FALSE]
+    q_d <- ncol(dat) - 2L
+
+    r_p <- .coupling_partial_r(dat, q_d)
+    if (!is.finite(r_p)) return(NULL)
+    z_val <- atanh(max(min(r_p, 0.999), -0.999))
+
+    v_val <- if (var_method == "bootstrap") {
+        .coupling_boot_var(dat, q_d, n_boot)
+    } else {
+        ## Asymptotic: 1.06 / (n - q - 3)
+        1.06 / (n_d - q_d - 3)
+    }
+    if (!is.finite(v_val) || v_val <= 0) return(NULL)
+    c(z = z_val, v = v_val, r = r_p, n = n_d)
 }

@@ -39,6 +39,7 @@ Imports:
     MASS,
     edgeR (>= 4.10.0),
     limma,
+    scrapper,
     withr
 Suggests:
     DESeq2,
@@ -99,4 +100,5 @@ Collate:
     'network-plots.R'
     'network-simulate.R'
     'power.R'
+    'pseudobulk.R'
     'qgcomp-mixture.R'

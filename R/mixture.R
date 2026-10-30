@@ -35,7 +35,9 @@ NULL
 #'   give fewer bins.
 #' @param min_cells Integer. Minimum cells per donor. Default 10.
 #'
-#' @return A \code{list} with components:
+#' @return A \code{DataFrame} with one row per target gene with a fitted
+#'   model: \code{gene} and \code{mixture_effect} (the sum of that gene's
+#'   quantile-scored exposure coefficients). \code{metadata(result)} holds:
 #' \describe{
 #'   \item{weights}{Named numeric vector. Relative contribution
 #'     of each exposure (sums to 1): the mean over target genes
@@ -44,8 +46,6 @@ NULL
 #'   \item{mixture_coef}{Overall mixture coefficient (sum of
 #'     quantile-scored exposure coefficients, averaged across
 #'     target genes).}
-#'   \item{gene_results}{\code{DataFrame} with per-gene mixture
-#'     effect estimates.}
 #'   \item{method}{Character. Always \code{"quantile_linear"}.}
 #'   \item{celltype}{Character. Cell type analysed.}
 #'   \item{n_donors}{Integer. Donors with complete exposure and
@@ -81,8 +81,9 @@ NULL
 #'
 #' For rigorous mixture analyses suitable for publication,
 #' consider \code{qgcomp::qgcomp.noboot()} or
-#' \code{gWQS::gwqs()} applied to the pseudobulk data
-#' returned by this package's internal aggregation.
+#' \code{gWQS::gwqs()} applied to the pseudobulk counts
+#' returned by \code{\link{donor_pseudobulk}}, or
+#' \code{\link{run_mixture_qgcomp}}.
 #'
 #' @references
 #' Keil AP et al. (2020). A quantile-based g-computation
@@ -111,7 +112,7 @@ NULL
 #' mix <- run_sc_mixture(scee, exposures = c("E1", "E2", "E3"),
 #'     celltype = "Mono", celltype_col = "cell_type",
 #'     min_cells = 3L)
-#' mix$weights
+#' metadata(mix)$weights
 run_sc_mixture <- function(x, exposures, celltype,
                             celltype_col = "cell_type",
                             target_genes = NULL,
@@ -219,30 +220,28 @@ run_sc_mixture <- function(x, exposures, celltype,
     if (length(gene_fits)) {
         coefficient_matrix <- do.call(rbind, lapply(gene_fits,
             function(fit) fit$coefficients))
-        gene_results <- data.frame(
+        gene_results <- S4Vectors::DataFrame(
             gene = vapply(gene_fits, function(fit) fit$gene, character(1)),
-            mixture_effect = rowSums(coefficient_matrix),
-            stringsAsFactors = FALSE)
+            mixture_effect = rowSums(coefficient_matrix))
         mean_abs <- colMeans(abs(coefficient_matrix))
         weights <- if (sum(mean_abs) > 0) mean_abs / sum(mean_abs) else
             rep(1 / length(exposures), length(exposures))
         mixture_coef <- mean(gene_results$mixture_effect)
     } else {
-        gene_results <- NULL
+        gene_results <- S4Vectors::DataFrame(gene = character(),
+                                             mixture_effect = numeric())
         weights <- rep(NA_real_, length(exposures))
         mixture_coef <- NA_real_
     }
     names(weights) <- exposures
 
-    list(
+    S4Vectors::metadata(gene_results) <- list(
         weights = weights,
         mixture_coef = mixture_coef,
         method = "quantile_linear",
         celltype = celltype,
         n_donors = length(valid),
-        n_genes = length(gene_fits),
-        gene_results = if (!is.null(gene_results))
-            S4Vectors::DataFrame(gene_results) else
-            S4Vectors::DataFrame()
+        n_genes = length(gene_fits)
     )
+    gene_results
 }

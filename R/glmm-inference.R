@@ -44,38 +44,119 @@ NULL
 # for example BiocParallel::SnowParam(workers = 2L).
 
 # bplapply when a BiocParallel param is supplied, else a serial lapply.
-.bpapply <- function(X, FUN, BPPARAM) {
-    if (!is.null(BPPARAM) && requireNamespace("BiocParallel", quietly = TRUE)) {
-        BiocParallel::bplapply(X, FUN, BPPARAM = BPPARAM)
+# Further arguments go to FUN, so the per-gene helpers below are file-level
+# functions that receive only the data they need.
+.bpapply <- function(X, FUN, BPPARAM, ...) {
+    if (!is.null(BPPARAM)) {
+        BiocParallel::bplapply(X, FUN, ..., BPPARAM = BPPARAM)
     } else {
-        lapply(X, FUN)
+        lapply(X, FUN, ...)
     }
 }
 
-# Fit the offset-NB GLM per gene for ONE cell type, parallelised here so the
-# worker closure captures only this cell type's small pseudobulk (pb_mat) and
-# NEVER the full single-cell counts matrix in the caller's frame.
+# Offset-NB GLM for one gene of one cell type's pseudobulk.
+.pb_fit_gene <- function(g, pb_mat, A, logoff, covariate_data, form) {
+    no_fit <- c(log2FC = NA_real_, se = NA_real_,
+                statistic = NA_real_, pvalue = NA_real_)
+    d <- data.frame(y = as.numeric(pb_mat[g, ]), A = A, logoff = logoff)
+    if (!is.null(covariate_data)) d <- cbind(d, covariate_data)
+    fit <- tryCatch(MASS::glm.nb(form, data = d), error = function(e) NULL)
+    if (is.null(fit)) return(no_fit)
+    s <- tryCatch(stats::coef(summary(fit)), error = function(e) NULL)
+    if (is.null(s) || !"A" %in% rownames(s)) return(no_fit)
+    beta <- s["A", "Estimate"]
+    se_nat <- s["A", "Std. Error"]
+    c(log2FC = beta / log(2), se = se_nat / log(2),
+      statistic = s["A", "z value"], pvalue = s["A", "Pr(>|z|)"])
+}
+
+# Fit the offset-NB GLM per gene for ONE cell type. Workers receive only this
+# cell type's small pseudobulk (pb_mat), never the full single-cell counts.
 .pb_fit_celltype <- function(pb_mat, A, logoff, covariates, X, genes, BPPARAM) {
     rhs <- "A + offset(logoff)"
     if (length(covariates))
         rhs <- paste(rhs, "+", paste(covariates, collapse = " + "))
     form <- stats::as.formula(paste("y ~", rhs))
-    one_gene <- function(g) {
-        d <- data.frame(y = as.numeric(pb_mat[g, ]), A = A, logoff = logoff)
-        if (!is.null(X)) d <- cbind(d, X)
-        fit <- tryCatch(MASS::glm.nb(form, data = d), error = function(e) NULL)
-        if (is.null(fit))
-            return(c(log2FC = NA_real_, se = NA_real_,
-                     statistic = NA_real_, pvalue = NA_real_))
-        s <- tryCatch(stats::coef(summary(fit)), error = function(e) NULL)
-        if (is.null(s) || !"A" %in% rownames(s))
-            return(c(log2FC = NA_real_, se = NA_real_,
-                     statistic = NA_real_, pvalue = NA_real_))
-        beta <- s["A", "Estimate"]; se_nat <- s["A", "Std. Error"]
-        c(log2FC = beta / log(2), se = se_nat / log(2),
-          statistic = s["A", "z value"], pvalue = s["A", "Pr(>|z|)"])
-    }
-    do.call(rbind, .bpapply(genes, one_gene, BPPARAM = BPPARAM))
+    do.call(rbind, .bpapply(genes, .pb_fit_gene, BPPARAM = BPPARAM,
+                            pb_mat = pb_mat, A = A, logoff = logoff,
+                            covariate_data = X,
+                            form = form))
+}
+
+# Cell-level LMM for one gene (family = "gaussian"): one row per cell type
+# with its exposure effect tested by lmerTest::contest1D().
+.lmm_fit_gene <- function(gi, Y, meta, form, control, lvls, ddf, genes) {
+    df <- meta
+    df$y <- as.numeric(Y[gi, ])
+    fit <- tryCatch(lmerTest::lmer(form, data = df, REML = TRUE,
+                                   control = control),
+                    error = function(e) NULL)
+    if (is.null(fit)) return(NULL)
+    nm <- names(lme4::fixef(fit))
+    if (!"exposure" %in% nm) return(NULL)
+    rows <- lapply(lvls, function(ct) {
+        L <- stats::setNames(numeric(length(nm)), nm)
+        L["exposure"] <- 1
+        if (ct != lvls[1]) {
+            ix <- paste0("exposure:celltype", ct)
+            # interaction aliased/dropped
+            if (!ix %in% nm) return(NULL)
+            L[ix] <- 1
+        }
+        tst <- tryCatch(
+            lmerTest::contest1D(fit, L, ddf = ddf, confint = FALSE),
+            error = function(e) NULL)
+        if (is.null(tst)) return(NULL)
+        ## y is already log2 CP10k, so the estimate IS a log2 effect.
+        data.frame(gene = genes[gi], celltype = ct,
+                   log2FC = tst[["Estimate"]], se = tst[["Std. Error"]],
+                   statistic = tst[["t value"]], df = tst[["df"]],
+                   pvalue = tst[["Pr(>|t|)"]],
+                   stringsAsFactors = FALSE)
+    })
+    do.call(rbind, Filter(Negate(is.null), rows))
+}
+
+# Cell-level negative-binomial GLMM for one gene (family = "nbinom"): one row
+# per cell type, its exposure slope tested by a likelihood-ratio test.
+.glmm_nb_fit_gene <- function(gi, Yc, meta, full_form, control, lvls,
+                              expo_cols, cov_rhs, re_rhs, genes) {
+    df <- meta
+    df$y <- as.integer(round(pmax(Yc[gi, ], 0)))
+    full <- tryCatch(lme4::glmer.nb(full_form, data = df,
+                                    control = control),
+                     error = function(e) NULL)
+    if (is.null(full)) return(NULL)
+    fe <- lme4::fixef(full)
+    V <- tryCatch(as.matrix(stats::vcov(full)),
+                  error = function(e) NULL)
+    rows <- lapply(seq_along(lvls), function(k) {
+        cn <- expo_cols[k]
+        if (!cn %in% names(fe)) return(NULL)
+        beta <- fe[[cn]]
+        se_nat <- if (!is.null(V) && cn %in% rownames(V))
+            sqrt(max(V[cn, cn], 0)) else NA_real_
+        other_slopes <- setdiff(expo_cols, cn)
+        red_rhs <- paste("0 + celltype",
+                         if (length(other_slopes))
+                             paste("+", paste(other_slopes,
+                                              collapse = " + ")),
+                         cov_rhs, "+ offset(logoff)", re_rhs)
+        red <- tryCatch(lme4::glmer.nb(
+            stats::as.formula(paste("y ~", red_rhs)), data = df,
+            control = control),
+            error = function(e) NULL)
+        an <- if (is.null(red)) NULL else
+            tryCatch(stats::anova(red, full), error = function(e) NULL)
+        chi <- if (is.null(an)) NA_real_ else an[["Chisq"]][2]
+        pv <- if (is.null(an)) NA_real_ else an[["Pr(>Chisq)"]][2]
+        ## glmer.nb uses a natural-log link -> rescale to log2.
+        data.frame(gene = genes[gi], celltype = lvls[k],
+                   log2FC = beta / log(2), se = se_nat / log(2),
+                   statistic = chi, df = 1, pvalue = pv,
+                   stringsAsFactors = FALSE)
+    })
+    do.call(rbind, Filter(Negate(is.null), rows))
 }
 
 # cell-level log2 counts-per-10k (+1); the LMM response for family = "gaussian".
@@ -112,9 +193,9 @@ NULL
 #'   Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
 #'   started unless one is asked for; pass, for example,
 #'   \code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.
-#'   Pass \code{NULL} to fall back to a plain \code{lapply}.
+#'   Pass \code{NULL} to use a plain \code{lapply}.
 #'
-#' @return A \code{data.frame}, one row per gene x cell type:
+#' @return A \code{DataFrame}, one row per gene x cell type:
 #'   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
 #'   \eqn{\log_2} rate scale), \code{se} (on the same scale), \code{statistic}
 #'   (donor-level Wald z from the NB GLM), \code{pvalue}, and BH-adjusted
@@ -177,8 +258,6 @@ run_sc_exwas_pb_offset <- function(x, exposure,
                                     BPPARAM = BiocParallel::SerialParam()) {
     stopifnot(methods::is(x, "SingleCellExposomeExperiment"))
     sample_col <- sampleColumn(x)
-    if (!requireNamespace("MASS", quietly = TRUE))
-        stop("Package 'MASS' is required for the negative-binomial GLM")
 
     exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
@@ -228,7 +307,9 @@ run_sc_exwas_pb_offset <- function(x, exposure,
     if (is.null(out) || !nrow(out))
         stop("No gene/cell-type stratum yielded an estimable NB GLM")
     out$padj <- stats::p.adjust(out$pvalue, "BH")
-    out[order(out$padj, out$pvalue), , drop = FALSE]
+    out <- out[order(out$padj, out$pvalue), , drop = FALSE]
+    rownames(out) <- NULL
+    S4Vectors::DataFrame(out, check.names = FALSE)
 }
 
 #' Cell-level linear mixed model sc-ExWAS with finite-df inference
@@ -302,7 +383,7 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #'   started unless one is asked for; pass, for example,
 #'   \code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.
 #'
-#' @return A \code{data.frame}, one row per gene x cell type: \code{gene},
+#' @return A \code{DataFrame}, one row per gene x cell type: \code{gene},
 #'   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic} (Satterthwaite
 #'   /KR \eqn{t} for gaussian, LR \eqn{\chi^2} for nbinom), \code{df} (finite
 #'   denominator df; 1 for the nbinom LRT), \code{pvalue}, BH-adjusted
@@ -384,8 +465,6 @@ run_sc_exwas_glmm <- function(x, exposure,
     if (family == "gaussian" && ddf == "Kenward-Roger" &&
         !requireNamespace("pbkrtest", quietly = TRUE))
         stop("Kenward-Roger df require the 'pbkrtest' package")
-    if (family == "nbinom" && !requireNamespace("MASS", quietly = TRUE))
-        stop("Package 'MASS' is required for lme4::glmer.nb (theta estimation)")
 
     exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
@@ -425,38 +504,9 @@ run_sc_exwas_glmm <- function(x, exposure,
         fixed_rhs <- if (multi_celltype) "exposure * celltype" else "exposure"
         form <- stats::as.formula(paste("y ~", fixed_rhs, cov_rhs, re_rhs))
         control <- lme4::lmerControl(check.conv.singular = singular_ok)
-
-        one_gene <- function(gi) {
-            df <- meta; df$y <- as.numeric(Y[gi, ])
-            fit <- tryCatch(lmerTest::lmer(form, data = df, REML = TRUE,
-                                           control = control),
-                            error = function(e) NULL)
-            if (is.null(fit)) return(NULL)
-            nm <- names(lme4::fixef(fit))
-            if (!"exposure" %in% nm) return(NULL)
-            rows <- lapply(lvls, function(ct) {
-                L <- stats::setNames(numeric(length(nm)), nm)
-                L["exposure"] <- 1
-                if (ct != lvls[1]) {
-                    ix <- paste0("exposure:celltype", ct)
-                    # interaction aliased/dropped
-                    if (!ix %in% nm) return(NULL)
-                    L[ix] <- 1
-                }
-                tst <- tryCatch(
-                    lmerTest::contest1D(fit, L, ddf = ddf, confint = FALSE),
-                    error = function(e) NULL)
-                if (is.null(tst)) return(NULL)
-                ## y is already log2 CP10k, so the estimate IS a log2 effect.
-                data.frame(gene = genes[gi], celltype = ct,
-                           log2FC = tst[["Estimate"]], se = tst[["Std. Error"]],
-                           statistic = tst[["t value"]], df = tst[["df"]],
-                           pvalue = tst[["Pr(>|t|)"]],
-                           stringsAsFactors = FALSE)
-            })
-            do.call(rbind, Filter(Negate(is.null), rows))
-        }
-        res <- .bpapply(seq_along(genes), one_gene, BPPARAM = BPPARAM)
+        res <- .bpapply(seq_along(genes), .lmm_fit_gene, BPPARAM = BPPARAM,
+                        Y = Y, meta = meta, form = form, control = control,
+                        lvls = lvls, ddf = ddf, genes = genes)
         method_lbl <- paste0("lmerTest/", ddf)
 
     } else {
@@ -477,55 +527,12 @@ run_sc_exwas_glmm <- function(x, exposure,
         full_form <- stats::as.formula(paste("y ~", full_rhs))
         control <- lme4::glmerControl(check.conv.singular = singular_ok)
 
-        one_gene <- function(gi) {
-            df <- meta
-            df$y <- as.integer(round(pmax(Yc[gi, ], 0)))
-            full <- tryCatch(lme4::glmer.nb(full_form, data = df,
-                                            control = control),
-                             error = function(e) NULL)
-            if (is.null(full)) return(NULL)
-            fe <- lme4::fixef(full)
-            V <- tryCatch(as.matrix(stats::vcov(full)),
-                          error = function(e) NULL)
-            rows <- lapply(seq_along(lvls), function(k) {
-                cn <- expo_cols[k]
-                if (!cn %in% names(fe)) return(NULL)
-                beta <- fe[[cn]]
-                se_nat <- if (!is.null(V) && cn %in% rownames(V))
-                    sqrt(max(V[cn, cn], 0)) else NA_real_
-                other_slopes <- setdiff(expo_cols, cn)
-                red_rhs <- paste("0 + celltype",
-                                 if (length(other_slopes))
-                                     paste("+", paste(other_slopes,
-                                                      collapse = " + ")),
-                                 cov_rhs, "+ offset(logoff)", re_rhs)
-                red <- tryCatch(lme4::glmer.nb(
-                    stats::as.formula(paste("y ~", red_rhs)), data = df,
-                    control = control),
-                    error = function(e) NULL)
-                if (is.null(red)) {
-                    chi <- NA_real_
-                    pv <- NA_real_
-                } else {
-                    an <- tryCatch(stats::anova(red, full),
-                                   error = function(e) NULL)
-                    if (is.null(an)) {
-                        chi <- NA_real_
-                        pv <- NA_real_
-                    } else {
-                        chi <- an[["Chisq"]][2]
-                        pv <- an[["Pr(>Chisq)"]][2]
-                    }
-                }
-                ## glmer.nb uses a natural-log link -> rescale to log2.
-                data.frame(gene = genes[gi], celltype = lvls[k],
-                           log2FC = beta / log(2), se = se_nat / log(2),
-                           statistic = chi, df = 1, pvalue = pv,
-                           stringsAsFactors = FALSE)
-            })
-            do.call(rbind, Filter(Negate(is.null), rows))
-        }
-        res <- .bpapply(seq_along(genes), one_gene, BPPARAM = BPPARAM)
+        res <- .bpapply(seq_along(genes), .glmm_nb_fit_gene,
+                        BPPARAM = BPPARAM, Yc = Yc, meta = meta,
+                        full_form = full_form, control = control,
+                        lvls = lvls, expo_cols = expo_cols,
+                        cov_rhs = cov_rhs, re_rhs = re_rhs,
+                        genes = genes)
         method_lbl <- "lme4::glmer.nb/LRT"
     }
 
@@ -536,5 +543,7 @@ run_sc_exwas_glmm <- function(x, exposure,
     out$method <- method_lbl
     out <- out[, c("gene", "celltype", "log2FC", "se", "statistic",
                    "df", "pvalue", "padj", "method")]
-    out[order(out$padj, out$pvalue), , drop = FALSE]
+    out <- out[order(out$padj, out$pvalue), , drop = FALSE]
+    rownames(out) <- NULL
+    S4Vectors::DataFrame(out, check.names = FALSE)
 }

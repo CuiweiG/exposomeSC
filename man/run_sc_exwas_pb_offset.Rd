@@ -33,10 +33,10 @@ containing cell type annotations. Default \code{"cell_type"}.}
 Defaults to \code{BiocParallel::SerialParam()}, so no worker process is
 started unless one is asked for; pass, for example,
 \code{BiocParallel::SnowParam(workers = 2L)} to fit genes in parallel.
-Pass \code{NULL} to fall back to a plain \code{lapply}.}
+Pass \code{NULL} to use a plain \code{lapply}.}
 }
 \value{
-A \code{data.frame}, one row per gene x cell type:
+A \code{DataFrame}, one row per gene x cell type:
   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
   \eqn{\log_2} rate scale), \code{se} (on the same scale), \code{statistic}
   (donor-level Wald z from the NB GLM), \code{pvalue}, and BH-adjusted

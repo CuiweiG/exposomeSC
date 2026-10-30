@@ -47,7 +47,13 @@ Default \code{FALSE} (faster; uses asymptotic CI).}
 \item{min_cells}{Integer. Default 10.}
 }
 \value{
-A list with components:
+A one-row \code{DataFrame} with columns \code{celltype},
+  \code{mixture_effect} (the overall mixture effect \eqn{\psi}),
+  \code{mixture_se}, \code{ci_lower} and \code{ci_upper} (95\%
+  confidence interval for \eqn{\psi}), \code{mixture_pvalue},
+  \code{n_donors}, \code{n_genes} and \code{method}
+  (\code{"qgcomp.noboot"} or \code{"qgcomp.boot"}).
+  \code{metadata(result)} holds:
 \describe{
   \item{positive_weights}{Named numeric. Exposures that
     increase the response, with relative weights;
@@ -56,15 +62,9 @@ A list with components:
   \item{negative_weights}{Named numeric. Exposures that
     decrease the response; \code{NULL} when
     \code{bootstrap = TRUE}.}
-  \item{mixture_effect}{Overall mixture effect estimate
-    (\eqn{\psi}).}
-  \item{mixture_ci}{95\% confidence interval for \eqn{\psi}.}
-  \item{mixture_pvalue}{P-value for \eqn{\psi}.}
+  \item{target_genes}{The genes whose mean log-CPM is the response.}
   \item{fit}{The \code{qgcomp} model object (for
     plotting and further analysis).}
-  \item{method}{Character: \code{"qgcomp.noboot"} or
-    \code{"qgcomp.boot"}.}
-  \item{celltype, n_donors, n_genes}{Analysis metadata.}
 }
 }
 \description{
@@ -115,8 +115,9 @@ if (requireNamespace("qgcomp", quietly = TRUE)) {
         exposures = c("E1", "E2", "E3"),
         celltype = "Mono", celltype_col = "cell_type",
         min_cells = 3L)
-    mix$positive_weights
-    mix$negative_weights
+    mix
+    metadata(mix)$positive_weights
+    metadata(mix)$negative_weights
 }
 }
 \references{

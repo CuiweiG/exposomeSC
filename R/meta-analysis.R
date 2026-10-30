@@ -5,6 +5,28 @@
 #' @importFrom stats p.adjust
 NULL
 
+# Name of the column to use for one role (effect or standard error): the
+# requested column when one is given, otherwise the first candidate present.
+.resolve_meta_column <- function(data, requested, candidates, role, cohort) {
+    if (!is.null(requested)) {
+        if (!requested %in% colnames(data)) {
+            stop(
+                "Column '", requested, "' not found for ", role,
+                " in cohort '", cohort, "'."
+            )
+        }
+        return(requested)
+    }
+    available <- candidates[candidates %in% colnames(data)]
+    if (!length(available)) {
+        stop(
+            "No supported ", role, " column found in cohort '", cohort,
+            "'. Tried: ", paste(candidates, collapse = ", "), "."
+        )
+    }
+    available[[1]]
+}
+
 #' Meta-analysis across cohorts for sc-ExWAS
 #'
 #' Combines independent-cohort sc-ExWAS estimates using inverse-variance
@@ -119,26 +141,6 @@ run_meta_exwas <- function(results_list,
         stop("Package 'metafor' is required for random-effects synthesis.")
     }
 
-    resolve_column <- function(data, requested, candidates, role, cohort) {
-        if (!is.null(requested)) {
-            if (!requested %in% colnames(data)) {
-                stop(
-                    "Column '", requested, "' not found for ", role,
-                    " in cohort '", cohort, "'."
-                )
-            }
-            return(requested)
-        }
-        available <- candidates[candidates %in% colnames(data)]
-        if (!length(available)) {
-            stop(
-                "No supported ", role, " column found in cohort '", cohort,
-                "'. Tried: ", paste(candidates, collapse = ", "), "."
-            )
-        }
-        available[[1]]
-    }
-
     all_data <- vector("list", length(results_list))
     for (i in seq_along(results_list)) {
         cohort <- cohort_names[[i]]
@@ -185,14 +187,14 @@ run_meta_exwas <- function(results_list,
             stop("gene and celltype keys must be complete and non-empty.")
         }
 
-        effect_name <- resolve_column(
+        effect_name <- .resolve_meta_column(
             data,
             effect_col,
             c("log2FC", "log2FoldChange", "estimate"),
             "effect",
             cohort
         )
-        se_name <- resolve_column(
+        se_name <- .resolve_meta_column(
             data,
             se_col,
             c("se", "lfcSE"),

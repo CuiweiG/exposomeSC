@@ -15,6 +15,8 @@
 #'     with donor random effects}
 #'   \item{\code{\link{run_multi_exwas}}}{Batch ExWAS across
 #'     multiple exposures with global FDR}
+#'   \item{\code{\link{donor_pseudobulk}}}{Donor pseudobulk counts per
+#'     cell type as SummarizedExperiment objects}
 #' }
 #'
 #' @section Dose-response and mixtures:

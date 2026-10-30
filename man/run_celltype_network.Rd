@@ -114,7 +114,10 @@ The workflow proceeds as follows:
   \item Pseudobulk aggregation for the specified cell type,
     reusing existing \pkg{exposomeSC} infrastructure.
   \item Variance-stabilising transformation (DESeq2 VST)
-    on counts, or log-CPM fallback.
+    on counts. When \pkg{DESeq2} is not installed, or VST fails (for
+    example with too few genes), log-CPM values are used instead and a
+    message says so; the transform used is recorded in
+    \code{metadata(result)$transform}.
   \item Residualization: if \code{exposure} or
     \code{covariates} are specified, regresses them out
     from both transcriptomic and metabolomic matrices.

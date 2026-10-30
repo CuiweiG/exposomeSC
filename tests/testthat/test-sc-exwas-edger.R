@@ -57,7 +57,7 @@ test_that("edgeR sc-ExWAS returns globally adjusted, auditable results", {
     expect_false(any(is.nan(result$se)))
     expect_identical(
         S4Vectors::metadata(result)$parameters$schema_version,
-        "exposomeSC_sc_exwas_edger_v2"
+        "exposomeSC_sc_exwas_v3"
     )
     expect_identical(
         S4Vectors::metadata(result)$parameters$se_method,
@@ -358,7 +358,7 @@ test_that("edgeR sc-ExWAS validates design inputs", {
     )
 })
 
-test_that("empty edgeR results retain the v2 uncertainty schema", {
+test_that("empty edgeR results retain the uncertainty schema", {
     skip_if_not_installed("edgeR")
     result <- suppressWarnings(run_sc_exwas(
         .make_edger_scee(),
@@ -374,9 +374,10 @@ test_that("empty edgeR results retain the v2 uncertainty schema", {
     parameters <- S4Vectors::metadata(result)$parameters
     expect_identical(
         parameters$schema_version,
-        "exposomeSC_sc_exwas_edger_v2"
+        "exposomeSC_sc_exwas_v3"
     )
     expect_identical(parameters$se_method, "not_available_edgeR_QL")
     expect_identical(parameters$statistic_type, "signed_sqrt_qlf")
     expect_type(result$se, "double")
+    expect_identical(colnames(result), exposomeSC:::.sc_exwas_columns)
 })

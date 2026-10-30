@@ -34,6 +34,10 @@ NULL
 #'   has numeric-\code{NA} coefficient standard errors and a signed square-root
 #'   QL F statistic, whereas DESeq2 and voom-dream return their coefficient
 #'   standard errors with Wald and moderated t statistics, respectively.
+#'   The columns are those of \code{\link{run_sc_exwas}} followed by
+#'   \code{padj_all}; \code{metadata(result)$per_exposure} keeps the
+#'   \code{metadata()} (parameters and diagnostics) of each exposure's
+#'   \code{run_sc_exwas} result.
 #'
 #' @export
 #' @examples
@@ -89,7 +93,9 @@ run_multi_exwas <- function(x, exposures = NULL,
              paste(missing, collapse = ", "))
     }
 
-    all_results <- list()
+    all_results <- stats::setNames(vector("list", length(exposures)),
+                                   exposures)
+    run_metadata <- all_results
     for (exp_name in exposures) {
         message("Running sc-ExWAS for: ", exp_name)
         res <- tryCatch({
@@ -124,36 +130,27 @@ run_multi_exwas <- function(x, exposures = NULL,
                         conditionMessage(e), call. = FALSE)
                 NULL
             })
-        if (!is.null(res) && nrow(res) > 0) {
-            all_results <- c(all_results, list(
-                as.data.frame(res)))
+        if (!is.null(res)) {
+            run_metadata[[exp_name]] <- S4Vectors::metadata(res)
+            if (nrow(res) > 0) {
+                all_results[[exp_name]] <- as.data.frame(res)
+            }
         }
     }
+    all_results <- Filter(Negate(is.null), all_results)
 
     if (length(all_results) == 0) {
-        return(S4Vectors::DataFrame(
-            gene = character(),
-            celltype = character(),
-            log2FC = numeric(),
-            se = numeric(),
-            statistic = numeric(),
-            pvalue = numeric(),
-            pvalue_underflow_clamped = logical(),
-            padj = numeric(),
-            padj_global = numeric(),
-            exposure = character(),
-            n_donors = integer(),
-            n_unexposed = integer(),
-            n_exposed = integer(),
-            min_cells = integer(),
-            median_cells = numeric(),
-            method = character(),
-            padj_all = numeric()))
+        out <- .sc_exwas_empty_frame()
+        out$padj_all <- numeric()
+    } else {
+        out <- do.call(rbind, unname(all_results))
+        rownames(out) <- NULL
+        out$padj_all <- p.adjust(out$pvalue, method = "BH")
+        out <- S4Vectors::DataFrame(out, check.names = FALSE)
     }
-
-    out <- do.call(rbind, all_results)
-    out$padj_all <- p.adjust(out$pvalue, method = "BH")
-    S4Vectors::DataFrame(out)
+    S4Vectors::metadata(out)$per_exposure <- Filter(Negate(is.null),
+                                                    run_metadata)
+    out
 }
 
 # Arguments of the run_sc_exwas() method that run_multi_exwas() does not set

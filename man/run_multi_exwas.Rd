@@ -45,6 +45,10 @@ A \code{DataFrame} with all results combined and
   has numeric-\code{NA} coefficient standard errors and a signed square-root
   QL F statistic, whereas DESeq2 and voom-dream return their coefficient
   standard errors with Wald and moderated t statistics, respectively.
+  The columns are those of \code{\link{run_sc_exwas}} followed by
+  \code{padj_all}; \code{metadata(result)$per_exposure} keeps the
+  \code{metadata()} (parameters and diagnostics) of each exposure's
+  \code{run_sc_exwas} result.
 }
 \description{
 Convenience wrapper that runs \code{\link{run_sc_exwas}}

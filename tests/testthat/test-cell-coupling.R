@@ -44,7 +44,7 @@ test_that("run_cell_coupling works on minimal data", {
         altexp_name = "CITE",
         min_cells = 10L, min_donors = 10L)
 
-    expect_s3_class(res, "data.frame")
+    expect_s4_class(res, "DataFrame")
     expect_true(nrow(res) >= 1)
     expect_true("beta0" %in% names(res))
     expect_true("beta1" %in% names(res))
@@ -83,6 +83,7 @@ test_that("run_cell_coupling validates inputs", {
         res <- run_cell_coupling(scee, genes = "G1", proteins = "P1",
             exposure = "exp", celltype = "X", min_donors = 10L),
         "donors")
+    expect_s4_class(res, "DataFrame")
     expect_equal(nrow(res), 0)
 
     ## Wrong exposure name -> error
@@ -130,7 +131,7 @@ test_that("run_cell_coupling with confounders", {
         confounders = "cc_score",
         min_cells = 10L, min_donors = 10L)
 
-    expect_s3_class(res, "data.frame")
+    expect_s4_class(res, "DataFrame")
     expect_true(nrow(res) >= 1)
     expect_equal(res$n_confounders, 3)  # 2 lib sizes + 1 cc_score
 })

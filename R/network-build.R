@@ -80,7 +80,10 @@ NULL
 #'   \item Pseudobulk aggregation for the specified cell type,
 #'     reusing existing \pkg{exposomeSC} infrastructure.
 #'   \item Variance-stabilising transformation (DESeq2 VST)
-#'     on counts, or log-CPM fallback.
+#'     on counts. When \pkg{DESeq2} is not installed, or VST fails (for
+#'     example with too few genes), log-CPM values are used instead and a
+#'     message says so; the transform used is recorded in
+#'     \code{metadata(result)$transform}.
 #'   \item Residualization: if \code{exposure} or
 #'     \code{covariates} are specified, regresses them out
 #'     from both transcriptomic and metabolomic matrices.
@@ -270,7 +273,7 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
         )
 
     } else {
-        ## block_glasso fallback
+        ## block_glasso
         S <- cov(X)
         bg <- .block_glasso(S, blocks,
                              lambda_w = lambda_w,
@@ -354,8 +357,10 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #' @param network_method Character; \code{"coglasso"} (default) or
 #'   \code{"block_glasso"}, the estimator for the network on the
 #'   selected features. \code{"coglasso"} requires the \pkg{coglasso}
-#'   package and at least one selected transcript and metabolite;
-#'   otherwise the block graphical lasso is used.
+#'   package (an error otherwise) and at least one selected transcript and
+#'   metabolite; when only one omic layer is selected the block graphical
+#'   lasso is used. The estimator used is recorded in
+#'   \code{metadata(result)$network_method}.
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}}
 #'   restricted to exposure-associated features. Its metadata record
@@ -553,9 +558,10 @@ run_exposure_network <- function(x, metabolites, celltype,
     use_coglasso <- network_method == "coglasso" &&
         n_tx_sel > 0 && n_met_sel > 0
     if (use_coglasso && !requireNamespace("coglasso", quietly = TRUE)) {
-        message("[exposomeSC] Package 'coglasso' is not installed; ",
-                "using the block graphical lasso.")
-        use_coglasso <- FALSE
+        stop("Package 'coglasso' is required for ",
+             "network_method = 'coglasso'. Install it with ",
+             "install.packages('coglasso'), or use ",
+             "network_method = 'block_glasso'.")
     }
     if (use_coglasso) {
         cg_path <- coglasso::coglasso(

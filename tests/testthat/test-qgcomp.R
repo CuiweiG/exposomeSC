@@ -23,20 +23,28 @@ test_that("run_mixture_qgcomp works", {
         celltype = "Mono", celltype_col = "cell_type",
         q = 2L, min_cells = 3L)
 
-    expect_type(mix, "list")
-    expect_true("positive_weights" %in% names(mix))
-    expect_true("negative_weights" %in% names(mix))
-    expect_true("mixture_pvalue" %in% names(mix))
-    expect_true("mixture_ci" %in% names(mix))
-    expect_equal(length(mix$mixture_ci), 2)
+    expect_s4_class(mix, "DataFrame")
+    expect_identical(nrow(mix), 1L)
+    expect_identical(
+        colnames(mix),
+        c("celltype", "mixture_effect", "mixture_se", "ci_lower",
+          "ci_upper", "mixture_pvalue", "n_donors", "n_genes", "method")
+    )
+    expect_identical(mix$method, "qgcomp.noboot")
+    expect_lt(mix$ci_lower, mix$ci_upper)
+    meta <- S4Vectors::metadata(mix)
+    expect_true(all(c("positive_weights", "negative_weights", "fit",
+                      "target_genes") %in% names(meta)))
+    expect_equal(mix$mixture_effect, unname(meta$fit$psi))
+    expect_equal(c(mix$ci_lower, mix$ci_upper), as.numeric(meta$fit$ci))
 
     ## The mixture p-value is that of psi, not of the intercept
-    psi_index <- match("psi1", names(mix$fit$coef))
-    expect_equal(mix$mixture_pvalue, mix$fit$pval[psi_index])
-    expect_false(isTRUE(all.equal(mix$mixture_pvalue, mix$fit$pval[1])))
+    psi_index <- match("psi1", names(meta$fit$coef))
+    expect_equal(mix$mixture_pvalue, unname(meta$fit$pval[psi_index]))
+    expect_false(isTRUE(all.equal(mix$mixture_pvalue,
+                                  unname(meta$fit$pval[1]))))
 
     ## Weights should exist
-    all_weights <- c(mix$positive_weights,
-        mix$negative_weights)
+    all_weights <- c(meta$positive_weights, meta$negative_weights)
     expect_true(length(all_weights) > 0)
 })

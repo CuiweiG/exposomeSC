@@ -35,8 +35,48 @@ with warnings.
   on the correlation matrix, with separate within- and between-layer
   penalties. It used to threshold a ridge-regularised inverse, which is not
   the graphical lasso. It needs the glasso package.
+* `exposure_impute_lod()` treats `NA` as missing, not as below the LOD;
+  values reported as below the LOD are marked with the new `censored`
+  argument (or, without it, are the values at or below the LOD). Missing
+  values stay `NA`.
+* `exposure_impute_lod(method = "kaplan_meier")` is now
+  `method = "ros"`: it was always regression on order statistics, not the
+  reverse Kaplan-Meier estimator. Where the censored values were coded as
+  `NA` and nothing else was missing, passing `censored = is.na(x)` gives
+  the values of the earlier version.
+* `exposure_impute_lod(method = "multiple")` now follows Lubin et al.
+  (2004): for each imputation it resamples the data, fits a log-normal
+  distribution by censored maximum likelihood and draws the censored values
+  from that distribution truncated at the LOD. It used to fit the detected
+  values only, ignoring the censoring, and did not carry the uncertainty of
+  the fit into the imputations.
+* `run_exposure_network(network_method = "coglasso")` stops with an
+  installation hint when coglasso is not installed, instead of switching to
+  the block graphical lasso.
 
 ## Interface
+
+* New `donor_pseudobulk()` returns the donor-by-cell-type pseudobulk counts
+  as one SummarizedExperiment per cell type, with the donors' exposure data
+  as column data.
+* `run_sc_exwas()` returns the same columns, in the same order, from every
+  backend: DESeq2 results report `logCPM` instead of `baseMean`, and
+  `padj_global` now follows `padj`. DESeq2 and voom-dream results are now
+  ordered by `padj_global` like edgeR results and, like them, carry
+  `metadata(result)$parameters` (including the backend, its version,
+  `se_method` and `statistic_type`) and `metadata(result)$diagnostics`.
+  `schema_version` is now `"exposomeSC_sc_exwas_v3"` for all backends.
+* `run_multi_exwas()` keeps each exposure's result metadata in
+  `metadata(result)$per_exposure`.
+* `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()` and
+  `run_cell_coupling()` return a DataFrame instead of a data.frame.
+  `run_sc_mixture()` returns its per-gene table as a DataFrame with the
+  weights and summaries in `metadata()`. `run_mixture_qgcomp()` returns a
+  one-row DataFrame with the mixture effect, its standard error, confidence
+  interval and p-value, with the weights and the qgcomp fit in `metadata()`.
+  `exposure_impute_lod(method = "multiple")` returns a SimpleList of
+  completed matrices, and every method records what it did per exposure
+  (`lod_summary`).
 
 * `run_sc_exwas(method = "dreamlet")` is now `method = "voom_dream"`, which is
   what it runs; it never used the dreamlet package. The `"pseudobulk"` alias
@@ -89,6 +129,19 @@ with warnings.
   with `message()`; all of it now goes to standard output.
 * A dimension mismatch in a CelltypeNetworkResult is reported as one
   validity message instead of two fragments.
+* When DESeq2 is not installed, or its variance-stabilising transformation
+  fails, the network functions say so before using log-CPM values; the
+  transform used was already recorded in the result's metadata.
+
+## Internal changes
+
+* Pseudobulk counts are summed with `scrapper::aggregateAcrossCells()`
+  instead of package code; the counts are identical. scrapper is a new
+  import. (`scuttle::aggregateAcrossCells()` is deprecated in favour of the
+  scrapper function.)
+* The three `run_sc_exwas()` backends share their input checks and build
+  their results with one internal constructor. Results are unchanged apart
+  from the interface changes above.
 
 ## Documentation
 
@@ -97,6 +150,11 @@ with warnings.
 * References added or corrected: edgeR v4, the graphical lasso, the
   published coglasso paper, dream and variancePartition, and a DOI for Lee
   and Han (2024).
+* `?run_sc_exwas` states which steps are delegated to other packages and
+  which choices exposomeSC makes itself. `?run_exposure_composition` compares
+  the method with propeller, crumblr, sccomp and voomCLR, with references.
+  `?exposure_impute_lod` describes each method correctly and points to the
+  LOD imputation in rexposome.
 * Requires R 4.6.0. BiocCheck and statmod are no longer suggested.
 
 # exposomeSC 0.99.1
