@@ -94,23 +94,25 @@ test_that("fixed-effect estimate and uncertainty are exact", {
     expect_equal(result$method, "inverse_variance_fixed")
 })
 
-test_that("current and legacy backend schemas can be synthesised together", {
-    current <- S4Vectors::DataFrame(
+test_that("package and DESeq2 column names can be synthesised together", {
+    package_columns <- S4Vectors::DataFrame(
         gene = "A", celltype = "T", exposure = "X",
         log2FC = 0.5, se = 0.1
     )
-    legacy <- S4Vectors::DataFrame(
+    deseq2_columns <- S4Vectors::DataFrame(
         gene = "A", celltype = "T", exposure = "X",
         log2FoldChange = 0.2, lfcSE = 0.2
     )
     result <- run_meta_exwas(
-        list(current, legacy),
-        cohort_names = c("current", "legacy")
+        list(package_columns, deseq2_columns),
+        cohort_names = c("CohortA", "CohortB")
     )
 
     expect_equal(result$meta_effect, 0.44, tolerance = 1e-12)
     expect_equal(result$n_cohorts, 2L)
-    expect_equal(result$cohorts, "current;legacy")
+    expect_equal(result$cohorts, "CohortA;CohortB")
+    expect_equal(result$meta_df, Inf)
+    expect_false("meta_z" %in% colnames(result))
 })
 
 test_that("exposure is part of the exact synthesis key", {

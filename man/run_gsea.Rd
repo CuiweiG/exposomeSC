@@ -21,12 +21,11 @@ sets). Each element is a pathway name mapping to gene
 symbols. Compatible with MSigDB collections from
 \code{msigdbr}.}
 
-\item{rank_by}{Character. Column used to rank genes.
-Default \code{"statistic"}, whose scale depends on the sc-ExWAS backend:
-signed square-root QL F for edgeR, Wald statistic for DESeq2, and
-moderated t statistic for voom-dream. The current \code{"log2FC"} field
-and legacy aliases \code{"stat"} and \code{"log2FoldChange"} are also
-supported.}
+\item{rank_by}{Character scalar naming the numeric column used to rank
+genes. Default \code{"statistic"}, whose scale depends on the sc-ExWAS
+backend: signed square-root QL F for edgeR, Wald statistic for DESeq2,
+and moderated t statistic for voom-dream. \code{"log2FC"} ranks by effect
+size; any other numeric column of \code{exwas_result} may be named.}
 
 \item{min_size}{Integer. Minimum gene set size. Default 10.}
 

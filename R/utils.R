@@ -112,21 +112,6 @@ NULL
     )
 }
 
-# Resolve current sc-ExWAS fields while accepting explicit legacy aliases.
-# @keywords internal
-# @noRd
-.resolve_exwas_result_column <- function(data, candidates, role) {
-    available <- candidates[candidates %in% colnames(data)]
-    if (!length(available)) {
-        stop(
-            "No supported ", role, " column found. Tried: ",
-            paste(candidates, collapse = ", "),
-            "."
-        )
-    }
-    available[[1L]]
-}
-
 # Seed the random number generator for the rest of the calling function, then
 # put the caller's generator back exactly as it was when that function exits.
 #

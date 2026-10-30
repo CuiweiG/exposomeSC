@@ -550,8 +550,7 @@ NULL
 #' @param celltype_col Character scalar naming the cell-type column in
 #'   \code{colData(x)}.
 #' @param sample_col Character scalar naming the donor-ID column in
-#'   \code{colData(x)}. The historical argument name is retained for API
-#'   compatibility.
+#'   \code{colData(x)}.
 #' @param replicate_col Optional character scalar naming biological samples
 #'   nested within donors. If \code{NULL}, each donor is treated as one sample.
 #' @param covariates Character vector naming numeric design columns in
@@ -567,7 +566,7 @@ NULL
 #' @param exclude_celltypes Character vector of annotation labels excluded
 #'   before support filtering.
 #' @param zero_prior Positive symmetric Dirichlet prior. The default 0.5 is the
-#'   Jeffreys prior and replaces the former arbitrary fixed pseudocount.
+#'   Jeffreys prior.
 #' @param replicate_aggregation Either \code{"equal_replicate"}, the primary
 #'   approach that averages log-ratio coordinates across samples within each
 #'   donor, or \code{"pooled_counts"}, which pools cells within donor and is

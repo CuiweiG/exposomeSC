@@ -17,12 +17,11 @@ NULL
 #'   sets). Each element is a pathway name mapping to gene
 #'   symbols. Compatible with MSigDB collections from
 #'   \code{msigdbr}.
-#' @param rank_by Character. Column used to rank genes.
-#'   Default \code{"statistic"}, whose scale depends on the sc-ExWAS backend:
-#'   signed square-root QL F for edgeR, Wald statistic for DESeq2, and
-#'   moderated t statistic for voom-dream. The current \code{"log2FC"} field
-#'   and legacy aliases \code{"stat"} and \code{"log2FoldChange"} are also
-#'   supported.
+#' @param rank_by Character scalar naming the numeric column used to rank
+#'   genes. Default \code{"statistic"}, whose scale depends on the sc-ExWAS
+#'   backend: signed square-root QL F for edgeR, Wald statistic for DESeq2,
+#'   and moderated t statistic for voom-dream. \code{"log2FC"} ranks by effect
+#'   size; any other numeric column of \code{exwas_result} may be named.
 #' @param min_size Integer. Minimum gene set size. Default 10.
 #' @param max_size Integer. Maximum gene set size. Default 500.
 #'
@@ -88,19 +87,14 @@ run_gsea <- function(exwas_result, gene_sets,
 
     res <- as.data.frame(exwas_result)
 
-    rank_candidates <- switch(
-        rank_by,
-        statistic = c("statistic", "stat"),
-        stat = c("stat", "statistic"),
-        log2FC = c("log2FC", "log2FoldChange"),
-        log2FoldChange = c("log2FoldChange", "log2FC"),
-        rank_by
-    )
-    rank_column <- .resolve_exwas_result_column(
-        res,
-        rank_candidates,
-        "gene-ranking"
-    )
+    if (!is.character(rank_by) || length(rank_by) != 1L || is.na(rank_by)) {
+        stop("rank_by must be a single column name.")
+    }
+    if (!rank_by %in% colnames(res) || !is.numeric(res[[rank_by]])) {
+        stop("rank_by must name a numeric column of exwas_result; '",
+             rank_by, "' is not one.")
+    }
+    rank_column <- rank_by
 
     required <- c("gene", "celltype")
     missing <- setdiff(required, colnames(res))

@@ -32,8 +32,7 @@ run_exposure_composition(
 \code{colData(x)}.}
 
 \item{sample_col}{Character scalar naming the donor-ID column in
-\code{colData(x)}. The historical argument name is retained for API
-compatibility.}
+\code{colData(x)}.}
 
 \item{replicate_col}{Optional character scalar naming biological samples
 nested within donors. If \code{NULL}, each donor is treated as one sample.}
@@ -57,7 +56,7 @@ types eligible for analysis.}
 before support filtering.}
 
 \item{zero_prior}{Positive symmetric Dirichlet prior. The default 0.5 is the
-Jeffreys prior and replaces the former arbitrary fixed pseudocount.}
+Jeffreys prior.}
 
 \item{replicate_aggregation}{Either \code{"equal_replicate"}, the primary
 approach that averages log-ratio coordinates across samples within each

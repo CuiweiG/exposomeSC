@@ -40,9 +40,10 @@ A \code{DataFrame} with one row per exact key and columns
   \code{meta_effect}, \code{meta_se}, \code{meta_statistic},
   \code{meta_df}, \code{meta_pvalue}, \code{meta_padj}, \code{I2},
   \code{Q_pvalue}, \code{tau2}, \code{n_cohorts}, \code{cohorts},
-  \code{direction}, and \code{method}. The retained \code{meta_z} column is
-  an alias of \code{meta_statistic} for backwards compatibility; under
-  Hartung--Knapp inference it is a t statistic rather than a z statistic.
+  \code{direction}, and \code{method}. Under Hartung--Knapp inference
+  \code{meta_statistic} is a t statistic with \code{meta_df} degrees of
+  freedom; under fixed-effect synthesis it is a z statistic and
+  \code{meta_df} is \code{Inf}.
 }
 \description{
 Combines independent-cohort sc-ExWAS estimates using inverse-variance
@@ -62,10 +63,11 @@ or independence of the contributing cohorts.
 The function never maps gene identifiers or cell-type labels. Harmonisation
 must occur before calling it. Within-cohort duplicate keys are an error,
 preventing accidental double weighting after label aggregation.
-Inverse-variance synthesis also rejects both current edgeR QL results, whose
-standard errors are explicitly unavailable, and older results containing a
-finite QL F-ratio proxy. Use a backend that estimates valid coefficient
-standard errors for each independent cohort before meta-analysis.
+Inverse-variance synthesis also rejects edgeR QL results from
+\code{\link{run_sc_exwas}}, recognised by their \code{method} label or
+their metadata, because the QL F test supplies no coefficient standard
+errors. Use a backend that estimates valid coefficient standard errors for
+each independent cohort before meta-analysis.
 }
 \examples{
 library(S4Vectors)

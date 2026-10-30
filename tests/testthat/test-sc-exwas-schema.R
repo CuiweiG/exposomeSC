@@ -158,24 +158,44 @@ test_that("non-edgeR backends never ignore test_features", {
     )
 })
 
-test_that("result-column resolver prioritises current fields", {
-    data <- data.frame(statistic = 1, stat = 2)
-    expect_identical(
-        .resolve_exwas_result_column(
-            data,
-            c("statistic", "stat"),
-            "association-statistic"
-        ),
-        "statistic"
+test_that("run_gsea ranks by the named column only", {
+    skip_if_not_installed("fgsea")
+    genes <- paste0("G", seq_len(30))
+    result <- data.frame(
+        gene = genes,
+        celltype = "Mono",
+        exposure = "E1",
+        statistic = seq(-3, 3, length.out = length(genes)),
+        log2FC = rev(seq(-1, 1, length.out = length(genes))),
+        label = "x"
+    )
+    gene_sets <- list(top = genes[21:30], bottom = genes[1:10])
+
+    expect_error(
+        run_gsea(result, gene_sets, rank_by = "stat", min_size = 5L),
+        "rank_by must name a numeric column"
     )
     expect_error(
-        .resolve_exwas_result_column(
-            data.frame(other = 1),
-            c("statistic", "stat"),
-            "association-statistic"
-        ),
-        "No supported association-statistic column"
+        run_gsea(result, gene_sets, rank_by = "label", min_size = 5L),
+        "rank_by must name a numeric column"
     )
+    expect_error(
+        run_gsea(result, gene_sets, rank_by = c("statistic", "log2FC")),
+        "single column name"
+    )
+
+    set.seed(20261030)
+    by_statistic <- suppressWarnings(
+        run_gsea(result, gene_sets, min_size = 5L, max_size = 20L)
+    )
+    set.seed(20261030)
+    by_effect <- suppressWarnings(
+        run_gsea(result, gene_sets, rank_by = "log2FC",
+                 min_size = 5L, max_size = 20L)
+    )
+    nes <- function(x, pathway) x$NES[x$pathway == pathway]
+    expect_gt(nes(by_statistic, "top"), 0)
+    expect_lt(nes(by_effect, "top"), 0)
 })
 
 test_that("GSEA keeps exposure-specific hypothesis strata separate", {

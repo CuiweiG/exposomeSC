@@ -33,9 +33,10 @@ NULL
 #'   \code{meta_effect}, \code{meta_se}, \code{meta_statistic},
 #'   \code{meta_df}, \code{meta_pvalue}, \code{meta_padj}, \code{I2},
 #'   \code{Q_pvalue}, \code{tau2}, \code{n_cohorts}, \code{cohorts},
-#'   \code{direction}, and \code{method}. The retained \code{meta_z} column is
-#'   an alias of \code{meta_statistic} for backwards compatibility; under
-#'   Hartung--Knapp inference it is a t statistic rather than a z statistic.
+#'   \code{direction}, and \code{method}. Under Hartung--Knapp inference
+#'   \code{meta_statistic} is a t statistic with \code{meta_df} degrees of
+#'   freedom; under fixed-effect synthesis it is a z statistic and
+#'   \code{meta_df} is \code{Inf}.
 #'
 #' @details
 #' Fixed-effect synthesis uses
@@ -50,10 +51,11 @@ NULL
 #' The function never maps gene identifiers or cell-type labels. Harmonisation
 #' must occur before calling it. Within-cohort duplicate keys are an error,
 #' preventing accidental double weighting after label aggregation.
-#' Inverse-variance synthesis also rejects both current edgeR QL results, whose
-#' standard errors are explicitly unavailable, and older results containing a
-#' finite QL F-ratio proxy. Use a backend that estimates valid coefficient
-#' standard errors for each independent cohort before meta-analysis.
+#' Inverse-variance synthesis also rejects edgeR QL results from
+#' \code{\link{run_sc_exwas}}, recognised by their \code{method} label or
+#' their metadata, because the QL F test supplies no coefficient standard
+#' errors. Use a backend that estimates valid coefficient standard errors for
+#' each independent cohort before meta-analysis.
 #'
 #' @references
 #' Borenstein M et al. (2009). \emph{Introduction to Meta-Analysis}. Wiley.
@@ -342,7 +344,6 @@ run_meta_exwas <- function(results_list,
             meta_effect = meta_effect,
             meta_se = meta_se,
             meta_statistic = meta_statistic,
-            meta_z = meta_statistic,
             meta_df = meta_df,
             meta_pvalue = meta_pvalue,
             I2 = I2,
@@ -369,7 +370,6 @@ run_meta_exwas <- function(results_list,
             meta_effect = numeric(),
             meta_se = numeric(),
             meta_statistic = numeric(),
-            meta_z = numeric(),
             meta_df = numeric(),
             meta_pvalue = numeric(),
             meta_padj = numeric(),
