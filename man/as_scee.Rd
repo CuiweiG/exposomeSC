@@ -16,7 +16,8 @@ donor/sample IDs.}
 with sample IDs matching \code{sampleNames(exposome_set)}.}
 
 \item{exposures}{Character vector (optional). Subset of
-exposures to include. Default: all.}
+exposures to include; a name that the ExposomeSet does not have is
+an error. Default: all.}
 }
 \value{
 A \code{\linkS4class{SingleCellExposomeExperiment}}.

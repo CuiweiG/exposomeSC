@@ -20,7 +20,8 @@ NULL
 #' @param sample_col Character. Column in \code{colData(sce)}
 #'   with sample IDs matching \code{sampleNames(exposome_set)}.
 #' @param exposures Character vector (optional). Subset of
-#'   exposures to include. Default: all.
+#'   exposures to include; a name that the ExposomeSet does not have is
+#'   an error. Default: all.
 #'
 #' @return A \code{\linkS4class{SingleCellExposomeExperiment}}.
 #'
@@ -103,9 +104,18 @@ as_scee <- function(exposome_set, sce, sample_col,
     }
 
     if (!is.null(exposures)) {
-        exposures <- intersect(exposures, colnames(exp_mat))
-        if (length(exposures) == 0)
-            stop("No matching exposures found")
+        ## names, whatever the type of the argument: a factor would
+        ## otherwise index the matrix by its integer codes
+        exposures <- unique(as.character(exposures))
+        if (!length(exposures)) {
+            stop("'exposures' is empty; use NULL to keep all exposures.",
+                call. = FALSE)
+        }
+        unknown <- setdiff(exposures, colnames(exp_mat))
+        if (length(unknown)) {
+            stop("Not in the ExposomeSet: ",
+                paste(unknown, collapse = ", "), call. = FALSE)
+        }
         exp_mat <- exp_mat[, exposures, drop = FALSE]
     }
 

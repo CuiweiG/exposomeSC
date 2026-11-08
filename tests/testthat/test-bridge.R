@@ -38,3 +38,43 @@ test_that("seurat_to_exposure warns on within-donor variation", {
     expect_equal(unname(m[, "pm"]), c(1, 7 / 3))
     expect_error(seurat_to_exposure(meta, "donor", "sex"), "Non-numeric")
 })
+
+test_that("as_scee refuses an exposure the ExposomeSet does not have", {
+    skip_if_not_installed("Biobase")
+    setClass("ExposomeSetForNames", contains = "eSet",
+        where = environment())
+    samples <- paste0("D", 1:4)
+    exposures <- matrix(c(1:4, 11:14), nrow = 2, byrow = TRUE,
+        dimnames = list(c("PM25", "NO2"), samples))
+    es <- methods::new("ExposomeSetForNames",
+        assayData = Biobase::assayDataNew("environment", exp = exposures),
+        phenoData = Biobase::AnnotatedDataFrame(
+            data.frame(row.names = samples, sex = rep(1:2, 2))),
+        featureData = Biobase::AnnotatedDataFrame(
+            data.frame(row.names = c("PM25", "NO2"),
+                family = c("air", "air"))))
+    counts <- matrix(1L, nrow = 3, ncol = 8,
+        dimnames = list(paste0("G", 1:3), paste0("c", 1:8)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = rep(samples, each = 2)))
+    expect_error(
+        suppressWarnings(as_scee(es, sce, sample_col = "donor_id",
+            exposures = c("NO2", "typo"))),
+        "typo")
+    scee <- suppressWarnings(as_scee(es, sce, sample_col = "donor_id",
+        exposures = c("NO2", "PM25")))
+    expect_identical(exposureVariables(scee), c("NO2", "PM25"))
+    ## duplicated names, a factor and an empty vector
+    twice <- suppressWarnings(as_scee(es, sce, sample_col = "donor_id",
+        exposures = c("NO2", "NO2")))
+    expect_identical(exposureVariables(twice), "NO2")
+    from_factor <- suppressWarnings(as_scee(es, sce,
+        sample_col = "donor_id", exposures = factor("NO2")))
+    expect_identical(exposureVariables(from_factor), "NO2")
+    expect_equal(unname(exposureData(from_factor)[samples, "NO2"]), 11:14)
+    expect_error(
+        suppressWarnings(as_scee(es, sce, sample_col = "donor_id",
+            exposures = character(0))),
+        "empty")
+})

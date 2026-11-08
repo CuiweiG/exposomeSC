@@ -203,6 +203,9 @@ with warnings.
   names were dropped without a word, so a misspelt covariate left the
   network unadjusted, and `run_celltype_network()` still listed it in
   `metadata(result)$covariates`.
+* `as_scee()` stops when `exposures` names an exposure that the ExposomeSet
+  does not have. Unknown names used to be dropped silently, so a misspelt
+  exposure was left out of the object without notice.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
