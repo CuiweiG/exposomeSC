@@ -29,7 +29,8 @@ utils::globalVariables(".data")
 #' @param label_top Integer; label top N nodes by degree.
 #'   Default 10.
 #' @param edge_alpha_by Character; \code{"weight"} (default)
-#'   or \code{"stability"}.
+#'   or \code{"stability"} (an error when the network has no stability
+#'   scores).
 #'
 #' @return A \code{ggplot} object (requires \pkg{ggraph}
 #'   and \pkg{igraph}).
@@ -143,6 +144,9 @@ plot_celltype_network <- function(network,
 
     ## Node stability: the strongest selection probability among a
     ## node's edges
+    if (edge_alpha_by == "stability" && all(is.na(edges$stability)))
+        stop("edge_alpha_by = 'stability' requires stability scores; ",
+            "the network has none.")
     if (color_by == "stability") {
         if (all(is.na(edges$stability)))
             stop("color_by = 'stability' requires stability scores; ",
@@ -179,9 +183,7 @@ plot_celltype_network <- function(network,
     if (highlight_cross_omic) {
         p <- p + ggraph::geom_edge_link(
             ggplot2::aes(
-                alpha = if (edge_alpha_by == "stability" &&
-                            any(!is.na(
-                                igraph::E(g)$stability)))
+                alpha = if (edge_alpha_by == "stability")
                     .data$stability else .data$weight,
                 color = .data$cross_omic),
             show.legend = TRUE) +

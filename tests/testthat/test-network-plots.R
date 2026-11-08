@@ -196,3 +196,33 @@ test_that("plot_edge_stability draws a reference line only on request", {
     expect_error(plot_edge_stability(net, threshold = c(0.5, 0.8)),
         "threshold")
 })
+
+test_that("edge_alpha_by = 'stability' needs stability scores", {
+    skip_if_not_installed("ggplot2")
+    skip_if_not_installed("igraph")
+    skip_if_not_installed("ggraph")
+    skip_if_not_installed("tidygraph")
+    features <- c("G1", "G2", "M1")
+    precision <- diag(3)
+    precision[1, 2] <- precision[2, 1] <- -0.4
+    precision[2, 3] <- precision[3, 2] <- 0.3
+    dimnames(precision) <- list(features, features)
+    adjacency <- (abs(precision) > 0) * 1L
+    diag(adjacency) <- 0L
+    net <- new("CelltypeNetworkResult",
+        precision_matrix = precision,
+        adjacency_matrix = adjacency,
+        stability_scores = matrix(nrow = 0, ncol = 0),
+        node_info = S4Vectors::DataFrame(feature = features,
+            omic_layer = c("transcript", "transcript", "metabolite")),
+        celltype = "Test", method = "precomputed",
+        metadata = list(n_donors = 10L))
+    expect_error(
+        plot_celltype_network(net, edge_alpha_by = "stability",
+            layout = "circle"),
+        "stability scores")
+    expect_s3_class(
+        plot_celltype_network(net, edge_alpha_by = "weight",
+            layout = "circle"),
+        "ggplot")
+})

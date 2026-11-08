@@ -156,6 +156,9 @@ with warnings.
 * `run_exposure_network(network_method = "coglasso")` warns when only one
   omic layer passes the selection stage and the block graphical lasso is
   used instead; the switch used to be silent.
+* `plot_celltype_network(edge_alpha_by = "stability")` stops when the
+  network has no stability scores, as `color_by = "stability"` already did;
+  it used to fall back to the edge weights without saying so.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
