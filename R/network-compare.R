@@ -136,8 +136,8 @@ run_comparative_network <- function(...,
     adjacencies <- lapply(nets, networkAdjacency)
     n_donors <- vapply(nets, function(n) {
         md <- metadata(n)
-        if (!is.null(md$n_donors)) md$n_donors else NA_integer_
-    }, integer(1))
+        if (!is.null(md$n_donors)) as.numeric(md$n_donors) else NA_real_
+    }, numeric(1))
 
     ## --- Identify all edges across networks ---
     union_adj <- Reduce(`+`, adjacencies)

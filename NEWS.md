@@ -159,6 +159,9 @@ with warnings.
 * `plot_celltype_network(edge_alpha_by = "stability")` stops when the
   network has no stability scores, as `color_by = "stability"` already did;
   it used to fall back to the edge weights without saying so.
+* `run_comparative_network()` accepts `metadata(network)$n_donors` stored
+  as a double, which is how a number is normally typed; it used to fail
+  with "values must be type 'integer'".
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

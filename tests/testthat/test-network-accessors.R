@@ -181,3 +181,16 @@ test_that("NetworkComparison() and its validity", {
         celltype_specific = list(Mono = as.data.frame(differential))),
         "list of DataFrames")
 })
+
+test_that("run_comparative_network accepts n_donors stored as a double", {
+    a <- .toy_network("Mono", -0.4)
+    b <- .toy_network("NK", 0)
+    a@metadata$n_donors <- 20
+    b@metadata$n_donors <- 20
+    exposomeSC:::.reset_experimental_warnings()
+    expect_warning(
+        comp <- run_comparative_network(a, b, method = "fisher_z"),
+        "experimental")
+    expect_s4_class(comp, "NetworkComparison")
+    expect_true(all(is.finite(diffEdges(comp)$p_value)))
+})
