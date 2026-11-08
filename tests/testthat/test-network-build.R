@@ -331,3 +331,46 @@ test_that("unnamed and missing metabolite columns are reported clearly", {
             method = "block_glasso")),
         "has no columns")
 })
+
+test_that("unknown exposure or covariate names are an error", {
+    skip_if_not_installed("glasso")
+    fx <- .constant_fixture()
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, fx$metab,
+            celltype = "Mono", method = "block_glasso",
+            covariates = "not_a_column")),
+        "not_a_column")
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, fx$metab,
+            celltype = "Mono", method = "block_glasso", exposure = "typo")),
+        "typo")
+    expect_error(
+        suppressMessages(run_exposure_network(fx$scee, fx$metab,
+            celltype = "Mono", exposure = "PM2.5", covariates = "typo",
+            selection_method = "univariate",
+            network_method = "block_glasso")),
+        "typo")
+    expect_error(
+        suppressMessages(run_exposure_network(fx$scee, fx$metab,
+            celltype = "Mono", exposure = "typo",
+            selection_method = "univariate",
+            network_method = "block_glasso")),
+        "typo")
+    ## one unknown name among valid ones, and several unknown names
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, fx$metab,
+            celltype = "Mono", method = "block_glasso",
+            covariates = c("Pb", "typo"))),
+        "exposureData: typo$")
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, fx$metab,
+            celltype = "Mono", method = "block_glasso", exposure = "x1",
+            covariates = c("Pb", "x2"))),
+        "exposureData: x1, x2$")
+    ## a valid adjustment is recorded as before
+    net <- suppressMessages(run_celltype_network(fx$scee, fx$metab,
+        celltype = "Mono", method = "block_glasso", exposure = "PM2.5",
+        covariates = "Pb"))
+    expect_identical(metadata(net)$exposure, "PM2.5")
+    expect_identical(metadata(net)$covariates, "Pb")
+})

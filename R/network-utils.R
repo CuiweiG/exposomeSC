@@ -50,6 +50,9 @@ NULL
                                  min_cells = 10L,
                                  top_var_genes = NULL,
                                  vst = TRUE, drop_constant = TRUE) {
+    ## --- Adjustment variables, checked before any computation ---
+    .check_adjustment_names(x, c(exposure, covariates))
+
     ## --- Get cell type annotations ---
     cd <- colData(x)
     if (!celltype_col %in% colnames(cd))
@@ -169,7 +172,6 @@ NULL
     if (!is.null(exposure) || !is.null(covariates)) {
         exp_data <- exposureData(x)
         adj_vars <- c(exposure, covariates)
-        adj_vars <- adj_vars[adj_vars %in% colnames(exp_data)]
 
         if (length(adj_vars) > 0) {
             adj_mat <- exp_data[shared_donors, adj_vars,
@@ -235,6 +237,18 @@ NULL
         labels <- paste0(prefix, seq_len(ncol(m)))
     }
     labels
+}
+
+# Stop when an exposure or covariate name is not a column of exposureData(x)
+# @keywords internal
+# @noRd
+.check_adjustment_names <- function(x, adjustment) {
+    unknown <- setdiff(adjustment, colnames(exposureData(x)))
+    if (length(unknown)) {
+        stop("Exposure/covariate column(s) not found in exposureData: ",
+            paste(unknown, collapse = ", "), call. = FALSE)
+    }
+    invisible(TRUE)
 }
 
 # -------------------------------------------------------

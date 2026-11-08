@@ -23,9 +23,11 @@ NULL
 #' @param celltype_col Character; column in \code{colData}
 #'   identifying cell types. Default \code{"cell_type"}.
 #' @param exposure Character or NULL; exposure variable to
-#'   condition on (regressed out). Default NULL.
+#'   condition on (regressed out), a column of \code{exposureData(x)};
+#'   another name is an error. Default NULL.
 #' @param covariates Character vector or NULL; adjustment
-#'   covariates. Default NULL.
+#'   covariates, columns of \code{exposureData(x)}; another name is an
+#'   error. Default NULL.
 #' @param method Character; \code{"coglasso"} (default) or
 #'   \code{"block_glasso"}. The coglasso method uses
 #'   collaborative graphical lasso with block-calibrated
@@ -348,10 +350,14 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #' @param metabolites Numeric matrix; rows = donors,
 #'   cols = metabolites.
 #' @param celltype Character; cell type to analyse.
-#' @param exposure Character; exposure variable name.
+#' @param exposure Character; exposure variable name, a column of
+#'   \code{exposureData(x)}; another name is an error.
 #' @param celltype_col Character; cell type column.
 #'   Default \code{"cell_type"}.
-#' @param covariates Character vector or NULL.
+#' @param covariates Character vector or NULL; columns of
+#'   \code{exposureData(x)}, regressed out of the transcript and
+#'   metabolite values before the selection (the exposure is used as
+#'   given); another name is an error.
 #' @param selection_method Character; \code{"stability"}
 #'   (default) or \code{"univariate"}.
 #' @param fdr_threshold Numeric; FDR threshold for univariate
@@ -465,6 +471,7 @@ run_exposure_network <- function(x, metabolites, celltype,
     stopifnot(is(x, "SingleCellExposomeExperiment"))
     selection_method <- match.arg(selection_method)
     network_method <- match.arg(network_method)
+    .check_adjustment_names(x, c(exposure, covariates))
 
     ## Assemble data WITHOUT residualization (we want exposure signal)
     assembled <- .assemble_crossomic(
@@ -482,8 +489,6 @@ run_exposure_network <- function(x, metabolites, celltype,
 
     ## Get exposure values for shared donors
     exp_data <- exposureData(x)
-    if (!exposure %in% colnames(exp_data))
-        stop("Exposure '", exposure, "' not in exposureData")
     y <- exp_data[donors, exposure]
 
     ## --- Stage 1: Feature selection ---

@@ -39,10 +39,12 @@ the network for.}
 identifying cell types. Default \code{"cell_type"}.}
 
 \item{exposure}{Character or NULL; exposure variable to
-condition on (regressed out). Default NULL.}
+condition on (regressed out), a column of \code{exposureData(x)};
+another name is an error. Default NULL.}
 
 \item{covariates}{Character vector or NULL; adjustment
-covariates. Default NULL.}
+covariates, columns of \code{exposureData(x)}; another name is an
+error. Default NULL.}
 
 \item{method}{Character; \code{"coglasso"} (default) or
 \code{"block_glasso"}. The coglasso method uses

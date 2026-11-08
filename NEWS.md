@@ -197,6 +197,12 @@ with warnings.
   matrix without columns is an error in both functions; it used to fail with
   unrelated errors or, in `run_exposure_network()`, sometimes gave a network
   of transcripts only.
+* `run_celltype_network()` stops when `exposure` or `covariates`, and
+  `run_exposure_network()` when `covariates`, names a variable that is not
+  in `exposureData(x)`; both check the names before any computation. Such
+  names were dropped without a word, so a misspelt covariate left the
+  network unadjusted, and `run_celltype_network()` still listed it in
+  `metadata(result)$covariates`.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

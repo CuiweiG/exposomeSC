@@ -29,12 +29,16 @@ cols = metabolites.}
 
 \item{celltype}{Character; cell type to analyse.}
 
-\item{exposure}{Character; exposure variable name.}
+\item{exposure}{Character; exposure variable name, a column of
+\code{exposureData(x)}; another name is an error.}
 
 \item{celltype_col}{Character; cell type column.
 Default \code{"cell_type"}.}
 
-\item{covariates}{Character vector or NULL.}
+\item{covariates}{Character vector or NULL; columns of
+\code{exposureData(x)}, regressed out of the transcript and
+metabolite values before the selection (the exposure is used as
+given); another name is an error.}
 
 \item{selection_method}{Character; \code{"stability"}
 (default) or \code{"univariate"}.}
