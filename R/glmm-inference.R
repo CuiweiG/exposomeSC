@@ -525,8 +525,10 @@ run_sc_exwas_glmm <- function(x, exposure,
     } else {
         ## nbinom: cell-type-nested reparametrisation so each cell type's
         ## exposure effect is a single coefficient; test by LRT (non-Wald).
-        ## This branch adds the offset and one exposure column per cell type
-        expo_cols <- paste0("expo_", make.names(lvls))
+        ## This branch adds the offset and one exposure column per cell type.
+        ## make.names() alone gives labels such as "CD16+ Mono" and
+        ## "CD16- Mono" the same name, so the names are made unique
+        expo_cols <- paste0("expo_", make.names(lvls, unique = TRUE))
         .check_reserved_covariates(covariates, c("exposure", "donor",
             "celltype", "y", "logoff", expo_cols))
         message("family='nbinom': Satterthwaite/KR are LMM-only; using ",

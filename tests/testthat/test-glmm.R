@@ -253,3 +253,34 @@ test_that("covariate names used by the offset model are refused", {
             paste0("cannot be called '", name, "'"))
     }
 })
+
+test_that("nbinom keeps cell types apart whose labels make.names() merges", {
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    fit_labels <- function(labels) {
+        set.seed(3)
+        donors <- paste0("D", 1:10)
+        exposure <- rep(c(0, 1), 5)
+        donor <- rep(donors, each = 24)
+        label <- rep(rep(labels, each = 12), 10)
+        effect <- exposure[match(donor, donors)] * (label == labels[1])
+        counts <- rbind(
+            G1 = stats::rnbinom(length(donor), mu = 20 * exp(effect), size = 5),
+            G2 = stats::rnbinom(length(donor), mu = 20, size = 5))
+        colnames(counts) <- paste0("c", seq_along(donor))
+        sce <- SingleCellExperiment::SingleCellExperiment(
+            assays = list(counts = counts),
+            colData = S4Vectors::DataFrame(donor_id = donor, cell_type = label))
+        scee <- build_scee(sce, matrix(exposure, ncol = 1,
+            dimnames = list(donors, "exposure")), sample_col = "donor_id")
+        res <- as.data.frame(suppressMessages(run_sc_exwas_glmm(scee,
+            exposure = "exposure", target_genes = "G1", family = "nbinom")))
+        res[match(labels, res$celltype),
+            c("log2FC", "se", "statistic", "pvalue")]
+    }
+    ## make.names() maps both labels to "CD16..Mono"
+    merged <- fit_labels(c("CD16+ Mono", "CD16- Mono"))
+    distinct <- fit_labels(c("CD16pos Mono", "CD16neg Mono"))
+    expect_false(isTRUE(all.equal(merged$log2FC[1], merged$log2FC[2])))
+    expect_equal(merged, distinct, tolerance = 1e-6, ignore_attr = TRUE)
+})

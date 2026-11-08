@@ -85,6 +85,9 @@ with warnings.
 * The permutation p-value of `run_exposure_composition()` can change when a
   stratum of `permutation_strata` holds a single donor in a model row other
   than the first (see Bug fixes).
+* `run_sc_exwas_glmm(family = "nbinom")` gives each cell type its own
+  exposure slope also when `make.names()` maps several cell-type labels to
+  one name; such cell types shared one slope (see Bug fixes).
 
 ## Interface
 
@@ -309,6 +312,12 @@ with warnings.
   `"age"`, used to be computed from those columns; it is refused as well
   and must be renamed. The exposure of `run_sc_exwas()` is renamed
   internally and can still have any name.
+* `run_sc_exwas_glmm(family = "nbinom")` keeps the exposure slopes of cell
+  types apart whose labels `make.names()` maps to one name, such as
+  `"CD16+ Mono"` and `"CD16- Mono"`. Their slope columns shared that name,
+  so the model held one slope, for the last of those cell types, and
+  reported it with its likelihood-ratio test for each of them: a cell type
+  without an effect was given the effect of another.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
