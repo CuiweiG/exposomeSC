@@ -361,3 +361,35 @@ test_that("seed = NULL draws from the caller's random-number stream", {
     set.seed(5)
     expect_false(identical(after_a, .Random.seed))
 })
+
+test_that("composition analysis runs with exactly two cell types", {
+    set.seed(7)
+    cells <- do.call(rbind, lapply(seq_len(12), function(d) {
+        n <- sample(15:40, 2L, replace = TRUE)
+        data.frame(donor = paste0("D", d), ct = rep(c("A", "B"), n))
+    }))
+    counts <- matrix(stats::rpois(10L * nrow(cells), 5), nrow = 10L,
+        dimnames = list(paste0("G", 1:10), paste0("c", seq_len(nrow(cells)))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = cells$donor,
+            cell_type = cells$ct))
+    exposure <- cbind(E = rep(c(0, 1), each = 6L))
+    rownames(exposure) <- paste0("D", seq_len(12))
+    scee <- build_scee(sce, exposure, sample_col = "donor_id")
+    expect_warning(
+        result <- run_exposure_composition(scee, exposure = "E",
+            celltype_col = "cell_type"),
+        "two supported cell types")
+    omnibus <- S4Vectors::metadata(result)$omnibus
+    expect_equal(nrow(omnibus), 1L)
+    expect_true(omnibus$statistic >= 0 && omnibus$statistic <= 1)
+    expect_true(omnibus$pvalue > 0 && omnibus$pvalue <= 1)
+    expect_equal(omnibus$numerator_df, 1)
+    ## one ILR coordinate: Pillai's trace equals df1 F / (df1 F + df2)
+    expect_equal(omnibus$statistic,
+        omnibus$numerator_df * omnibus$approximate_f /
+            (omnibus$numerator_df * omnibus$approximate_f +
+                omnibus$denominator_df))
+    expect_setequal(result$celltype, c("A", "B"))
+})

@@ -379,10 +379,18 @@ NULL
 .composition_asymptotic_pillai <- function(response,
                                              reduced_design,
                                              full_design) {
+    ## With two cell types there is one ILR coordinate. Pillai's trace is
+    ## then SSH / (SSH + SSE) and its exact F test is the ordinary F test
+    ## of the added terms; anova() offers no "Pillai" test for one response.
+    univariate <- NCOL(response) == 1L
+    if (univariate) {
+        response <- as.numeric(response)
+    }
     reduced_fit <- stats::lm(response ~ reduced_design - 1)
     full_fit <- stats::lm(response ~ full_design - 1)
     comparison <- tryCatch(
-        stats::anova(reduced_fit, full_fit, test = "Pillai"),
+        stats::anova(reduced_fit, full_fit,
+            test = if (univariate) "F" else "Pillai"),
         error = function(error) {
             stop(
                 "The partial Pillai test could not be estimated: ",
@@ -391,6 +399,20 @@ NULL
         }
     )
     result <- comparison[2L, , drop = FALSE]
+    if (univariate) {
+        f_value <- as.numeric(result[["F"]])
+        numerator_df <- as.numeric(result[["Df"]])
+        denominator_df <- as.numeric(result[["Res.Df"]])
+        return(data.frame(
+            statistic = numerator_df * f_value /
+                (numerator_df * f_value + denominator_df),
+            approximate_f = f_value,
+            numerator_df = numerator_df,
+            denominator_df = denominator_df,
+            pvalue_asymptotic = as.numeric(result[["Pr(>F)"]]),
+            stringsAsFactors = FALSE
+        ))
+    }
     data.frame(
         statistic = as.numeric(result[["Pillai"]]),
         approximate_f = as.numeric(result[["approx F"]]),

@@ -168,6 +168,10 @@ with warnings.
   `omic_layer` column that `show()`, the plots and the comparison read. The
   constructor and `run_celltype_network(precomputed_network = )` store a
   logical adjacency as 0/1 integers, and the wrapper zeroes the diagonal.
+* `run_exposure_composition()` works when exactly two cell types pass the
+  support filter. With one ILR coordinate `anova()` has no Pillai test and
+  the call stopped; the exact F test of the added terms is used, and
+  Pillai's trace is reported as df1 F / (df1 F + df2).
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
