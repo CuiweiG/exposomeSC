@@ -32,7 +32,8 @@ precision (inverse covariance) matrix.}
 
 \item{\code{adjacency_matrix}}{Numeric matrix. Symmetric binary edge
 indicators (1 = edge present, 0 = absent) with the dimensions of
-\code{precision_matrix}.}
+\code{precision_matrix},
+symmetric with a zero diagonal.}
 
 \item{\code{stability_scores}}{Numeric matrix. Edge-level selection
 frequencies (0-1) across the XStARS subsamples at the selected

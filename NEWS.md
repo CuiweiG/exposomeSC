@@ -162,6 +162,12 @@ with warnings.
 * `run_comparative_network()` accepts `metadata(network)$n_donors` stored
   as a double, which is how a number is normally typed; it used to fail
   with "values must be type 'integer'".
+* A CelltypeNetworkResult also checks that its precision matrix is
+  numeric, that the adjacency matrix is numeric with a zero diagonal, that
+  stability scores lie between 0 and 1, and that the node table has the
+  `omic_layer` column that `show()`, the plots and the comparison read. The
+  constructor and `run_celltype_network(precomputed_network = )` store a
+  logical adjacency as 0/1 integers, and the wrapper zeroes the diagonal.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

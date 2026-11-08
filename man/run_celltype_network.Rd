@@ -97,7 +97,8 @@ block) or \code{feature_blocks} (a character vector labelling
 each feature), both optional. The block labels become the
 \code{omic_layer} column of the node table, so use
 \code{"transcript"} and \code{"metabolite"} for the summaries and
-plots to recognise the layers.
+plots to recognise the layers. A logical adjacency is stored as 0/1
+and its diagonal is set to zero.
 When provided, \code{metabolites}, \code{method},
 \code{stability}, and lambda parameters are ignored.
 \code{x} must still be a

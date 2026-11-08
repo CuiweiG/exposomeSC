@@ -69,7 +69,8 @@ NULL
 #'   each feature), both optional. The block labels become the
 #'   \code{omic_layer} column of the node table, so use
 #'   \code{"transcript"} and \code{"metabolite"} for the summaries and
-#'   plots to recognise the layers.
+#'   plots to recognise the layers. A logical adjacency is stored as 0/1
+#'   and its diagonal is set to zero.
 #'   When provided, \code{metabolites}, \code{method},
 #'   \code{stability}, and lambda parameters are ignored.
 #'   \code{x} must still be a
@@ -642,6 +643,11 @@ run_exposure_network <- function(x, metabolites, celltype,
         stop("precomputed_network list must have '$adjacency'.",
              call. = FALSE)
     adj  <- as.matrix(net$adjacency)
+    if (is.logical(adj)) {
+        storage.mode(adj) <- "integer"
+    }
+    ## edges are between distinct features: no self-loops
+    diag(adj) <- 0L
     prec <- if (!is.null(net$precision))
         as.matrix(net$precision) else matrix(NA_real_, nrow(adj), ncol(adj))
     stab <- if (!is.null(net$stability))

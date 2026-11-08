@@ -205,7 +205,8 @@ setClass("CelltypeNetwork", contains = "VIRTUAL")
 #'   precision (inverse covariance) matrix.
 #' @slot adjacency_matrix Numeric matrix. Symmetric binary edge
 #'   indicators (1 = edge present, 0 = absent) with the dimensions of
-#'   \code{precision_matrix}.
+#'   \code{precision_matrix},
+#'   symmetric with a zero diagonal.
 #' @slot stability_scores Numeric matrix. Edge-level selection
 #'   frequencies (0-1) across the XStARS subsamples at the selected
 #'   penalties, for coglasso networks built with \code{stability = TRUE}.
@@ -265,23 +266,35 @@ setValidity("CelltypeNetworkResult", function(object) {
     square <- nrow(pm) == ncol(pm)
     if (!square)
         msg <- c(msg, "precision_matrix must be square")
+    if (length(pm) > 0L && !is.numeric(pm))
+        msg <- c(msg, "precision_matrix must be numeric")
     if (!identical(dim(am), dim(pm))) {
         msg <- c(msg, paste0(
             "adjacency_matrix dimensions must match ",
             "precision_matrix"))
     } else if (length(am) > 0L) {
-        if (!(is.numeric(am) || is.logical(am)) || anyNA(am) ||
-                !all(am == 0 | am == 1)) {
+        if (!is.numeric(am)) {
+            msg <- c(msg, "adjacency_matrix must be numeric")
+        } else if (anyNA(am) || !all(am == 0 | am == 1)) {
             msg <- c(msg, "adjacency_matrix must hold only 0 and 1")
         } else if (square && !all(am == t(am))) {
             msg <- c(msg, "adjacency_matrix must be symmetric")
+        } else if (square && any(diag(am) != 0)) {
+            msg <- c(msg, "adjacency_matrix must have a zero diagonal")
         }
     }
 
-    if (length(sm) > 0L && !identical(dim(sm), dim(am)))
-        msg <- c(msg, paste0(
-            "stability_scores must be empty or have the dimensions of ",
-            "adjacency_matrix"))
+    if (length(sm) > 0L) {
+        if (!identical(dim(sm), dim(am))) {
+            msg <- c(msg, paste0(
+                "stability_scores must be empty or have the dimensions of ",
+                "adjacency_matrix"))
+        } else if (!is.numeric(sm)) {
+            msg <- c(msg, "stability_scores must be numeric")
+        } else if (any(sm < 0 | sm > 1, na.rm = TRUE)) {
+            msg <- c(msg, "stability_scores must lie between 0 and 1")
+        }
+    }
 
     if (nrow(ni) != p)
         msg <- c(msg, paste0(
@@ -290,6 +303,10 @@ setValidity("CelltypeNetworkResult", function(object) {
     if ((p > 0L || nrow(ni) > 0L) && !"feature" %in% colnames(ni)) {
         msg <- c(msg, "node_info must have a feature column")
     } else if (nrow(ni) == p && p > 0L) {
+        ## show(), the plots and the comparison read the omic layer of
+        ## every node
+        if (!"omic_layer" %in% colnames(ni))
+            msg <- c(msg, "node_info must have an omic_layer column")
         features <- as.character(ni$feature)
         if (anyNA(features)) {
             msg <- c(msg, "node_info$feature must not contain NA")

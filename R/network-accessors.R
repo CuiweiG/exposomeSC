@@ -62,9 +62,13 @@ CelltypeNetworkResult <- function(precision, adjacency, node_info, celltype,
     if (is.null(stability)) {
         stability <- matrix(numeric(), nrow = 0L, ncol = 0L)
     }
+    adjacency <- as.matrix(adjacency)
+    if (is.logical(adjacency)) {
+        storage.mode(adjacency) <- "integer"
+    }
     new("CelltypeNetworkResult",
         precision_matrix = as.matrix(precision),
-        adjacency_matrix = as.matrix(adjacency),
+        adjacency_matrix = adjacency,
         stability_scores = as.matrix(stability),
         node_info        = node_info,
         celltype         = celltype,

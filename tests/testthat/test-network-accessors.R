@@ -194,3 +194,37 @@ test_that("run_comparative_network accepts n_donors stored as a double", {
     expect_s4_class(comp, "NetworkComparison")
     expect_true(all(is.finite(diffEdges(comp)$p_value)))
 })
+
+test_that("validity checks the matrix types, the diagonal and the layers", {
+    good <- .toy_network()
+    precision <- networkPrecision(good)
+    adjacency <- networkAdjacency(good)
+    nodes <- networkNodes(good)
+
+    text <- matrix("a", 3L, 3L, dimnames = dimnames(precision))
+    expect_error(
+        CelltypeNetworkResult(text, adjacency, node_info = nodes,
+            celltype = "Mono"),
+        "precision_matrix must be numeric")
+    loops <- adjacency
+    diag(loops) <- 1L
+    expect_error(
+        CelltypeNetworkResult(precision, loops, node_info = nodes,
+            celltype = "Mono"),
+        "zero diagonal")
+    too_large <- matrix(7, 3L, 3L, dimnames = dimnames(adjacency))
+    expect_error(
+        CelltypeNetworkResult(precision, adjacency, node_info = nodes,
+            celltype = "Mono", stability = too_large),
+        "between 0 and 1")
+    expect_error(
+        CelltypeNetworkResult(precision, adjacency,
+            node_info = nodes[, "feature", drop = FALSE], celltype = "Mono"),
+        "omic_layer")
+    ## a logical adjacency is stored as 0/1 integers
+    from_logical <- CelltypeNetworkResult(precision, adjacency != 0,
+        node_info = nodes, celltype = "Mono")
+    expect_identical(storage.mode(networkAdjacency(from_logical)), "integer")
+    expect_identical(unname(networkAdjacency(from_logical)),
+        unname(adjacency))
+})
