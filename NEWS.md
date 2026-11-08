@@ -270,6 +270,11 @@ with warnings.
   without the highlighting the opacity followed the edge weights whatever
   `edge_alpha_by` said. A network in which some edges have no stability
   score is refused, instead of being drawn with those edges fully opaque.
+* The source tarball keeps the vignette index `build/vignette.rds` that
+  `R CMD build` writes; the allow-lists in `.Rbuildignore` removed it. A
+  package installed from the tarball on a system where knitr could not be
+  loaded therefore had no vignette index: `vignette(package = "exposomeSC")`
+  listed nothing and `browseVignettes("exposomeSC")` found no vignettes.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
