@@ -26,7 +26,11 @@ cell's donor is read from the \code{colData} column named by
 containing cell type annotations. Default \code{"cell_type"}.}
 
 \item{covariates}{Character vector; donor covariate columns in
-\code{exposureData} (numeric), added as fixed-effect main effects.}
+\code{exposureData} (numeric), added as fixed-effect main effects. The
+names \code{exposure}, \code{donor}, \code{celltype} and \code{y} are
+used by the model and cannot be covariate names; with
+\code{family = "nbinom"} the same holds for \code{logoff} and the
+\code{expo_<cell type>} columns.}
 
 \item{target_genes}{Character; genes to test (default: all rows of
 \code{x}). A cell-level LMM per gene is costly -- passing a focused gene

@@ -186,7 +186,9 @@ NULL
 #' @param celltype_col Character. Column in \code{colData}
 #'   containing cell type annotations. Default \code{"cell_type"}.
 #' @param covariates Character vector; donor covariate columns in
-#'   \code{exposureData} (numeric), added as GLM main effects.
+#'   \code{exposureData} (numeric), added as GLM main effects. The names
+#'   \code{y}, \code{A} and \code{logoff} are used by the model and cannot
+#'   be covariate names.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{x}).
 #' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes.
@@ -265,6 +267,7 @@ run_sc_exwas_pb_offset <- function(x, exposure,
     if (length(covariates) && !all(covariates %in% colnames(exp_data)))
         stop("Covariate(s) not in exposureData: ",
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
+    .check_reserved_covariates(covariates, c("y", "A", "logoff"))
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -368,7 +371,11 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #' @param celltype_col Character. Column in \code{colData}
 #'   containing cell type annotations. Default \code{"cell_type"}.
 #' @param covariates Character vector; donor covariate columns in
-#'   \code{exposureData} (numeric), added as fixed-effect main effects.
+#'   \code{exposureData} (numeric), added as fixed-effect main effects. The
+#'   names \code{exposure}, \code{donor}, \code{celltype} and \code{y} are
+#'   used by the model and cannot be covariate names; with
+#'   \code{family = "nbinom"} the same holds for \code{logoff} and the
+#'   \code{expo_<cell type>} columns.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{x}). A cell-level LMM per gene is costly -- passing a focused gene
 #'   set is strongly recommended.
@@ -472,6 +479,8 @@ run_sc_exwas_glmm <- function(x, exposure,
     if (length(covariates) && !all(covariates %in% colnames(exp_data)))
         stop("Covariate(s) not in exposureData: ",
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
+    .check_reserved_covariates(covariates,
+        c("exposure", "donor", "celltype", "y"))
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -512,13 +521,16 @@ run_sc_exwas_glmm <- function(x, exposure,
     } else {
         ## nbinom: cell-type-nested reparametrisation so each cell type's
         ## exposure effect is a single coefficient; test by LRT (non-Wald).
+        ## This branch adds the offset and one exposure column per cell type
+        expo_cols <- paste0("expo_", make.names(lvls))
+        .check_reserved_covariates(covariates, c("exposure", "donor",
+            "celltype", "y", "logoff", expo_cols))
         message("family='nbinom': Satterthwaite/KR are LMM-only; using ",
                 "likelihood-ratio tests (ddf ignored). This refits glmer.nb ",
                 "per cell type per gene -- prefer run_sc_exwas_pb_offset for ",
                 "count data.")
         Yc <- as.matrix(counts_mat[genes, , drop = FALSE])
         meta$logoff <- log(pmax(Matrix::colSums(counts_mat), 1))  # cell offset
-        expo_cols <- paste0("expo_", make.names(lvls))
         for (k in seq_along(lvls))
             meta[[expo_cols[k]]] <- meta$exposure * (meta$celltype == lvls[k])
         full_rhs <- paste("0 + celltype +",
@@ -546,4 +558,22 @@ run_sc_exwas_glmm <- function(x, exposure,
     out <- out[order(out$padj, out$pvalue), , drop = FALSE]
     rownames(out) <- NULL
     S4Vectors::DataFrame(out, check.names = FALSE)
+}
+
+# The model formulas use a few names for their own variables (the response,
+# the exposure term, the offset, the grouping factors). A covariate of such
+# a name silently replaced the model variable or was ignored, so these names
+# are refused.
+# @keywords internal
+# @noRd
+.check_reserved_covariates <- function(covariates, reserved) {
+    clash <- intersect(covariates, reserved)
+    if (length(clash)) {
+        clash_names <- paste0("'", clash, "'", collapse = ", ")
+        reserved_names <- paste(reserved, collapse = ", ")
+        stop("A covariate cannot be called ", clash_names, ": the model ",
+            "uses the names ", reserved_names, " for its own variables. ",
+            "Rename the variable in exposureData(x).", call. = FALSE)
+    }
+    invisible(TRUE)
 }

@@ -46,7 +46,8 @@ containing cell type annotations. Default \code{"cell_type"}.}
 types to test. Default: all.}
 
 \item{covariates}{Character vector (optional). Additional
-covariates from \code{exposureData}.}
+covariates from \code{exposureData}. A covariate cannot be called
+\code{"exposure"}, the name of the model's exposure term.}
 
 \item{min_cells}{Integer. Minimum cells per donor-celltype
 stratum. Default 10.}

@@ -195,3 +195,61 @@ test_that("run_sc_exwas_pb_offset matches a direct MASS::glm.nb fit", {
         BPPARAM = NULL)
     expect_equal(as.data.frame(res_bp), as.data.frame(res))
 })
+
+## Ten donors in two cell types, with exposure columns named after the
+## variables of the models
+.reserved_names_scee <- function() {
+    set.seed(1)
+    n_donors <- 10
+    cells_per <- 6
+    n_cells <- n_donors * cells_per
+    counts <- matrix(rpois(5 * n_cells, 10), nrow = 5,
+        dimnames = list(paste0("G", 1:5), paste0("c", seq_len(n_cells))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(
+            donor_id = rep(paste0("D", seq_len(n_donors)), each = cells_per),
+            cell_type = rep(c("Mono", "NK"), length.out = n_cells)))
+    columns <- c("E1", "exposure", "A", "logoff", "donor", "expo_Mono", "y",
+        "celltype")
+    exp_mat <- matrix(rnorm(n_donors * length(columns)), nrow = n_donors,
+        dimnames = list(paste0("D", seq_len(n_donors)), columns))
+    build_scee(sce, exp_mat, sample_col = "donor_id")
+}
+
+test_that("covariate names used by the mixed model are refused", {
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    scee <- .reserved_names_scee()
+    for (name in c("exposure", "donor", "celltype", "y")) {
+        expect_error(
+            run_sc_exwas_glmm(scee, exposure = "E1", covariates = name,
+                celltype_col = "cell_type"),
+            paste0("cannot be called '", name, "'"))
+    }
+    ## the negative binomial family adds the offset and expo_<cell type>
+    expect_error(
+        run_sc_exwas_glmm(scee, exposure = "E1", covariates = "expo_Mono",
+            celltype_col = "cell_type", family = "nbinom"),
+        "cannot be called 'expo_Mono'")
+    expect_error(
+        run_sc_exwas_glmm(scee, exposure = "E1",
+            covariates = c("logoff", "expo_Mono"), celltype_col = "cell_type",
+            family = "nbinom"),
+        "cannot be called 'logoff', 'expo_Mono'")
+    ## for the default family logoff is an ordinary covariate
+    fit <- suppressWarnings(suppressMessages(run_sc_exwas_glmm(scee,
+        exposure = "E1", covariates = "logoff", celltype_col = "cell_type",
+        target_genes = "G1")))
+    expect_s4_class(fit, "DataFrame")
+})
+
+test_that("covariate names used by the offset model are refused", {
+    scee <- .reserved_names_scee()
+    for (name in c("y", "A", "logoff")) {
+        expect_error(
+            run_sc_exwas_pb_offset(scee, exposure = "E1", covariates = name,
+                celltype_col = "cell_type"),
+            paste0("cannot be called '", name, "'"))
+    }
+})

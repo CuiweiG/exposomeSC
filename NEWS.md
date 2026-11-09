@@ -227,6 +227,22 @@ with warnings.
   censored values; otherwise `"ros"` and `"multiple"` stopped with "missing
   value where TRUE/FALSE needed". The value at a censored position is still
   ignored.
+* `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()` refuse a covariate
+  whose name their model formulas use for a variable of their own
+  (`exposure`, `donor`, `celltype`, `y` for the mixed model, plus `logoff`
+  and the `expo_<cell type>` columns of its negative binomial family; `y`,
+  `A`, `logoff` for the offset model). Nothing named the clash: `exposure`
+  made the linear mixed model test the covariate instead of the exposure,
+  and the negative binomial one report the covariate's slopes without a
+  p-value; `donor` replaced the donor grouping factor, so donors with equal
+  values were pooled; `celltype` replaced the cell-type factor, so the
+  linear mixed model reported only the first cell type and the negative
+  binomial one stopped with "No gene/cell-type stratum yielded an estimable
+  model"; `y` (with a `model.matrix()` warning), `A` and an
+  `expo_<cell type>` column were ignored, the last also leaving that cell
+  type's likelihood-ratio test without a p-value; and `logoff` turned the
+  library-size offset into a free coefficient. The same rule for
+  `run_sc_exwas()` is now stated in its argument documentation.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

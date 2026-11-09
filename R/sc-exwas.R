@@ -27,7 +27,8 @@ NULL
 #' @param celltypes Character vector (optional). Which cell
 #'   types to test. Default: all.
 #' @param covariates Character vector (optional). Additional
-#'   covariates from \code{exposureData}.
+#'   covariates from \code{exposureData}. A covariate cannot be called
+#'   \code{"exposure"}, the name of the model's exposure term.
 #' @param min_cells Integer. Minimum cells per donor-celltype
 #'   stratum. Default 10.
 #' @param min_donors Integer. Minimum donors per cell type.
