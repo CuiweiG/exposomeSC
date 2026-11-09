@@ -35,11 +35,13 @@ utils::globalVariables(c("yi", "vi"))
 #'   Default 30.
 #' @param min_donors Integer; minimum donors with sufficient
 #'   cells. Default 10.
-#' @param meta_moderators Formula or character vector of
+#' @param meta_moderators Character vector or one-sided formula of
 #'   additional donor-level moderators for the meta-regression
-#'   (e.g., \code{"age"} or \code{c("age", "sex")}).
-#'   These must be columns in \code{exposureData(x)} with syntactic
-#'   R names (see \code{\link[base]{make.names}}).
+#'   (e.g., \code{"age"}, \code{c("age", "sex")} or
+#'   \code{~ age + sex}). These must be columns in
+#'   \code{exposureData(x)} with syntactic R names (see
+#'   \code{\link[base]{make.names}}); a formula may only list such
+#'   columns, without transformations or interactions.
 #'   Default \code{NULL} (exposure only).
 #' @param var_method Character. Method for estimating the
 #'   sampling variance of Fisher z-transformed correlations.
@@ -182,9 +184,12 @@ run_cell_coupling <- function(x,
         stop("Exposure '", exposure, "' not in exposureData")
     exp_vec <- setNames(exp_data[, exposure], rownames(exp_data))
 
-    ## Validate meta_moderators
+    ## Validate meta_moderators: column names, or a formula that lists them
+    if (inherits(meta_moderators, "formula"))
+        meta_moderators <- .moderator_names(meta_moderators)
     mod_mat <- NULL
     if (!is.null(meta_moderators)) {
+        meta_moderators <- as.character(meta_moderators)
         missing_mods <- setdiff(meta_moderators, colnames(exp_data))
         if (length(missing_mods) > 0)
             stop("Moderators not in exposureData: ",
@@ -367,6 +372,25 @@ run_cell_coupling <- function(x,
     message(sprintf("[exposomeSC] %d pairs tested for %s",
                     nrow(out), celltype))
     S4Vectors::DataFrame(out, check.names = FALSE)
+}
+
+# The moderators named by a one-sided formula such as ~ age + sex. A term
+# that transforms or combines variables, such as I(age^2) or age:sex, has no
+# column to take, so such a formula is refused rather than reduced to its
+# variables.
+.moderator_names <- function(moderators) {
+    model_terms <- tryCatch(stats::terms(moderators),
+                            error = function(e) NULL)
+    labels <- if (is.null(model_terms)) NULL else
+        gsub("`", "", attr(model_terms, "term.labels"), fixed = TRUE)
+    if (length(moderators) != 2L || !length(labels) ||
+        attr(model_terms, "intercept") != 1L ||
+        !identical(labels, all.vars(moderators))) {
+        stop("A 'meta_moderators' formula must be one-sided and only list ",
+            "columns of exposureData(x), for example ~ age + sex.",
+            call. = FALSE)
+    }
+    labels
 }
 
 # Spearman partial correlation of gene and protein given the other columns

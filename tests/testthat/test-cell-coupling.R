@@ -135,3 +135,39 @@ test_that("run_cell_coupling with confounders", {
     expect_true(nrow(res) >= 1)
     expect_equal(res$n_confounders, 3)  # 2 lib sizes + 1 cc_score
 })
+
+test_that("meta_moderators accepts a one-sided formula of column names", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(1)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 60)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = gene),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T"))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = protein))
+    exp_mat <- cbind(exposure = seq(0, 2, length.out = 12),
+        age = c(34, 51, 47, 29, 62, 55, 41, 38, 58, 45, 33, 49),
+        bmi = c(22, 27, 31, 24, 26, 29, 23, 25, 30, 28, 21, 26))
+    rownames(exp_mat) <- donors
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    couple <- function(moderators) {
+        suppressMessages(run_cell_coupling(scee, genes = "Gene1",
+            proteins = "Prot1", exposure = "exposure", celltype = "T",
+            min_cells = 20L, min_donors = 10L, meta_moderators = moderators))
+    }
+    by_name <- couple(c("age", "bmi"))
+    expect_equal(nrow(by_name), 1L)
+    expect_equal(couple(~ age + bmi), by_name)
+    for (moderators in list(~ age + I(age^2), ~ age:bmi, y ~ age, ~ age - 1,
+                            ~ 1)) {
+        expect_error(couple(moderators),
+            "must be one-sided and only list columns of exposureData")
+    }
+})

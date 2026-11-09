@@ -318,6 +318,11 @@ with warnings.
   so the model held one slope, for the last of those cell types, and
   reported it with its likelihood-ratio test for each of them: a cell type
   without an effect was given the effect of another.
+* `run_cell_coupling(meta_moderators = )` accepts a one-sided formula such
+  as `~ age + sex`, as documented; a formula used to fail with "unique()
+  applies only to vectors". The formula may only list columns of
+  `exposureData(x)`: terms such as `I(age^2)` or `age:sex` are refused
+  rather than reduced to their variables.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

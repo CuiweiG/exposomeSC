@@ -55,11 +55,13 @@ Default 30.}
 \item{min_donors}{Integer; minimum donors with sufficient
 cells. Default 10.}
 
-\item{meta_moderators}{Formula or character vector of
+\item{meta_moderators}{Character vector or one-sided formula of
 additional donor-level moderators for the meta-regression
-(e.g., \code{"age"} or \code{c("age", "sex")}).
-These must be columns in \code{exposureData(x)} with syntactic
-R names (see \code{\link[base]{make.names}}).
+(e.g., \code{"age"}, \code{c("age", "sex")} or
+\code{~ age + sex}). These must be columns in
+\code{exposureData(x)} with syntactic R names (see
+\code{\link[base]{make.names}}); a formula may only list such
+columns, without transformations or interactions.
 Default \code{NULL} (exposure only).}
 
 \item{var_method}{Character. Method for estimating the
