@@ -21,7 +21,9 @@ NULL
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
-#' @param exposures Character vector. Exposure variable names.
+#' @param exposures Character vector. Exposure variable names. Each
+#'   name must be a syntactic R name (see \code{\link[base]{make.names}})
+#'   because it goes into the model formula.
 #' @param celltype Character. Which cell type to analyse.
 #' @param celltype_col Character. \code{colData} column with cell type
 #'   labels. Default \code{"cell_type"}.
@@ -29,7 +31,8 @@ NULL
 #'   test. Default: top 20 most variable genes.
 #' @param covariates Character vector (optional). Additional
 #'   covariates from \code{exposureData}; a name that is not a
-#'   column of \code{exposureData} is an error.
+#'   column of \code{exposureData} is an error. Names must be
+#'   syntactic, as for \code{exposures}.
 #' @param q Integer. Number of quantile bins. Default 4. Tied
 #'   exposure values (for example at a limit of detection) can
 #'   give fewer bins.
@@ -133,6 +136,8 @@ run_sc_mixture <- function(x, exposures, celltype,
         stop("Covariates not found: ",
              paste(missing_cov, collapse = ", "))
     }
+    .check_formula_names(exposures, "exposure")
+    .check_formula_names(covariates, "covariate")
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")

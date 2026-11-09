@@ -40,3 +40,97 @@ test_that("the run_multi_exwas pass-through list matches run_sc_exwas", {
     expect_setequal(exposomeSC:::.run_sc_exwas_passthrough,
                     setdiff(method_args, set_by_wrapper))
 })
+
+.formula_name_fixture <- function() {
+    set.seed(11)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 20)
+    cells <- paste0("c", seq_along(donor))
+    counts <- matrix(stats::rpois(50 * length(donor), 5), nrow = 50,
+        dimnames = list(paste0("G", 1:50), cells))
+    proteins <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("P1", "P2"), cells))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono",
+            row.names = cells))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = proteins))
+    exp_mat <- cbind(E1 = stats::rnorm(12), "PCB-153" = stats::rnorm(12),
+        age = stats::rnorm(12, 50, 10), "age-years" = stats::rnorm(12, 50, 10))
+    rownames(exp_mat) <- donors
+    build_scee(sce, exp_mat, sample_col = "donor_id")
+}
+
+test_that("formula names must be syntactic R names", {
+    expect_invisible(
+        exposomeSC:::.check_formula_names(c("age", "PM2.5"), "covariate"))
+    expect_invisible(exposomeSC:::.check_formula_names(NULL, "covariate"))
+    expect_error(
+        exposomeSC:::.check_formula_names(
+            c("age", "1-OHP", "BPA (ng/mL)"), "exposure"),
+        paste("Non-syntactic exposure name(s) cannot be used in a model",
+            "formula: '1-OHP', 'BPA (ng/mL)'. Rename the variable(s) in",
+            "exposureData(x), for example to 'X1.OHP', 'BPA..ng.mL.'."),
+        fixed = TRUE)
+})
+
+test_that("covariate and exposure names a formula would misread are refused", {
+    scee <- .formula_name_fixture()
+    covariate_error <- "covariate name\\(s\\) .*'age-years'.*'age.years'"
+    expect_error(
+        run_sc_exwas(scee, exposure = "E1", covariates = "age-years"),
+        covariate_error)
+    expect_error(
+        run_sc_exwas_pb_offset(scee, exposure = "E1",
+            covariates = "age-years"),
+        covariate_error)
+    expect_error(
+        run_sc_mixture(scee, exposures = c("E1", "PCB-153"),
+            celltype = "Mono", min_cells = 3L),
+        "exposure name\\(s\\) .*'PCB-153'.*'PCB.153'")
+    expect_error(
+        run_sc_mixture(scee, exposures = c("E1", "age"), celltype = "Mono",
+            covariates = "age-years", min_cells = 3L),
+        covariate_error)
+    ## the exposure of run_sc_exwas() is renamed before the model is built
+    result <- suppressWarnings(
+        run_sc_exwas(scee, exposure = "PCB-153", covariates = "age"))
+    expect_gt(nrow(result), 0L)
+    expect_true(all(result$exposure == "PCB-153"))
+})
+
+test_that("run_mixture_qgcomp refuses names a formula would misread", {
+    skip_if_not_installed("qgcomp")
+    scee <- .formula_name_fixture()
+    expect_error(
+        run_mixture_qgcomp(scee, exposures = c("E1", "PCB-153"),
+            celltype = "Mono", min_cells = 3L),
+        "exposure name\\(s\\) .*'PCB-153'")
+    expect_error(
+        run_mixture_qgcomp(scee, exposures = c("E1", "age"),
+            celltype = "Mono", covariates = "age-years", min_cells = 3L),
+        "covariate name\\(s\\) .*'age-years'")
+})
+
+test_that("run_sc_exwas_glmm refuses covariate names a formula would misread", {
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    scee <- .formula_name_fixture()
+    expect_error(
+        run_sc_exwas_glmm(scee, exposure = "E1", celltype_col = "cell_type",
+            covariates = "age-years", target_genes = "G1"),
+        "covariate name\\(s\\) .*'age-years'")
+})
+
+test_that("run_cell_coupling refuses moderator names a formula would misread", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    scee <- .formula_name_fixture()
+    expect_error(
+        run_cell_coupling(scee, genes = "G1", proteins = "P1",
+            exposure = "E1", celltype = "Mono", altexp_name = "CITE",
+            min_cells = 10L, min_donors = 5L, meta_moderators = "age-years"),
+        "moderator name\\(s\\) .*'age-years'")
+})

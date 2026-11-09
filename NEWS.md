@@ -294,6 +294,21 @@ with warnings.
   error says so. One such donor used to stop both functions with the base
   R error "values must be length ..., but FUN(X[[1]]) result is length
   ...".
+* Names that go into a model formula must be syntactic R names: the
+  covariates of `run_sc_exwas()`, `run_sc_exwas_pb_offset()` and
+  `run_sc_exwas_glmm()`, the exposures and covariates of `run_sc_mixture()`
+  and `run_mixture_qgcomp()`, and the `meta_moderators` of
+  `run_cell_coupling()`. A name such as `"PCB-153"` or `"age-years"` is
+  refused with a message that suggests its `make.names()` form. These names
+  were pasted into the formula and misread (`age-years` as `age` minus
+  `years`), so the functions returned empty or all-`NA` results, mostly
+  without a warning, or stopped with an error about the data or about an
+  object such as `age`; a ratio such as `"MEHP/DEHP"` next to `"MEHP"` and
+  `"DEHP"` silently gave a different model. A column named after an
+  expression of other analysed columns, such as `"log(age)"` next to
+  `"age"`, used to be computed from those columns; it is refused as well
+  and must be renamed. The exposure of `run_sc_exwas()` is renamed
+  internally and can still have any name.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

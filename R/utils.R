@@ -189,6 +189,7 @@ NULL
             "exposureData(x)."
         )
     }
+    .check_formula_names(covariates, "covariate")
     cd <- SummarizedExperiment::colData(x)
     if (!celltype_col %in% colnames(cd)) {
         stop("celltype_col '", celltype_col, "' is not a column of colData(x).")
@@ -300,4 +301,23 @@ NULL
     extra_names[is.na(extra_names) | !nzchar(extra_names)] <- "<unnamed>"
     stop("Unused argument(s) in ", function_name, "(): ",
          paste(extra_names, collapse = ", "), ".", call. = FALSE)
+}
+
+# Exposure, covariate and moderator names are pasted into model formulas, so
+# each must be a syntactic R name: 'age-years' would be read as age minus
+# years, and a ratio such as 'MEHP/DEHP' as a nested term.
+# @keywords internal
+# @noRd
+.check_formula_names <- function(names, role) {
+    names <- as.character(names)
+    bad <- names[make.names(names) != names]
+    if (length(bad)) {
+        bad_names <- paste0("'", bad, "'", collapse = ", ")
+        suggested <- paste0("'", make.names(bad), "'", collapse = ", ")
+        stop("Non-syntactic ", role, " name(s) cannot be used in a model ",
+            "formula: ", bad_names, ". Rename the variable(s) in ",
+            "exposureData(x), for example to ", suggested, ".",
+            call. = FALSE)
+    }
+    invisible(TRUE)
 }

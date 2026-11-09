@@ -20,7 +20,9 @@ run_sc_mixture(
 cell's donor is read from the \code{colData} column named by
 \code{\link{sampleColumn}(x)}.}
 
-\item{exposures}{Character vector. Exposure variable names.}
+\item{exposures}{Character vector. Exposure variable names. Each
+name must be a syntactic R name (see \code{\link[base]{make.names}})
+because it goes into the model formula.}
 
 \item{celltype}{Character. Which cell type to analyse.}
 
@@ -32,7 +34,8 @@ test. Default: top 20 most variable genes.}
 
 \item{covariates}{Character vector (optional). Additional
 covariates from \code{exposureData}; a name that is not a
-column of \code{exposureData} is an error.}
+column of \code{exposureData} is an error. Names must be
+syntactic, as for \code{exposures}.}
 
 \item{q}{Integer. Number of quantile bins. Default 4. Tied
 exposure values (for example at a limit of detection) can

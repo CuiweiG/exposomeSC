@@ -38,7 +38,8 @@ utils::globalVariables(c("yi", "vi"))
 #' @param meta_moderators Formula or character vector of
 #'   additional donor-level moderators for the meta-regression
 #'   (e.g., \code{"age"} or \code{c("age", "sex")}).
-#'   These must be columns in \code{exposureData(x)}.
+#'   These must be columns in \code{exposureData(x)} with syntactic
+#'   R names (see \code{\link[base]{make.names}}).
 #'   Default \code{NULL} (exposure only).
 #' @param var_method Character. Method for estimating the
 #'   sampling variance of Fisher z-transformed correlations.
@@ -188,6 +189,7 @@ run_cell_coupling <- function(x,
         if (length(missing_mods) > 0)
             stop("Moderators not in exposureData: ",
                  paste(missing_mods, collapse = ", "))
+        .check_formula_names(meta_moderators, "moderator")
         mod_mat <- exp_data[, meta_moderators, drop = FALSE]
     }
 

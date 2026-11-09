@@ -58,7 +58,8 @@ cells. Default 10.}
 \item{meta_moderators}{Formula or character vector of
 additional donor-level moderators for the meta-regression
 (e.g., \code{"age"} or \code{c("age", "sex")}).
-These must be columns in \code{exposureData(x)}.
+These must be columns in \code{exposureData(x)} with syntactic
+R names (see \code{\link[base]{make.names}}).
 Default \code{NULL} (exposure only).}
 
 \item{var_method}{Character. Method for estimating the
