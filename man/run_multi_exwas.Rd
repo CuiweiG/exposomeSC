@@ -55,6 +55,15 @@ Convenience wrapper that runs \code{\link{run_sc_exwas}}
 for each exposure and combines results with a final
 global FDR correction across all exposures and cell types.
 }
+\details{
+If \code{run_sc_exwas} stops for one of the exposures, the call stops
+too, with an error that names the exposure, instead of leaving that
+exposure out of \code{padj_all}. A cell type that \code{run_sc_exwas}
+skips for an exposure with a warning, for example for too few donors
+with complete data, adds no tests to \code{padj_all}; the diagnostics
+in \code{metadata(result)$per_exposure} list the cell types fitted for
+each exposure.
+}
 \examples{
 library(SingleCellExperiment); library(S4Vectors)
 set.seed(1)

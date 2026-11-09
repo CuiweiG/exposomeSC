@@ -114,3 +114,28 @@ test_that("run_multi_exwas keeps the per-exposure metadata and schema", {
     expect_true(all(c("parameters", "diagnostics") %in%
         names(per_exposure$E1)))
 })
+
+test_that("run_multi_exwas stops when an exposure fails", {
+    scee <- .make_scee_multi()
+    expect_error(
+        suppressMessages(run_multi_exwas(scee, exposures = c("E1", "E2"),
+            min_cells = 5L, min_donors = 3L, method = "deseq2")),
+        "run_sc_exwas\\(\\) failed for exposure 'E1'")
+    ## G1 passes the expression filter for E1 but not for E2, whose two
+    ## missing values leave too few donors; padj_all must not lose E2
+    set.seed(2)
+    donors <- sprintf("D%02d", 1:10)
+    donor <- rep(donors, each = 20)
+    counts <- matrix(rpois(50 * 200, 10), nrow = 50,
+        dimnames = list(paste0("G", 1:50), paste0("c", 1:200)))
+    counts["G1", donor %in% donors[7:10]] <- 0
+    sce <- SingleCellExperiment(assays = list(counts = counts),
+        colData = DataFrame(donor_id = donor, cell_type = "Mono"))
+    exp_mat <- cbind(E1 = rnorm(10), E2 = c(NA, NA, rnorm(8)))
+    rownames(exp_mat) <- donors
+    filtered <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    expect_error(
+        suppressMessages(run_multi_exwas(filtered, filter_min_donors = 6L,
+            test_features = c("G1", "G2", "G3"))),
+        "failed for exposure 'E2': Requested test_features did not pass")
+})

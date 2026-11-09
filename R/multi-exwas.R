@@ -39,6 +39,15 @@ NULL
 #'   \code{metadata()} (parameters and diagnostics) of each exposure's
 #'   \code{run_sc_exwas} result.
 #'
+#' @details
+#' If \code{run_sc_exwas} stops for one of the exposures, the call stops
+#' too, with an error that names the exposure, instead of leaving that
+#' exposure out of \code{padj_all}. A cell type that \code{run_sc_exwas}
+#' skips for an exposure with a warning, for example for too few donors
+#' with complete data, adds no tests to \code{padj_all}; the diagnostics
+#' in \code{metadata(result)$per_exposure} list the cell types fitted for
+#' each exposure.
+#'
 #' @export
 #' @examples
 #' library(SingleCellExperiment); library(S4Vectors)
@@ -98,43 +107,40 @@ run_multi_exwas <- function(x, exposures = NULL,
     run_metadata <- all_results
     for (exp_name in exposures) {
         message("Running sc-ExWAS for: ", exp_name)
-        res <- tryCatch({
-            result <- run_sc_exwas(x,
+        ## A failed exposure stops the call: leaving it out would shrink the
+        ## family that padj_all adjusts over
+        res <- tryCatch(
+            run_sc_exwas(x,
                 exposure = exp_name,
                 celltype_col = celltype_col,
                 covariates = covariates,
                 min_cells = min_cells,
                 min_donors = min_donors,
-                filter_genes = filter_genes, ...)
-            required <- c(
-                "gene", "celltype", "log2FC", "se", "statistic",
-                "pvalue", "exposure"
-            )
-            missing_result_fields <- setdiff(required, colnames(result))
-            if (length(missing_result_fields)) {
-                stop(
-                    "run_sc_exwas returned an incompatible result schema; ",
-                    "missing: ",
-                    paste(missing_result_fields, collapse = ", "),
-                    "."
-                )
-            }
-            if (nrow(result) &&
-                    !all(as.character(result$exposure) == exp_name)) {
-                stop("run_sc_exwas returned an incorrect exposure label.")
-            }
-            result
-        },
+                filter_genes = filter_genes, ...),
             error = function(e) {
-                warning("Failed for '", exp_name, "': ",
-                        conditionMessage(e), call. = FALSE)
-                NULL
+                stop("run_sc_exwas() failed for exposure '", exp_name,
+                    "': ", conditionMessage(e), call. = FALSE)
             })
-        if (!is.null(res)) {
-            run_metadata[[exp_name]] <- S4Vectors::metadata(res)
-            if (nrow(res) > 0) {
-                all_results[[exp_name]] <- as.data.frame(res)
-            }
+        required <- c(
+            "gene", "celltype", "log2FC", "se", "statistic",
+            "pvalue", "exposure"
+        )
+        missing_result_fields <- setdiff(required, colnames(res))
+        if (length(missing_result_fields)) {
+            stop(
+                "run_sc_exwas returned an incompatible result schema; ",
+                "missing: ",
+                paste(missing_result_fields, collapse = ", "),
+                "."
+            )
+        }
+        if (nrow(res) &&
+                !all(as.character(res$exposure) == exp_name)) {
+            stop("run_sc_exwas returned an incorrect exposure label.")
+        }
+        run_metadata[[exp_name]] <- S4Vectors::metadata(res)
+        if (nrow(res) > 0) {
+            all_results[[exp_name]] <- as.data.frame(res)
         }
     }
     all_results <- Filter(Negate(is.null), all_results)

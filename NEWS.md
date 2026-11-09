@@ -373,6 +373,13 @@ with warnings.
   model drops, which leaves every likelihood-ratio test without a p-value.
   The linear mixed model with one labelled cell type no longer analyses
   unlabelled cells as cells of that type.
+* `run_multi_exwas()` stops, naming the exposure, when `run_sc_exwas()`
+  fails for one of its exposures. It used to turn the error into a warning
+  and leave the exposure out: a misspelt argument such as
+  `method = "deseq2"` gave an empty table instead of an error, and the
+  failure of a single exposure, for example the documented `test_features`
+  error, shrank the family that `padj_all` adjusts over, with nothing in
+  the result to show it.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
