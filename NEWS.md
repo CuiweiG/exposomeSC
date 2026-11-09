@@ -49,7 +49,21 @@ with warnings.
   distribution by censored maximum likelihood and draws the censored values
   from that distribution truncated at the LOD. It used to fit the detected
   values only, ignoring the censoring, and did not carry the uncertainty of
-  the fit into the imputations.
+  the fit into the imputations. The fit starts from two points and keeps the
+  better fit: both use a spread on the log scale equal to the largest of the
+  spread of the detected values, half their distance to the LOD and 0.05;
+  the first is centred on the detected values, the second puts the censored
+  share of the distribution below the LOD. It retries with a second
+  optimiser when the first does not converge and skips a bootstrap sample
+  that has fewer than two distinct detected values or whose fit fails; when
+  none of 100 samples can be used, it draws from the fit to the observed
+  values, and it stops with a message naming the exposure only when that fit
+  fails too. Imputed values are drawn on the log-probability scale, so that
+  they stay inside (0, LOD]. With few detected values and many censored
+  ones, they can lie orders of magnitude below the LOD: for detected values
+  of 40, 50, 60 and 70 and 100 censored values below an LOD of 1, their
+  median is of the order of 1e-7, where the earlier version imputed
+  LOD/sqrt(2).
 * `run_exposure_network(network_method = "coglasso")` stops with an
   installation hint when coglasso is not installed, instead of switching to
   the block graphical lasso.
@@ -206,6 +220,13 @@ with warnings.
 * `as_scee()` stops when `exposures` names an exposure that the ExposomeSet
   does not have. Unknown names used to be dropped silently, so a misspelt
   exposure was left out of the object without notice.
+* `exposure_impute_lod()` stops, whatever the method, when an exposure in
+  `lod` has an infinite value that is not censored. `"lod_sqrt2"` and
+  `"lod_2"` returned it unchanged, as did `"ros"` and `"multiple"` for an
+  exposure with fewer than three detected values or with neither `NA` nor
+  censored values; otherwise `"ros"` and `"multiple"` stopped with "missing
+  value where TRUE/FALSE needed". The value at a censored position is still
+  ignored.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

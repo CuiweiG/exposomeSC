@@ -198,3 +198,115 @@ test_that("invalid inputs are rejected", {
         "not marked as censored"
     )
 })
+
+test_that("the censored fit copes with detected values that are all equal", {
+    fit <- exposomeSC:::.censored_lognormal_mle(log(c(1, 1, 1)), log(0.9),
+        7L)
+    expect_true(all(is.finite(fit)))
+    expect_lt(abs(fit[["mu"]]), 5)
+    expect_gt(fit[["sigma"]], 0.01)
+    expect_lt(fit[["sigma"]], 10)
+    set.seed(3)
+    mat <- cbind(A = c(1, 1, 1, 0.5, 0.4, 0.3, 0.6, 0.2, 0.7, 0.8))
+    rownames(mat) <- paste0("D", seq_len(10))
+    result <- exposure_impute_lod(mat, c(A = 0.9), method = "multiple",
+        M = 3L, verbose = FALSE)
+    imputed <- unlist(lapply(result, function(x) x[4:10, "A"]))
+    expect_true(all(imputed > 0 & imputed <= 0.9))
+    expect_gt(min(imputed), 1e-3)
+})
+
+test_that("a censored fit that fails is skipped or reported", {
+    ## a detected value of zero has no finite logarithm, so no fit exists
+    expect_null(exposomeSC:::.censored_lognormal_mle(c(-Inf, 0, 1), log(0.9),
+        2L))
+    ## resamples that hold the zero fail and are skipped, the others fit
+    set.seed(1)
+    drawn <- exposomeSC:::.impute_censored_lognormal(c(0, 1, 2), 0.9, 4L)
+    expect_length(drawn, 4L)
+    expect_true(all(drawn > 0 & drawn <= 0.9))
+    ## when every fit fails the exposure is named in the error
+    expect_null(exposomeSC:::.impute_censored_lognormal(c(0, 0, 0), 0.9, 7L))
+    mat <- cbind(A = c(0, 0, 0, 0.5, 0.4))
+    censored <- cbind(A = c(FALSE, FALSE, FALSE, TRUE, TRUE))
+    summary <- data.frame(exposure = "A", method = "multiple")
+    expect_error(
+        exposomeSC:::.impute_lod_once(mat, c(A = 0.9), censored, summary,
+            "multiple"),
+        "Exposure 'A'")
+})
+
+test_that("infinite values are refused and draws stay inside (0, LOD]", {
+    mat <- cbind(A = c(Inf, 1.5, 2, 0.5, 0.4))
+    expect_error(
+        exposure_impute_lod(mat, c(A = 0.9), method = "multiple", M = 2L,
+            verbose = FALSE),
+        "infinite")
+    ## a truncation point 100 standard deviations below the mean
+    set.seed(1)
+    drawn <- exposomeSC:::.draw_truncated_lognormal(5L, 1, 10, 0.1)
+    expect_true(all(drawn > 0 & drawn <= 1))
+})
+
+test_that("an infinite value at a censored position is ignored", {
+    mat <- cbind(A = c(-Inf, 1.5, 2, 3, NA, 1.2))
+    censored <- cbind(A = c(TRUE, FALSE, FALSE, FALSE, TRUE, FALSE))
+    imputed <- exposure_impute_lod(mat, c(A = 0.9), method = "lod_2",
+        censored = censored, verbose = FALSE)
+    expect_equal(imputed[, "A"], c(0.45, 1.5, 2, 3, 0.45, 1.2))
+    ## without an indicator, -Inf is at or below the LOD and so censored
+    expect_equal(
+        exposure_impute_lod(cbind(A = c(-Inf, 1.5, 2)), c(A = 0.9),
+            method = "lod_2", verbose = FALSE)[, "A"],
+        c(0.45, 1.5, 2))
+    ## a detected infinite value is an error, whatever the method
+    expect_error(
+        exposure_impute_lod(cbind(A = c(Inf, 1.5, 2)), c(A = 0.9),
+            method = "lod_sqrt2", verbose = FALSE),
+        "infinite values that are not censored")
+})
+
+test_that("a censored fit that reached the maximum is kept", {
+    ## both starts reach the maximum here, and the fit from the first start
+    ## is kept: the second start replaces it only when it is better by more
+    ## than 1e-6 relative
+    set.seed(3)
+    x <- stats::rlnorm(1000, 0, 2)
+    lod <- stats::quantile(x, 0.5, names = FALSE)
+    y <- log(x[x > lod])
+    k <- sum(x <= lod)
+    nll <- function(theta) {
+        -(sum(stats::dnorm(y, theta[1], exp(theta[2]), log = TRUE)) +
+            k * stats::pnorm(log(lod), theta[1], exp(theta[2]), log.p = TRUE))
+    }
+    spread <- max(stats::sd(y), abs(mean(y) - log(lod)) / 2, 0.05)
+    first <- stats::optim(c(mean(y), log(spread)), nll, method = "BFGS")
+    fit <- exposomeSC:::.censored_lognormal_mle(y, log(lod), k)
+    expect_equal(unname(fit), c(first$par[1], exp(first$par[2])))
+})
+
+test_that("the censored fit is not misled by many censored values", {
+    ## from the mean of the detected values the optimiser reported
+    ## convergence far below the data, at means of about -380 and -850;
+    ## the likelihood is highest at these values
+    fit <- exposomeSC:::.censored_lognormal_mle(rep(0.5, 6), 0, 1000L)
+    expect_equal(unname(fit), c(-3.591, 1.430), tolerance = 1e-3)
+    fit <- exposomeSC:::.censored_lognormal_mle(
+        log(c(1.284, 1.275, 1.312, 1.170)), 0, 1000L)
+    expect_equal(unname(fit), c(-1.830, 0.690), tolerance = 1e-3)
+    mat <- cbind(A = c(rep(exp(0.5), 6), rep(NA, 1000)))
+    censored <- cbind(A = rep(c(FALSE, TRUE), c(6, 1000)))
+    set.seed(1)
+    expect_warning(
+        result <- exposure_impute_lod(mat, c(A = 1), method = "multiple",
+            censored = censored, M = 2L, verbose = FALSE),
+        ">80% below LOD")
+    imputed <- unlist(lapply(result, function(x) x[-(1:6), "A"]))
+    expect_true(all(imputed > 0 & imputed <= 1))
+    expect_gt(stats::median(imputed), 1e-3)
+    ## four equal values far above the LOD: BFGS stops at its iteration
+    ## limit from both starts, and only the Nelder-Mead retry from the
+    ## spread rule reaches the maximum
+    fit <- exposomeSC:::.censored_lognormal_mle(rep(10, 4), 0, 100L)
+    expect_equal(unname(fit), c(-38.886, 22.110), tolerance = 1e-3)
+})

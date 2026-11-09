@@ -14,7 +14,8 @@ NULL
 #' values are kept apart from censored ones and are never imputed.
 #'
 #' @param exposure_matrix Numeric matrix. Rows = samples,
-#'   columns = exposure variables.
+#'   columns = exposure variables. In the exposures named in \code{lod}, an
+#'   infinite value that is not censored is an error.
 #' @param lod Named numeric vector of positive, finite detection limits, one
 #'   per exposure. Names must match column names of
 #'   \code{exposure_matrix}. Exposures not in \code{lod} are left unchanged.
@@ -79,7 +80,9 @@ NULL
 #' the imputations (Lubin et al. 2004). Analyse each completed matrix and
 #' combine the estimates with Rubin's rules (Rubin 1987). The draws use the
 #' random-number stream of the session, so call \code{set.seed()} first for
-#' reproducible imputations.
+#' reproducible imputations. If the fit fails for an exposure even on its
+#' observed values, an error names it; impute that exposure with another
+#' method.
 #'
 #' ROS and multiple imputation assume a log-normal distribution and need at
 #' least three detected values; an exposure with fewer is imputed with
@@ -154,6 +157,15 @@ exposure_impute_lod <- function(exposure_matrix, lod,
         return(mat)
     }
 
+    ## an infinite value that is not censored has no logarithm for the
+    ## log-normal methods and no meaning as a concentration; the value at a
+    ## censored position is ignored, as for the other methods
+    for (name in exp_names) {
+        if (any(is.infinite(mat[!censored[, name], name]))) {
+            stop("Exposure '", name, "' has infinite values that are not ",
+                "censored; correct them or set them to NA.", call. = FALSE)
+        }
+    }
     summary <- .lod_summary(mat, censored, exp_names, method)
     for (i in seq_len(nrow(summary))) {
         row <- summary[i, ]
@@ -253,7 +265,7 @@ exposure_impute_lod <- function(exposure_matrix, lod,
         name <- summary$exposure[[i]]
         below <- censored[, name]
         limit <- lod[[name]]
-        mat[below, name] <- switch(summary$method[[i]],
+        filled <- switch(summary$method[[i]],
             none = mat[below, name],
             lod_sqrt2 = rep(limit / sqrt(2), sum(below)),
             lod_2 = rep(limit / 2, sum(below)),
@@ -263,6 +275,12 @@ exposure_impute_lod <- function(exposure_matrix, lod,
                 mat[!below & !is.na(mat[, name]), name], limit, sum(below)
             )
         )
+        if (is.null(filled)) {
+            stop("Exposure '", name, "': the censored log-normal fit did ",
+                "not converge; impute this exposure with another method.",
+                call. = FALSE)
+        }
+        mat[below, name] <- filled
     }
     mat
 }
@@ -293,7 +311,7 @@ exposure_impute_lod <- function(exposure_matrix, lod,
 ## ---- Internal: one multiple-imputation draw (Lubin et al. 2004) ----
 ## Bootstrap the non-missing values, fit a left-censored log-normal by
 ## maximum likelihood, then draw the censored values from the fitted
-## distribution truncated to (0, lod].
+## distribution truncated to (0, lod]. Returns NULL when no fit converges.
 .impute_censored_lognormal <- function(observed, lod, n_below) {
     n_total <- length(observed) + n_below
     is_detect <- c(rep(TRUE, length(observed)), rep(FALSE, n_below))
@@ -306,16 +324,28 @@ exposure_impute_lod <- function(exposure_matrix, lod,
             params <- .censored_lognormal_mle(
                 log(boot_detected), log(lod), sum(!is_detect[pick])
             )
-            break
+            if (!is.null(params)) break
         }
     }
     if (is.null(params)) {
-        ## no usable bootstrap sample: use the fit to the observed data
+        ## no usable bootstrap sample: use the fit to the observed data;
+        ## NULL when that fails too, for the caller to report
         params <- .censored_lognormal_mle(log(observed), log(lod), n_below)
+        if (is.null(params)) {
+            return(NULL)
+        }
     }
-    upper <- stats::pnorm(log(lod), params[["mu"]], params[["sigma"]])
-    exp(stats::qnorm(stats::runif(n_below, 0, upper),
-                     params[["mu"]], params[["sigma"]]))
+    .draw_truncated_lognormal(n_below, lod, params[["mu"]], params[["sigma"]])
+}
+
+## Draws from a log-normal distribution truncated to (0, lod], on the
+## log-probability scale: with the truncation point far in the lower tail,
+## pnorm() itself underflows to zero and the draws would all be 0. The
+## uniform draws are those of runif(n, 0, upper), so seeded results agree.
+.draw_truncated_lognormal <- function(n, lod, mu, sigma) {
+    log_upper <- stats::pnorm(log(lod), mu, sigma, log.p = TRUE)
+    log_u <- log(stats::runif(n)) + log_upper
+    exp(stats::qnorm(log_u, mu, sigma, log.p = TRUE))
 }
 
 ## Maximum likelihood for a normal sample (log values) with n_censored
@@ -327,11 +357,52 @@ exposure_impute_lod <- function(exposure_matrix, lod,
               n_censored * stats::pnorm(log_lod, theta[[1]], sigma,
                                         log.p = TRUE))
     }
-    start <- c(mean(y), log(max(stats::sd(y), 1e-3)))
-    fit <- stats::optim(start, negative_loglik, method = "BFGS")
-    if (fit$convergence != 0L) {
-        warning("Censored log-normal fit did not converge; ",
-                "imputations may be unreliable.", call. = FALSE)
+    converged <- function(fit) {
+        !is.null(fit) && fit$convergence == 0L && is.finite(fit$value)
+    }
+    ## BFGS from a start, or, when it does not converge, Nelder-Mead from
+    ## the same start; Nelder-Mead can report convergence short of the
+    ## optimum, so its solution is polished with BFGS. NULL when both fail.
+    fit_from <- function(start) {
+        fit <- tryCatch(stats::optim(start, negative_loglik, method = "BFGS"),
+            error = function(e) NULL)
+        if (!converged(fit)) {
+            fit <- tryCatch(stats::optim(start, negative_loglik,
+                method = "Nelder-Mead"), error = function(e) NULL)
+            if (!is.null(fit)) {
+                fit <- tryCatch(stats::optim(fit$par, negative_loglik,
+                    method = "BFGS"), error = function(e) NULL)
+            }
+        }
+        if (converged(fit)) fit else NULL
+    }
+    ## A start far below the spread of the data lets the censored term
+    ## dominate the gradient, and the optimiser stops at its iteration limit
+    ## far from the data; this happened when all detected values were equal.
+    ## Start from the largest of the spread of the detected values, half
+    ## their distance to the detection limit and 0.05 on the log scale.
+    spread <- max(stats::sd(y), abs(mean(y) - log_lod) / 2, 0.05,
+        na.rm = TRUE)
+    fit <- fit_from(c(mean(y), log(spread)))
+    ## With many censored values, the first steps from the mean of the
+    ## detected values can reach a flat region far below the data, where
+    ## the mean falls and the spread grows, and BFGS reports convergence
+    ## there. A second start puts the censored share of the distribution
+    ## below the detection limit. Its fit is kept only when its negative
+    ## log-likelihood is lower by more than 1e-6 relative, well above the
+    ## optimiser's tolerance of about 1.5e-8, so that a fit that already
+    ## reached the maximum is kept.
+    if (n_censored > 0) {
+        share <- n_censored / (n_censored + length(y))
+        alt <- fit_from(c(log_lod - spread * stats::qnorm(share),
+            log(spread)))
+        if (!is.null(alt) && (is.null(fit) ||
+                alt$value < fit$value - 1e-6 * (abs(fit$value) + 1))) {
+            fit <- alt
+        }
+    }
+    if (is.null(fit)) {
+        return(NULL)
     }
     c(mu = fit$par[[1]], sigma = exp(fit$par[[2]]))
 }

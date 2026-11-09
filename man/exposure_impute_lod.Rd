@@ -15,7 +15,8 @@ exposure_impute_lod(
 }
 \arguments{
 \item{exposure_matrix}{Numeric matrix. Rows = samples,
-columns = exposure variables.}
+columns = exposure variables. In the exposures named in \code{lod}, an
+infinite value that is not censored is an error.}
 
 \item{lod}{Named numeric vector of positive, finite detection limits, one
 per exposure. Names must match column names of
@@ -93,7 +94,9 @@ bootstrap step carries the uncertainty of the fitted distribution into
 the imputations (Lubin et al. 2004). Analyse each completed matrix and
 combine the estimates with Rubin's rules (Rubin 1987). The draws use the
 random-number stream of the session, so call \code{set.seed()} first for
-reproducible imputations.
+reproducible imputations. If the fit fails for an exposure even on its
+observed values, an error names it; impute that exposure with another
+method.
 
 ROS and multiple imputation assume a log-normal distribution and need at
 least three detected values; an exposure with fewer is imputed with
