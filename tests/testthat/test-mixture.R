@@ -142,3 +142,37 @@ test_that("run_sc_mixture handles tied exposures and rejects unknown covariates"
         covariates = "nope", min_cells = 3L),
         "Covariates not found")
 })
+
+test_that("run_sc_mixture gives no weight to an aliased exposure", {
+    scee <- .make_scee()
+    exposures <- exposureData(scee)
+    ## E2 has the ranks of E1, so their quantile scores coincide
+    exposures[, "E2"] <- exp(exposures[, "E1"])
+    aliased <- build_scee(methods::as(scee, "SingleCellExperiment"),
+        exposures, sample_col = "donor_id")
+    expect_warning(
+        mix <- run_sc_mixture(aliased, exposures = c("E1", "E2", "E3"),
+            celltype = "Mono", min_cells = 3L),
+        "No coefficient can be estimated for exposure\\(s\\) E2")
+    weights <- metadata(mix)$weights
+    expect_true(is.na(weights[["E2"]]))
+    expect_equal(sum(weights, na.rm = TRUE), 1)
+    reference <- run_sc_mixture(aliased, exposures = c("E1", "E3"),
+        celltype = "Mono", min_cells = 3L)
+    expect_equal(weights[c("E1", "E3")], metadata(reference)$weights)
+    expect_equal(mix$mixture_effect, reference$mixture_effect)
+    expect_error(run_sc_mixture(aliased, exposures = c("E1", "E3"),
+        celltype = "Mono", min_cells = 3L, q = 1L),
+        "q must be one whole number >= 2")
+    ## values that fall into one quantile bin leave nothing to estimate
+    exposures[, "E1"] <- rep(c(0, 1), c(4L, nrow(exposures) - 4L))
+    one_bin <- build_scee(methods::as(scee, "SingleCellExperiment"),
+        exposures, sample_col = "donor_id")
+    expect_warning(
+        flat <- run_sc_mixture(one_bin, exposures = "E1",
+            celltype = "Mono", min_cells = 3L),
+        "No coefficient can be estimated for exposure\\(s\\) E1")
+    expect_true(is.na(metadata(flat)$weights[["E1"]]))
+    expect_true(is.na(metadata(flat)$mixture_coef))
+    expect_true(all(is.na(flat$mixture_effect)))
+})

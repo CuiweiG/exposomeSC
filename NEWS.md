@@ -116,6 +116,10 @@ with warnings.
   default `k` exceeds the number of distinct exposure values, and its
   leave-one-out R² is no longer `NA` when a refit has fewer distinct values
   than `k` (see Bug fixes).
+* `run_sc_mixture()` gives an exposure whose coefficient cannot be estimated
+  the weight `NA` instead of 0; when no coefficient can be estimated, the
+  weights, `mixture_effect` and `mixture_coef` are `NA` instead of equal
+  weights and zero effects (see Bug fixes).
 
 ## Interface
 
@@ -455,6 +459,16 @@ with warnings.
   returned an empty table without a message. A `k` below 3 was raised to 3
   without a word, and with `k = 3` the test of nonlinearity could not be
   fitted, so `p_nonlinear` was `NA` for every gene.
+* `run_sc_mixture()` gives an exposure whose coefficient cannot be
+  estimated the weight `NA`, with a warning, instead of 0. When two
+  exposures had the same quantile scores, for example a pollutant and a
+  monotone transform of it, the one listed later in `exposures` was
+  reported with weight exactly 0, as if it contributed nothing; it now gets
+  `NA`, and the one listed first still carries their joint weight. The
+  other weights are unchanged. When no coefficient can be estimated, the
+  weights, `mixture_effect` and `mixture_coef` are `NA` (the weights were
+  equal and the effects 0), and `q` must be a whole number of at least 2:
+  `q = 1` gave every donor the same score.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

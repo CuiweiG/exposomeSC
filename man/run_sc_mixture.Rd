@@ -37,8 +37,8 @@ covariates from \code{exposureData}; a name that is not a
 column of \code{exposureData} is an error, and so is an exposure
 listed here. Names must be syntactic, as for \code{exposures}.}
 
-\item{q}{Integer. Number of quantile bins. Default 4. Tied
-exposure values (for example at a limit of detection) can
+\item{q}{Integer. Number of quantile bins, at least 2. Default 4.
+Tied exposure values (for example at a limit of detection) can
 give fewer bins.}
 
 \item{min_cells}{Integer. Minimum cells per donor. Default 10.}
@@ -46,15 +46,22 @@ give fewer bins.}
 \value{
 A \code{DataFrame} with one row per target gene with a fitted
   model: \code{gene} and \code{mixture_effect} (the sum of that gene's
-  quantile-scored exposure coefficients). \code{metadata(result)} holds:
+  estimable quantile-scored exposure coefficients; \code{NA} when none
+  is estimable).
+  \code{metadata(result)} holds:
 \describe{
   \item{weights}{Named numeric vector. Relative contribution
-    of each exposure (sums to 1): the mean over target genes
-    of the absolute coefficients of the quantile-scored
-    exposures, normalised.}
+    of each exposure (the weights that are not \code{NA} sum to 1):
+    the mean over target genes of the absolute coefficients of the
+    quantile-scored exposures, normalised. When the quantile scores of
+    exposures are collinear, for example for two exposures with the
+    same ranks, \code{lm()} estimates a coefficient only for the one
+    listed first in \code{exposures}; it carries their joint effect,
+    and the later ones get the weight \code{NA}, with a warning. When
+    no coefficient can be estimated, every weight is \code{NA}.}
   \item{mixture_coef}{Overall mixture coefficient (sum of
     quantile-scored exposure coefficients, averaged across
-    target genes).}
+    target genes); \code{NA} when no coefficient can be estimated.}
   \item{method}{Character. Always \code{"quantile_linear"}.}
   \item{celltype}{Character. Cell type analysed.}
   \item{n_donors}{Integer. Donors with complete exposure and
@@ -80,8 +87,10 @@ quantile sum regression (Carrico et al. 2015). The approach:
   \item For each target gene, a linear model is fit on
     pseudobulk log-CPM with all quantile-scored exposures
     and covariates as predictors.
-  \item Weights are the absolute exposure coefficients,
-    averaged across target genes and normalised to sum to 1.
+  \item Weights are the absolute coefficients of the exposures that
+    have one, averaged across target genes and normalised to sum to 1;
+    an exposure without an estimable coefficient gets the weight
+    \code{NA} (see Value).
     Because every exposure is on the same quantile scale,
     the coefficients are directly comparable.
 }

@@ -33,22 +33,29 @@ NULL
 #'   covariates from \code{exposureData}; a name that is not a
 #'   column of \code{exposureData} is an error, and so is an exposure
 #'   listed here. Names must be syntactic, as for \code{exposures}.
-#' @param q Integer. Number of quantile bins. Default 4. Tied
-#'   exposure values (for example at a limit of detection) can
+#' @param q Integer. Number of quantile bins, at least 2. Default 4.
+#'   Tied exposure values (for example at a limit of detection) can
 #'   give fewer bins.
 #' @param min_cells Integer. Minimum cells per donor. Default 10.
 #'
 #' @return A \code{DataFrame} with one row per target gene with a fitted
 #'   model: \code{gene} and \code{mixture_effect} (the sum of that gene's
-#'   quantile-scored exposure coefficients). \code{metadata(result)} holds:
+#'   estimable quantile-scored exposure coefficients; \code{NA} when none
+#'   is estimable).
+#'   \code{metadata(result)} holds:
 #' \describe{
 #'   \item{weights}{Named numeric vector. Relative contribution
-#'     of each exposure (sums to 1): the mean over target genes
-#'     of the absolute coefficients of the quantile-scored
-#'     exposures, normalised.}
+#'     of each exposure (the weights that are not \code{NA} sum to 1):
+#'     the mean over target genes of the absolute coefficients of the
+#'     quantile-scored exposures, normalised. When the quantile scores of
+#'     exposures are collinear, for example for two exposures with the
+#'     same ranks, \code{lm()} estimates a coefficient only for the one
+#'     listed first in \code{exposures}; it carries their joint effect,
+#'     and the later ones get the weight \code{NA}, with a warning. When
+#'     no coefficient can be estimated, every weight is \code{NA}.}
 #'   \item{mixture_coef}{Overall mixture coefficient (sum of
 #'     quantile-scored exposure coefficients, averaged across
-#'     target genes).}
+#'     target genes); \code{NA} when no coefficient can be estimated.}
 #'   \item{method}{Character. Always \code{"quantile_linear"}.}
 #'   \item{celltype}{Character. Cell type analysed.}
 #'   \item{n_donors}{Integer. Donors with complete exposure and
@@ -68,8 +75,10 @@ NULL
 #'   \item For each target gene, a linear model is fit on
 #'     pseudobulk log-CPM with all quantile-scored exposures
 #'     and covariates as predictors.
-#'   \item Weights are the absolute exposure coefficients,
-#'     averaged across target genes and normalised to sum to 1.
+#'   \item Weights are the absolute coefficients of the exposures that
+#'     have one, averaged across target genes and normalised to sum to 1;
+#'     an exposure without an estimable coefficient gets the weight
+#'     \code{NA} (see Value).
 #'     Because every exposure is on the same quantile scale,
 #'     the coefficients are directly comparable.
 #' }
@@ -123,6 +132,8 @@ run_sc_mixture <- function(x, exposures, celltype,
                             q = 4L, min_cells = 10L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
     celltype <- .single_name(celltype, "celltype")
+    if (!.is_whole_number(q) || q < 2)
+        stop("q must be one whole number >= 2.")
     sample_col <- sampleColumn(x)
 
     exp_data <- exposureData(x)
@@ -218,21 +229,38 @@ run_sc_mixture <- function(x, exposures, celltype,
                          error = function(e) NULL)
         if (is.null(fit)) return(NULL)
 
-        exp_coefs <- stats::coef(fit)[exposures]
-        exp_coefs[is.na(exp_coefs)] <- 0
-        list(gene = gene, coefficients = exp_coefs)
+        list(gene = gene, coefficients = stats::coef(fit)[exposures])
     })
     gene_fits <- Filter(Negate(is.null), gene_fits)
 
     if (length(gene_fits)) {
         coefficient_matrix <- do.call(rbind, lapply(gene_fits,
             function(fit) fit$coefficients))
+        ## lm() gives NA for an exposure whose quantile scores are collinear
+        ## with the other predictors; such an exposure has no weight
+        estimable <- colSums(is.na(coefficient_matrix)) == 0
+        if (!all(estimable)) {
+            aliased <- paste(exposures[!estimable], collapse = ", ")
+            warning("No coefficient can be estimated for exposure(s) ",
+                    aliased, ": their quantile scores are collinear with ",
+                    "the other predictors. Their weights are NA.",
+                    call. = FALSE)
+        }
+        mixture_effect <- if (any(estimable)) {
+            rowSums(coefficient_matrix[, estimable, drop = FALSE])
+        } else {
+            rep(NA_real_, nrow(coefficient_matrix))
+        }
         gene_results <- S4Vectors::DataFrame(
             gene = vapply(gene_fits, function(fit) fit$gene, character(1)),
-            mixture_effect = rowSums(coefficient_matrix))
-        mean_abs <- colMeans(abs(coefficient_matrix))
-        weights <- if (sum(mean_abs) > 0) mean_abs / sum(mean_abs) else
-            rep(1 / length(exposures), length(exposures))
+            mixture_effect = mixture_effect)
+        mean_abs <- colMeans(abs(coefficient_matrix[, estimable,
+                                                    drop = FALSE]))
+        weights <- rep(NA_real_, length(exposures))
+        if (any(estimable)) {
+            weights[estimable] <- if (sum(mean_abs) > 0)
+                mean_abs / sum(mean_abs) else 1 / sum(estimable)
+        }
         mixture_coef <- mean(gene_results$mixture_effect)
     } else {
         gene_results <- S4Vectors::DataFrame(gene = character(),
