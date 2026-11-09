@@ -56,6 +56,14 @@ with warnings.
 * The `residual_df` diagnostic of the edgeR backend of `run_sc_exwas()`
   gives the adjusted residual degrees of freedom of the quasi-likelihood fit
   instead of the nominal ones (see Bug fixes).
+* Networks from `run_celltype_network()`, and the features that
+  `run_exposure_network()` selects with `covariates`, can change for data
+  with a feature that is constant across the donors, such as a metabolite
+  with one value in every donor: such a feature is now left out.
+  `method = "block_glasso"` kept it as a node without edges; with `exposure`
+  or `covariates`, a feature with the same non-zero value in every donor
+  could instead stay in as rounding noise scaled to unit variance (see Bug
+  fixes).
 
 ## Interface
 
@@ -172,6 +180,23 @@ with warnings.
   support filter. With one ILR coordinate `anova()` has no Pillai test and
   the call stopped; the exact F test of the added terms is used, and
   Pillai's trace is reported as df1 F / (df1 F + df2).
+* `run_celltype_network()` leaves features that are constant across the
+  donors, such as genes with no counts in the cell type, out of the network
+  with a message, records them in `metadata(result)$constant_features`, and
+  stops when every transcript or every metabolite is constant. A constant
+  metabolite, or a constant gene when `top_var_genes` was not set, made
+  coglasso stop with "'from' must be a finite number", while
+  `method = "block_glasso"` kept it as a node without edges. With `exposure`
+  or `covariates`, a feature with the same non-zero value in every donor,
+  such as a metabolite measured at one level, was instead regressed into
+  rounding noise, which scaling could turn into a feature of unit variance;
+  the call then succeeded and the feature stayed in the network, where it
+  could get edges. The check now runs before `exposure` and `covariates` are
+  regressed out, and for the same reason `run_exposure_network()` with
+  `covariates` no longer tests or selects a constant feature. A metabolite
+  matrix without columns is an error in both functions; it used to fail with
+  unrelated errors or, in `run_exposure_network()`, sometimes gave a network
+  of transcripts only.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

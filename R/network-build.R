@@ -88,6 +88,14 @@ NULL
 #'     example with too few genes), log-CPM values are used instead and a
 #'     message says so; the transform used is recorded in
 #'     \code{metadata(result)$transform}.
+#'   \item Constant features: a transcript or metabolite that takes one
+#'     value in every donor (for example a gene with no counts in the
+#'     cell type) is left out, with a message, and named in
+#'     \code{metadata(result)$constant_features}; the call stops when every
+#'     transcript or every metabolite is constant. Networks of different
+#'     cell types can therefore differ in their features, which
+#'     \code{\link{run_comparative_network}} does not accept: leave the
+#'     features named there out of the data of every cell type first.
 #'   \item Residualization: if \code{exposure} or
 #'     \code{covariates} are specified, regresses them out
 #'     from both transcriptomic and metabolomic matrices.
@@ -318,6 +326,7 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
             covariates     = covariates,
             edge_counts    = edge_counts,
             donors         = assembled$donors,
+            constant_features = assembled$constant_features,
             nlambda_w      = nlambda_w,
             nlambda_b      = nlambda_b,
             selection      = selection
@@ -463,7 +472,10 @@ run_exposure_network <- function(x, metabolites, celltype,
         celltype_col = celltype_col,
         exposure     = NULL,  # No residualization
         covariates   = covariates,
-        min_cells    = min_cells)
+        min_cells    = min_cells,
+        ## constant features stay in the matrix as constant columns, which
+        ## the selection stage skips and the PFER bound counts
+        drop_constant = FALSE)
 
     X <- assembled$data_matrix
     donors <- assembled$donors

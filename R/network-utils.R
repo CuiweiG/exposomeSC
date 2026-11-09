@@ -29,6 +29,9 @@ NULL
 #' @param top_var_genes integer or NULL; pre-select top
 #'   variable genes to reduce dimensionality
 #' @param vst logical; use DESeq2 VST (TRUE) or log-CPM (FALSE)
+#' @param drop_constant logical; leave features that are constant across
+#'   the donors out of the matrix (TRUE), or keep them as constant columns
+#'   (FALSE)
 #'
 #' @return list with:
 #'   - data_matrix: donors x features numeric matrix
@@ -36,6 +39,7 @@ NULL
 #'   - donors: character vector of donor IDs used
 #'   - n_transcripts: integer
 #'   - n_metabolites: integer
+#'   - constant_features: character; features left out as constant
 #'
 #' @keywords internal
 #' @noRd
@@ -45,7 +49,7 @@ NULL
                                  covariates = NULL,
                                  min_cells = 10L,
                                  top_var_genes = NULL,
-                                 vst = TRUE) {
+                                 vst = TRUE, drop_constant = TRUE) {
     ## --- Get cell type annotations ---
     cd <- colData(x)
     if (!celltype_col %in% colnames(cd))
@@ -121,6 +125,45 @@ NULL
 
     tx_mat <- tx_mat[shared_donors, , drop = FALSE]
     met_mat <- metabolites[shared_donors, , drop = FALSE]
+    if (ncol(met_mat) == 0L)
+        stop("'metabolites' has no columns.", call. = FALSE)
+
+    ## Unnamed columns are named before any is left out, so that the names
+    ## in constant_features and in the node table agree
+    colnames(tx_mat) <- .column_labels(tx_mat, "gene_")
+    colnames(met_mat) <- .column_labels(met_mat, "metab_")
+
+    ## --- Constant features ---
+    ## A feature without variance across the donors (for example a gene
+    ## with no counts in this cell type) has no partial correlation with
+    ## anything and would stop the graphical lasso. The check comes before
+    ## the adjustment below: regressing a column with the same non-zero
+    ## value in every donor on the exposure or covariates leaves rounding
+    ## noise, which scaling would turn into a feature of unit variance.
+    ## Constant features are left out of the network and named in the
+    ## result's metadata; when they are kept (for the selection stage of
+    ## run_exposure_network()), they stay constant.
+    tx_constant <- .constant_columns(tx_mat)
+    met_constant <- .constant_columns(met_mat)
+    constant_features <- character()
+    if (drop_constant) {
+        if (any(tx_constant) || any(met_constant)) {
+            constant_features <- c(colnames(tx_mat)[tx_constant],
+                colnames(met_mat)[met_constant])
+            message("[exposomeSC] Leaving ", sum(tx_constant),
+                    " constant transcript(s) and ", sum(met_constant),
+                    " constant metabolite(s) out of the network for '",
+                    celltype, "'.")
+            tx_mat <- tx_mat[, !tx_constant, drop = FALSE]
+            met_mat <- met_mat[, !met_constant, drop = FALSE]
+            tx_constant <- logical(ncol(tx_mat))
+            met_constant <- logical(ncol(met_mat))
+        }
+        if (ncol(tx_mat) == 0L || ncol(met_mat) == 0L) {
+            stop("Every transcript or every metabolite is constant across ",
+                "the donors of cell type '", celltype, "'.", call. = FALSE)
+        }
+    }
 
     ## --- Residualization (optional) ---
     if (!is.null(exposure) || !is.null(covariates)) {
@@ -133,6 +176,10 @@ NULL
                                 drop = FALSE]
             tx_mat <- .residualize_matrix(tx_mat, adj_mat)
             met_mat <- .residualize_matrix(met_mat, adj_mat)
+            ## the residuals of a kept constant feature can be rounding
+            ## noise; set them to 0 so that it stays constant
+            tx_mat[, tx_constant] <- 0
+            met_mat[, met_constant] <- 0
         }
     }
 
@@ -150,10 +197,6 @@ NULL
     ## --- Node info ---
     tx_names <- colnames(tx_mat)
     met_names <- colnames(met_mat)
-    if (is.null(tx_names))
-        tx_names <- paste0("gene_", seq_len(ncol(tx_mat)))
-    if (is.null(met_names))
-        met_names <- paste0("metab_", seq_len(ncol(met_mat)))
 
     node_info <- S4Vectors::DataFrame(
         feature    = c(tx_names, met_names),
@@ -169,8 +212,29 @@ NULL
         donors         = shared_donors,
         transform      = transform,
         n_transcripts  = length(tx_names),
-        n_metabolites  = length(met_names)
+        n_metabolites  = length(met_names),
+        constant_features = constant_features
     )
+}
+
+# Columns of a numeric matrix that take one value in every row; columns
+# with missing values are left to the later checks
+# @keywords internal
+# @noRd
+.constant_columns <- function(m) {
+    variances <- apply(m, 2L, stats::var)
+    is.finite(variances) & variances == 0
+}
+
+# Column names, or a prefix and the column index where names are missing
+# @keywords internal
+# @noRd
+.column_labels <- function(m, prefix) {
+    labels <- colnames(m)
+    if (is.null(labels)) {
+        labels <- paste0(prefix, seq_len(ncol(m)))
+    }
+    labels
 }
 
 # -------------------------------------------------------

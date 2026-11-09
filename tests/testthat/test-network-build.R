@@ -241,3 +241,93 @@ test_that("network-utils internal helpers work", {
     expect_equal(counts$within_transcript, 1)
     expect_equal(counts$cross_omic, 1)
 })
+
+## Twenty donors with one cell type, thirty genes and three metabolites;
+## gene G1 has no counts and metabolite M3 the same value in every donor
+.constant_fixture <- function(seed = 7) {
+    set.seed(seed)
+    donor_ids <- paste0("D", seq_len(20))
+    donors <- rep(donor_ids, each = 20)
+    counts <- matrix(stats::rpois(30 * length(donors), 10), nrow = 30,
+        dimnames = list(paste0("G", seq_len(30)),
+            paste0("c", seq_along(donors))))
+    counts[1, ] <- 0L
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donors,
+            cell_type = "Mono"))
+    exposures <- matrix(stats::rnorm(40), ncol = 2,
+        dimnames = list(donor_ids, c("PM2.5", "Pb")))
+    metab <- matrix(stats::rnorm(60), nrow = 20,
+        dimnames = list(donor_ids, paste0("M", 1:3)))
+    metab[, "M3"] <- 1
+    list(scee = build_scee(sce, exposures, sample_col = "donor_id"),
+        metab = metab)
+}
+
+test_that("constant features are left out of a cell-type network", {
+    skip_if_not_installed("glasso")
+    fx <- .constant_fixture()
+    msgs <- character()
+    net <- withCallingHandlers(
+        run_celltype_network(fx$scee, fx$metab, celltype = "Mono",
+            method = "block_glasso"),
+        message = function(m) {
+            msgs <<- c(msgs, conditionMessage(m))
+            invokeRestart("muffleMessage")
+        })
+    expect_true(any(grepl("1 constant transcript", msgs)))
+    expect_true(any(grepl("1 constant metabolite", msgs)))
+    expect_identical(metadata(net)$constant_features, c("G1", "M3"))
+    expect_false(any(c("G1", "M3") %in% networkNodes(net)$feature))
+    expect_equal(metadata(net)$n_transcripts, 29L)
+    expect_equal(metadata(net)$n_metabolites, 2L)
+    expect_equal(nrow(networkNodes(net)), 31L)
+    ## with every metabolite constant there is nothing to connect
+    all_constant <- fx$metab
+    all_constant[, ] <- 1
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, all_constant,
+            celltype = "Mono", method = "block_glasso")),
+        "constant across")
+})
+
+test_that("constant features are found before the adjustment", {
+    skip_if_not_installed("glasso")
+    fx <- .constant_fixture()
+    net <- suppressMessages(run_celltype_network(fx$scee, fx$metab,
+        celltype = "Mono", method = "block_glasso", covariates = "Pb"))
+    expect_identical(metadata(net)$constant_features, c("G1", "M3"))
+    expect_false("M3" %in% networkNodes(net)$feature)
+    all_constant <- fx$metab
+    all_constant[, ] <- 1
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, all_constant,
+            celltype = "Mono", method = "block_glasso", covariates = "Pb")),
+        "constant across")
+    ## the selection stage of run_exposure_network() never picks a
+    ## constant feature, with covariates as without
+    selected <- suppressMessages(run_exposure_network(fx$scee, fx$metab,
+        celltype = "Mono", exposure = "PM2.5", covariates = "Pb",
+        selection_method = "univariate", fdr_threshold = 1,
+        network_method = "block_glasso"))
+    expect_false(any(c("G1", "M3") %in% networkNodes(selected)$feature))
+})
+
+test_that("unnamed and missing metabolite columns are reported clearly", {
+    skip_if_not_installed("glasso")
+    fx <- .constant_fixture()
+    unnamed <- fx$metab[, c(3, 1, 2)]
+    colnames(unnamed) <- NULL
+    net <- suppressMessages(run_celltype_network(fx$scee, unnamed,
+        celltype = "Mono", method = "block_glasso"))
+    ## the constant first column is metab_1 in the metadata and in no node
+    expect_identical(metadata(net)$constant_features, c("G1", "metab_1"))
+    expect_identical(utils::tail(networkNodes(net)$feature, 2L),
+        c("metab_2", "metab_3"))
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee,
+            fx$metab[, 0, drop = FALSE], celltype = "Mono",
+            method = "block_glasso")),
+        "has no columns")
+})
