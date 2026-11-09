@@ -33,8 +33,8 @@ transcript-metabolite edges. Default TRUE.}
 Default 10.}
 
 \item{edge_alpha_by}{Character; \code{"weight"} (default)
-or \code{"stability"} (an error when the network has no stability
-scores).}
+or \code{"stability"} (an error unless every edge has a stability
+score).}
 }
 \value{
 A \code{ggplot} object (requires \pkg{ggraph}

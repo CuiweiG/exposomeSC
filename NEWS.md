@@ -256,6 +256,11 @@ with warnings.
   label was accepted silently. A 0 x 0 adjacency without feature names,
   which failed with "length of 'dimnames' [1] not equal to array extent", is
   now wrapped into an empty network.
+* `plot_celltype_network(edge_alpha_by = "stability")` maps the edge
+  opacity to the stability scores also when `highlight_cross_omic = FALSE`;
+  without the highlighting the opacity followed the edge weights whatever
+  `edge_alpha_by` said. A network in which some edges have no stability
+  score is refused, instead of being drawn with those edges fully opaque.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

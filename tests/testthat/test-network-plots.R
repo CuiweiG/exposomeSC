@@ -226,3 +226,47 @@ test_that("edge_alpha_by = 'stability' needs stability scores", {
             layout = "circle"),
         "ggplot")
 })
+
+test_that("edge opacity follows edge_alpha_by in both edge styles", {
+    skip_if_not_installed("ggplot2")
+    skip_if_not_installed("igraph")
+    skip_if_not_installed("ggraph")
+    skip_if_not_installed("tidygraph")
+    features <- c("G1", "G2", "M1")
+    precision <- diag(3)
+    precision[1, 2] <- precision[2, 1] <- -0.5
+    precision[2, 3] <- precision[3, 2] <- 0.1
+    dimnames(precision) <- list(features, features)
+    adjacency <- (abs(precision) > 0) * 1L
+    diag(adjacency) <- 0L
+    ## the stronger edge by weight is the less stable one
+    stability <- matrix(0, 3, 3, dimnames = list(features, features))
+    stability[1, 2] <- stability[2, 1] <- 0.2
+    stability[2, 3] <- stability[3, 2] <- 0.9
+    net <- CelltypeNetworkResult(precision, adjacency,
+        node_info = S4Vectors::DataFrame(feature = features,
+            omic_layer = c("transcript", "transcript", "metabolite")),
+        celltype = "Mono", stability = stability,
+        metadata = list(n_donors = 10L))
+    opacities <- function(by, highlight) {
+        p <- plot_celltype_network(net, edge_alpha_by = by,
+            highlight_cross_omic = highlight, layout = "circle")
+        edges <- ggplot2::layer_data(p, 1L)
+        as.numeric(tapply(edges$edge_alpha, edges$group, unique))
+    }
+    for (highlight in c(TRUE, FALSE)) {
+        by_stability <- opacities("stability", highlight)
+        by_weight <- opacities("weight", highlight)
+        ## the stronger edge by weight, G1-G2, is the less stable one
+        expect_lt(by_stability[1L], by_stability[2L])
+        expect_gt(by_weight[1L], by_weight[2L])
+    }
+    ## an edge without a score cannot be drawn by stability
+    missing_score <- net
+    missing_score@stability_scores[2, 3] <- NA
+    missing_score@stability_scores[3, 2] <- NA
+    expect_error(
+        plot_celltype_network(missing_score, edge_alpha_by = "stability",
+            layout = "circle"),
+        "every edge")
+})
