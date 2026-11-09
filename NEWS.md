@@ -539,6 +539,11 @@ with warnings.
   exposure values for each donor. There was no method for it, so the
   `SingleCellExperiment` method kept the exposure slots of the first
   object, whatever the others held, without a check.
+* `exposure_impute_lod()` warns about names of `lod` that are not columns of
+  `exposure_matrix`, and stops when none is. A misspelt name left that
+  exposure unimputed without a message, and when no name matched, the
+  function returned the input matrix with a warning, which for
+  `method = "multiple"` is not the documented list of imputed matrices.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

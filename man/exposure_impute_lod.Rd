@@ -20,7 +20,9 @@ infinite value that is not censored is an error.}
 
 \item{lod}{Named numeric vector of positive, finite detection limits, one
 per exposure. Names must match column names of
-\code{exposure_matrix}. Exposures not in \code{lod} are left unchanged.}
+\code{exposure_matrix}: a name that is not a column is ignored with a
+warning, and the function stops when no name is. Exposures not in
+\code{lod} are left unchanged.}
 
 \item{method}{Character. Imputation method:
 \describe{
@@ -52,7 +54,8 @@ For \code{method != "multiple"}: the numeric matrix with censored
   values replaced, of the same dimensions as the input. For
   \code{method = "multiple"}: an \code{S4Vectors::SimpleList} of \code{M}
   such matrices. In both cases a \code{data.frame} with one row per
-  exposure in \code{lod} (\code{exposure}, \code{n_detected},
+  exposure of \code{lod} that is a column of \code{exposure_matrix}
+  (\code{exposure}, \code{n_detected},
   \code{n_censored}, \code{n_missing}, \code{method}) records what was
   done; it is the \code{"lod_summary"} attribute of the matrix, or
   \code{metadata(result)$lod_summary} for the list.

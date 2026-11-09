@@ -310,3 +310,18 @@ test_that("the censored fit is not misled by many censored values", {
     fit <- exposomeSC:::.censored_lognormal_mle(rep(10, 4), 0, 100L)
     expect_equal(unname(fit), c(-38.886, 22.110), tolerance = 1e-3)
 })
+
+test_that("lod names must be columns of the exposure matrix", {
+    mat <- cbind(PM2.5 = c(0.1, 0.5, 1, 2, 3), NO2 = c(0.2, 0.4, 3, 5, 7))
+    rownames(mat) <- paste0("D", 1:5)
+    expect_error(
+        exposure_impute_lod(mat, lod = c(PM25 = 0.3), method = "multiple",
+            verbose = FALSE),
+        "No name of lod is a column of exposure_matrix")
+    expect_warning(
+        imputed <- exposure_impute_lod(mat, lod = c(PM2.5 = 0.3, PM25 = 0.3),
+            method = "lod_2", verbose = FALSE),
+        "ignored: PM25")
+    expect_identical(attr(imputed, "lod_summary")$exposure, "PM2.5")
+    expect_equal(imputed[1, "PM2.5"], 0.15)
+})
