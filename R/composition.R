@@ -436,6 +436,20 @@ NULL
     code()
 }
 
+# A permutation of the rows 1..n that moves each row only within its
+# stratum. sample() is not used on the indices themselves: for a stratum of
+# one donor at row k it would read k as 1:k and draw a row of another
+# stratum.
+# @keywords internal
+# @noRd
+.permute_within_strata <- function(strata_indices, n) {
+    permutation <- seq_len(n)
+    for (indices in strata_indices) {
+        permutation[indices] <- indices[sample.int(length(indices))]
+    }
+    permutation
+}
+
 .composition_freedman_lane <- function(response, reduced_design,
                                          full_design, strata,
                                          n_permutations, seed) {
@@ -452,14 +466,10 @@ NULL
 
     permutation_statistics <- .composition_preserve_rng(seed, function() {
         vapply(seq_len(n_permutations), function(iteration) {
-            permutation <- seq_len(nrow(response))
-            for (indices in strata_indices) {
-                permutation[indices] <- sample(
-                    indices,
-                    length(indices),
-                    replace = FALSE
-                )
-            }
+            permutation <- .permute_within_strata(
+                strata_indices,
+                nrow(response)
+            )
             permuted_response <- fitted_reduced +
                 residual_reduced[permutation, , drop = FALSE]
             .composition_pillai_statistic(

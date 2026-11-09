@@ -82,6 +82,9 @@ with warnings.
   gives the p-value 1 instead of `NA` to an edge whose tested pairs all have
   the same partial correlation; such an edge now counts in `p_adjusted`,
   whose values for the other edges can therefore be larger (see Bug fixes).
+* The permutation p-value of `run_exposure_composition()` can change when a
+  stratum of `permutation_strata` holds a single donor in a model row other
+  than the first (see Bug fixes).
 
 ## Interface
 
@@ -275,6 +278,15 @@ with warnings.
   package installed from the tarball on a system where knitr could not be
   loaded therefore had no vignette index: `vignette(package = "exposomeSC")`
   listed nothing and `browseVignettes("exposomeSC")` found no vignettes.
+* The Freedman-Lane permutation test of `run_exposure_composition()` moves
+  residuals only within their `permutation_strata` stratum and leaves the
+  residual of a donor that is alone in its stratum in place. For such a
+  donor in model row k > 1, `sample()` read k as `1:k`, so in about
+  (k - 1) / k of the permutations the donor took the residual of a donor of
+  another stratum, that residual appeared twice, and the permutation
+  p-value was computed partly from invalid permutations. When every
+  stratum has at least two donors, the permutations, and so seeded
+  results, are unchanged.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

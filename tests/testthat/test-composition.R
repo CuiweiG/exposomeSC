@@ -393,3 +393,34 @@ test_that("composition analysis runs with exactly two cell types", {
                 omnibus$denominator_df))
     expect_setequal(result$celltype, c("A", "B"))
 })
+
+test_that("permutations stay within strata, also for a single donor", {
+    strata <- c("a", "a", "b", "a", "c", "c")
+    strata_indices <- split(seq_along(strata), strata)
+    set.seed(1)
+    draws <- replicate(50L, exposomeSC:::.permute_within_strata(
+        strata_indices, length(strata)))
+    is_permutation <- apply(draws, 2L, function(p) {
+        identical(sort(p), seq_along(strata))
+    })
+    expect_true(all(is_permutation))
+    expect_true(all(apply(draws, 2L, function(p) all(strata[p] == strata))))
+    ## the donor alone in stratum b keeps its own residual
+    expect_true(all(draws[3L, ] == 3L))
+})
+
+test_that("a donor alone in its stratum keeps its residual end to end", {
+    synthetic <- .make_composition_scee(n_donors = 36L, shifted = TRUE)
+    donors <- names(synthetic$study)
+    strata <- stats::setNames(donors, donors)
+    strata[c("D1", "D2")] <- "pair"
+    result <- .run_synthetic_composition(
+        synthetic$object,
+        n_permutations = 19L,
+        permutation_strata = strata,
+        seed = 1L
+    )
+    statistics <- S4Vectors::metadata(result)$permutation_statistics
+    ## the identity and the swap of D1 and D2 are the only permutations
+    expect_lte(length(unique(round(statistics, 10L))), 2L)
+})
