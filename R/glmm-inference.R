@@ -271,6 +271,10 @@ run_sc_exwas_pb_offset <- function(x, exposure,
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
     .check_formula_names(covariates, "covariate")
     .check_reserved_covariates(covariates, c("y", "A", "logoff"))
+    if (!is.null(target_genes)) {
+        target_genes <- .match_target_genes(target_genes, rownames(x))
+        if (!length(target_genes)) stop("No target genes present in x")
+    }
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -497,8 +501,9 @@ run_sc_exwas_glmm <- function(x, exposure,
     counts_mat <- SummarizedExperiment::assay(x, "counts")
     samples <- as.character(cd[[sample_col]])
     cell_types <- as.character(cd[[celltype_col]])
-    genes <- if (is.null(target_genes)) rownames(x)
-             else intersect(target_genes, rownames(x))
+    genes <- rownames(x)
+    if (!is.null(target_genes))
+        genes <- .match_target_genes(target_genes, genes)
     if (!length(genes)) stop("No target genes present in x")
 
     ## Cells of a donor with a missing exposure or covariate, and cells

@@ -469,6 +469,14 @@ with warnings.
   weights, `mixture_effect` and `mixture_coef` are `NA` (the weights were
   equal and the effects 0), and `q` must be a whole number of at least 2:
   `q = 1` gave every donor the same score.
+* `run_dose_response()`, `run_dose_response_gam()`, `run_interaction_test()`,
+  `run_sc_mixture()`, `run_mixture_qgcomp()`, `run_sc_exwas_glmm()` and
+  `run_sc_exwas_pb_offset()` warn, naming them, when some of the
+  `target_genes` are not in the data. Such genes were dropped without a
+  word, which shrank the tested family and the denominator of the adjusted
+  p-values, or changed the genes a mixture is averaged over. When none is
+  present, `run_sc_exwas_pb_offset()` now says so instead of stopping with
+  "No gene/cell-type stratum yielded an estimable NB GLM".
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

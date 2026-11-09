@@ -303,6 +303,22 @@ NULL
          paste(extra_names, collapse = ", "), ".", call. = FALSE)
 }
 
+# Requested genes that are not in the data are left out with a warning that
+# names them, so that the tested family does not shrink without a word.
+# @keywords internal
+# @noRd
+.match_target_genes <- function(target_genes, available) {
+    absent <- setdiff(target_genes, available)
+    if (length(absent)) {
+        shown <- paste(utils::head(absent, 10L), collapse = ", ")
+        more <- if (length(absent) > 10L)
+            sprintf(" and %d more", length(absent) - 10L) else ""
+        warning("target_genes not found in the data are not tested: ",
+                shown, more, ".", call. = FALSE)
+    }
+    intersect(target_genes, available)
+}
+
 # Arguments that name one cell type or one exposure. A longer vector would be
 # recycled in comparisons such as cell_types == celltype and analyse several
 # cell types as one. A factor or a number is taken as its label: the columns

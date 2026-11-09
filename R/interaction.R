@@ -159,7 +159,7 @@ run_interaction_test <- function(x, exposure,
         target_genes <- names(sort(gene_vars,
             decreasing = TRUE))[seq_len(n_top)]
     }
-    target_genes <- intersect(target_genes, genes)
+    target_genes <- .match_target_genes(target_genes, genes)
     if (length(target_genes) == 0)
         stop("No target genes found")
 

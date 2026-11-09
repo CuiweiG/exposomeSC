@@ -233,3 +233,50 @@ test_that("an exposure cannot also be a covariate", {
     expect_error(run_mixture_qgcomp(scee, exposures = c("E1", "age"),
         celltype = "Mono", covariates = "E1", min_cells = 3L), overlap)
 })
+
+test_that("target_genes missing from the data are named in a warning", {
+    ## beyond ten names the warning counts the others
+    expect_warning(
+        exposomeSC:::.match_target_genes(c("G1", paste0("X", 1:12)), "G1"),
+        "X10 and 2 more.", fixed = TRUE)
+    scee <- .formula_name_fixture()
+    absent <- "target_genes not found in the data are not tested: GX"
+    expect_warning(
+        dose <- run_dose_response(scee, exposure = "E1", celltype = "Mono",
+            min_cells = 3L, max_degree = 2L, target_genes = c("G1", "GX")),
+        absent)
+    expect_identical(dose$gene, "G1")
+    expect_warning(run_sc_mixture(scee, exposures = c("E1", "age"),
+        celltype = "Mono", min_cells = 3L,
+        target_genes = c("G1", "G2", "GX")), absent)
+    expect_warning(run_sc_exwas_pb_offset(scee, exposure = "E1",
+        target_genes = c("G1", "GX")), absent)
+    expect_error(suppressWarnings(run_sc_exwas_pb_offset(scee,
+        exposure = "E1", target_genes = "GX")), "No target genes present")
+    set.seed(3)
+    donor <- rep(sprintf("D%02d", 1:10), each = 6)
+    counts <- matrix(stats::rpois(20 * length(donor), 8), nrow = 20,
+        dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor,
+            cell_type = rep(c("Mono", "NK"), length.out = length(donor))))
+    two_types <- build_scee(sce, matrix(stats::rnorm(10), ncol = 1,
+        dimnames = list(sprintf("D%02d", 1:10), "E1")),
+        sample_col = "donor_id")
+    expect_warning(run_interaction_test(two_types, exposure = "E1",
+        min_cells = 3L, min_donors = 3L, target_genes = c("G1", "GX")),
+        absent)
+    skip_if_not_installed("mgcv")
+    expect_warning(run_dose_response_gam(scee, exposure = "E1",
+        celltype = "Mono", min_cells = 3L, target_genes = c("G1", "GX")),
+        absent)
+    skip_if_not_installed("qgcomp")
+    expect_warning(run_mixture_qgcomp(scee, exposures = c("E1", "age"),
+        celltype = "Mono", min_cells = 3L, target_genes = c("G1", "GX")),
+        absent)
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    expect_warning(suppressMessages(run_sc_exwas_glmm(scee, exposure = "E1",
+        target_genes = c("G1", "GX"))), absent)
+})

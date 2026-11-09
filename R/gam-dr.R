@@ -181,7 +181,7 @@ run_dose_response_gam <- function(x, exposure, celltype,
         target_genes <- names(sort(gv,
             decreasing = TRUE))[seq_len(n_top)]
     }
-    target_genes <- intersect(target_genes, rownames(log_cpm))
+    target_genes <- .match_target_genes(target_genes, rownames(log_cpm))
     if (length(target_genes) == 0)
         stop("No target genes found")
 

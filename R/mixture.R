@@ -190,7 +190,7 @@ run_sc_mixture <- function(x, exposures, celltype,
                                         seq_len(n_top)]
     }
     ## Keep only genes present in matrix
-    target_genes <- intersect(target_genes, rownames(log_cpm))
+    target_genes <- .match_target_genes(target_genes, rownames(log_cpm))
     if (length(target_genes) == 0) {
         stop("No target genes found in expression matrix")
     }
