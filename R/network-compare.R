@@ -44,6 +44,12 @@ NULL
 #' networks' metadata; with more than two networks the largest pairwise
 #' statistic is used.
 #'
+#' The donor counts are read from \code{metadata(network)$n_donors}, which
+#' must be a single non-negative whole number in every network, whatever
+#' the method; \code{NULL} or \code{NA} mean that the count is unknown. A
+#' pair of networks with an unknown count, or a count of 3 or less, is not
+#' tested, and an edge with no tested pair gets an \code{NA} p-value.
+#'
 #' This is the single-cell analogue of the temporal edge comparison in
 #' Cheng et al. (ES&T 2024).
 #'
@@ -135,8 +141,18 @@ run_comparative_network <- function(...,
     })
     adjacencies <- lapply(nets, networkAdjacency)
     n_donors <- vapply(nets, function(n) {
-        md <- metadata(n)
-        if (!is.null(md$n_donors)) as.numeric(md$n_donors) else NA_real_
+        count <- metadata(n)$n_donors
+        if (is.null(count) || (length(count) == 1L && is.na(count))) {
+            return(NA_real_)
+        }
+        if (!is.numeric(count) || length(count) != 1L ||
+                !is.finite(count) || count < 0 || count != round(count)) {
+            stop("metadata()$n_donors of the network for '",
+                networkCelltype(n),
+                "' must be a single non-negative whole number.",
+                call. = FALSE)
+        }
+        as.numeric(count)
     }, numeric(1))
 
     ## --- Identify all edges across networks ---
@@ -191,6 +207,7 @@ run_comparative_network <- function(...,
                        length(nets) > 2L && all(is.finite(pcor_vals))) {
                 ## Multi-group: pairwise max test
                 z_max <- 0
+                tested <- FALSE
                 for (a in seq_along(nets)[-length(nets)]) {
                     for (b in (a + 1L):length(nets)) {
                         r_a <- pcor_vals[a]
@@ -206,9 +223,12 @@ run_comparative_network <- function(...,
                         se <- sqrt(1/(n_a - 3) + 1/(n_b - 3))
                         z_max <- max(z_max,
                             abs(z_a - z_b) / se)
+                        tested <- TRUE
                     }
                 }
-                if (z_max > 0) pval <- 2 * pnorm(-z_max)
+                ## p = 1 when every tested pair has the same partial
+                ## correlation, as with two networks
+                if (tested) pval <- 2 * pnorm(-z_max)
             }
 
             edge_list[[idx]] <- data.frame(

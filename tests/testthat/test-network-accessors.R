@@ -192,7 +192,32 @@ test_that("run_comparative_network accepts n_donors stored as a double", {
         comp <- run_comparative_network(a, b, method = "fisher_z"),
         "experimental")
     expect_s4_class(comp, "NetworkComparison")
+    expect_identical(nrow(diffEdges(comp)), 1L)
     expect_true(all(is.finite(diffEdges(comp)$p_value)))
+})
+
+test_that("run_comparative_network checks the donor counts", {
+    a <- .toy_network("Mono", -0.4)
+    b <- .toy_network("NK", 0)
+    a@metadata$n_donors <- NA
+    unknown <- suppressWarnings(
+        run_comparative_network(a, b, method = "fisher_z"))
+    expect_identical(nrow(diffEdges(unknown)), 1L)
+    expect_true(all(is.na(diffEdges(unknown)$p_value)))
+    for (count in list("20", Inf, 20.5, -5, c(20, 30))) {
+        a@metadata$n_donors <- count
+        expect_error(
+            suppressWarnings(
+                run_comparative_network(a, b, method = "fisher_z")),
+            "network for 'Mono' must be a single non-negative whole number")
+    }
+    ## the same partial correlation in every network: p = 1, also for three
+    two <- suppressWarnings(run_comparative_network(.toy_network("A"),
+        .toy_network("B"), method = "fisher_z"))
+    three <- suppressWarnings(run_comparative_network(.toy_network("A"),
+        .toy_network("B"), .toy_network("C"), method = "fisher_z"))
+    expect_equal(sharedEdges(two)$p_value, 1)
+    expect_equal(sharedEdges(three)$p_value, 1)
 })
 
 test_that("validity checks the matrix types, the diagonal and the layers", {

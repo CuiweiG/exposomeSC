@@ -17,21 +17,25 @@ NULL
 #' @param precision Numeric square matrix: the precision (inverse
 #'   covariance) matrix, one row and column per feature.
 #' @param adjacency Symmetric matrix of edge indicators (1 = edge, 0 = no
-#'   edge) with the dimensions of \code{precision}.
+#'   edge) with the dimensions of \code{precision} and a zero diagonal; a
+#'   logical matrix is stored as 0/1 integers.
 #' @param node_info \code{DataFrame} or \code{data.frame} with one row per
-#'   feature, in matrix order, and at least a \code{feature} column without
-#'   missing values. Row and column names of the matrices, where present,
-#'   must equal \code{feature}, so that a misordered table is an error. The
-#'   plotting and comparison functions also use an \code{omic_layer} column
-#'   (\code{"transcript"} or \code{"metabolite"}).
+#'   feature, in matrix order, a \code{feature} column without missing
+#'   values and an \code{omic_layer} column, which the summaries, plots and
+#'   comparisons read; the summaries and plots recognise the layers
+#'   \code{"transcript"} and \code{"metabolite"}.
+#'   Row and column names of the matrices, where present, must equal
+#'   \code{feature}, so that a misordered table is an error.
 #' @param celltype Character scalar: the cell type.
 #' @param method Character scalar: how the network was estimated. Default
 #'   \code{"precomputed"}.
-#' @param stability Optional matrix of edge selection frequencies with the
-#'   dimensions of \code{adjacency}; \code{NULL} (default) stores none.
+#' @param stability Optional matrix of edge selection frequencies between 0
+#'   and 1 with the dimensions of \code{adjacency}; \code{NULL} (default)
+#'   stores none.
 #' @param metadata List of further information, for example
-#'   \code{n_donors}, which \code{run_comparative_network()} uses for its
-#'   Fisher-Z mode.
+#'   \code{n_donors}, a single non-negative whole number (\code{NULL} or
+#'   \code{NA} when unknown), which \code{run_comparative_network()} checks
+#'   and uses for its Fisher-Z mode.
 #'
 #' @return A valid \code{CelltypeNetworkResult}.
 #'

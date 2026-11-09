@@ -78,6 +78,10 @@ with warnings.
   or `covariates`, a feature with the same non-zero value in every donor
   could instead stay in as rounding noise scaled to unit variance (see Bug
   fixes).
+* `run_comparative_network(method = "fisher_z")` with more than two networks
+  gives the p-value 1 instead of `NA` to an edge whose tested pairs all have
+  the same partial correlation; such an edge now counts in `p_adjusted`,
+  whose values for the other edges can therefore be larger (see Bug fixes).
 
 ## Interface
 
@@ -185,7 +189,12 @@ with warnings.
   it used to fall back to the edge weights without saying so.
 * `run_comparative_network()` accepts `metadata(network)$n_donors` stored
   as a double, which is how a number is normally typed; it used to fail
-  with "values must be type 'integer'".
+  with "values must be type 'integer'". A count that is not a single
+  non-negative whole number is an error that names the network; `NULL` or
+  `NA` mean that the count is unknown. With more than two networks, an
+  edge whose tested pairs all have the same partial correlation gets the
+  p-value 1, as with two networks, instead of `NA`; it now counts in
+  `p_adjusted`, whose values for the other edges can therefore be larger.
 * A CelltypeNetworkResult also checks that its precision matrix is
   numeric, that the adjacency matrix is numeric with a zero diagonal, that
   stability scores lie between 0 and 1, and that the node table has the

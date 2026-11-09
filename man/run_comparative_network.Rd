@@ -51,6 +51,12 @@ where \code{n1} and \code{n2} are the donor counts recorded in the
 networks' metadata; with more than two networks the largest pairwise
 statistic is used.
 
+The donor counts are read from \code{metadata(network)$n_donors}, which
+must be a single non-negative whole number in every network, whatever
+the method; \code{NULL} or \code{NA} mean that the count is unknown. A
+pair of networks with an unknown count, or a count of 3 or less, is not
+tested, and an edge with no tested pair gets an \code{NA} p-value.
+
 This is the single-cell analogue of the temporal edge comparison in
 Cheng et al. (ES&T 2024).
 }

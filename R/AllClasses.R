@@ -205,8 +205,7 @@ setClass("CelltypeNetwork", contains = "VIRTUAL")
 #'   precision (inverse covariance) matrix.
 #' @slot adjacency_matrix Numeric matrix. Symmetric binary edge
 #'   indicators (1 = edge present, 0 = absent) with the dimensions of
-#'   \code{precision_matrix},
-#'   symmetric with a zero diagonal.
+#'   \code{precision_matrix} and a zero diagonal.
 #' @slot stability_scores Numeric matrix. Edge-level selection
 #'   frequencies (0-1) across the XStARS subsamples at the selected
 #'   penalties, for coglasso networks built with \code{stability = TRUE}.
