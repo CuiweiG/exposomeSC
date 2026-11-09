@@ -318,3 +318,100 @@ test_that("nbinom fits a single cell type", {
     expect_equal(res$statistic, stats::anova(reduced, full)$Chisq[2],
         tolerance = 1e-6)
 })
+
+test_that("a cell type whose donors all lack an exposure is left out", {
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    set.seed(6)
+    donors <- sprintf("D%02d", 1:12)
+    exposure <- stats::setNames(rep(c(0, 1), 6), donors)
+    ## types B and C in every donor; type A only in D11 and D12, whose
+    ## exposure is missing
+    cell_donor <- c(rep(donors, each = 20), rep(c("D11", "D12"), each = 20))
+    cell_type <- c(rep(c("B", "C"), 120), rep("A", 40))
+    counts <- rbind(
+        G1 = stats::rnbinom(length(cell_donor),
+            mu = 20 * exp(0.4 * exposure[cell_donor]), size = 5),
+        G2 = stats::rnbinom(length(cell_donor), mu = 20, size = 5))
+    colnames(counts) <- paste0("c", seq_along(cell_donor))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = cell_donor,
+            cell_type = cell_type))
+    design <- matrix(exposure, ncol = 1, dimnames = list(donors, "exposure"))
+    design[c("D11", "D12"), "exposure"] <- NA
+    fit <- function(cells, family) {
+        scee <- build_scee(sce[, cells],
+            design[unique(cell_donor[cells]), , drop = FALSE],
+            sample_col = "donor_id")
+        suppressWarnings(suppressMessages(run_sc_exwas_glmm(scee,
+            exposure = "exposure", target_genes = "G1", family = family)))
+    }
+    complete <- !cell_donor %in% c("D11", "D12")
+    three_types <- fit(rep(TRUE, length(cell_donor)), "gaussian")
+    expect_setequal(three_types$celltype, c("B", "C"))
+    expect_equal(three_types, fit(complete, "gaussian"), tolerance = 1e-6)
+    ## without type C only B keeps cells, and both families fit it
+    no_c <- cell_type != "C"
+    for (family in c("gaussian", "nbinom")) {
+        expect_equal(fit(no_c, family), fit(no_c & complete, family),
+            tolerance = 1e-6)
+    }
+})
+
+test_that("cells of a donor without an exposure value are left out", {
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    set.seed(5)
+    donors <- paste0("D", 1:10)
+    exposure <- rep(c(0, 1), 5)
+    donor <- rep(donors, each = 24)
+    counts <- rbind(
+        G1 = stats::rnbinom(length(donor),
+            mu = 20 * exp(0.5 * exposure[match(donor, donors)]), size = 5),
+        G2 = stats::rnbinom(length(donor), mu = 20, size = 5))
+    colnames(counts) <- paste0("c", seq_along(donor))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+    design <- matrix(exposure, ncol = 1, dimnames = list(donors, "exposure"))
+    design["D3", "exposure"] <- NA
+    fit <- function(cells, family) {
+        scee <- build_scee(sce[, cells],
+            design[unique(donor[cells]), , drop = FALSE],
+            sample_col = "donor_id")
+        suppressWarnings(run_sc_exwas_glmm(scee, exposure = "exposure",
+            target_genes = "G1", family = family))
+    }
+    all_cells <- rep(TRUE, length(donor))
+    for (family in c("nbinom", "gaussian")) {
+        msgs <- character()
+        with_missing <- withCallingHandlers(fit(all_cells, family),
+            message = function(m) {
+                msgs <<- c(msgs, conditionMessage(m))
+                invokeRestart("muffleMessage")
+            })
+        expect_true(any(grepl("Leaving 1 donor\\(s\\) with a missing",
+            msgs)))
+        expect_false(is.na(with_missing$pvalue))
+        without <- suppressMessages(fit(donor != "D3", family))
+        expect_equal(with_missing, without, tolerance = 1e-6)
+    }
+    ## cells without a label are left out as well
+    labelled <- !(seq_along(donor) %in% c(1:3, 30:32))
+    sce$cell_type[!labelled] <- NA
+    design["D3", "exposure"] <- 0
+    for (family in c("nbinom", "gaussian")) {
+        msgs <- character()
+        with_unlabelled <- withCallingHandlers(fit(all_cells, family),
+            message = function(m) {
+                msgs <<- c(msgs, conditionMessage(m))
+                invokeRestart("muffleMessage")
+            })
+        expect_true(any(grepl(
+            "Leaving 6 cell\\(s\\) without a cell-type label", msgs)))
+        expect_false(is.na(with_unlabelled$pvalue))
+        expect_equal(with_unlabelled, suppressMessages(fit(labelled, family)),
+            tolerance = 1e-6)
+    }
+})

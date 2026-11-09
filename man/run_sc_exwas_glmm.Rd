@@ -104,6 +104,11 @@ model) -- again not a Wald-normal test. This path is markedly more expensive
 donor-level \code{\link{run_sc_exwas_pb_offset}}, which is calibration-
 equivalent and far faster (Lee & Han 2024). The \code{ddf} argument is
 ignored for \code{family = "nbinom"}.
+
+\strong{Missing values.} The cells of a donor whose exposure or a
+covariate is missing, and cells without a cell-type label, are left out,
+with a message, before either family is fitted, so that the full and
+reduced models of a likelihood-ratio test use the same cells.
 }
 \note{
 Calibrate against a donor-permutation null, with the exposure permuted

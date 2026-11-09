@@ -98,6 +98,10 @@ with warnings.
 * `run_cell_coupling()` gives other `n_donors`, `mean_r` and `mean_n_cells`
   when a donor has no moderator value, and leaves out a pair that is then
   left with fewer than `min_donors` donors (see Bug fixes).
+* The linear mixed model of `run_sc_exwas_glmm()` gives other estimates with
+  one labelled cell type and unlabelled cells, and, when every cell of the
+  first cell type is left out, no longer reports the next type's estimate
+  under the first type's label (see Bug fixes).
 
 ## Interface
 
@@ -357,6 +361,18 @@ with warnings.
   a factor with one level, so every gene failed and the function stopped
   with "No gene/cell-type stratum yielded an estimable model". A single cell
   type now has a plain intercept.
+* `run_sc_exwas_glmm()` leaves out, with a message, the cells of donors with
+  a missing exposure or covariate and the cells without a cell-type label,
+  before it fits either family. The fits with several cell types already
+  dropped such cells, so their results are unchanged unless every cell of a
+  cell type is left out. Such a type is now left out of the model: when it
+  came first, the linear mixed model reported the next type's estimate under
+  its label, and when only one type kept cells, both families stopped. The
+  negative binomial model for a single cell type needs it: its reduced model
+  has no exposure or cell-type column and would keep cells that the full
+  model drops, which leaves every likelihood-ratio test without a p-value.
+  The linear mixed model with one labelled cell type no longer analyses
+  unlabelled cells as cells of that type.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

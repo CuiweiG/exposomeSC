@@ -366,6 +366,11 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #' equivalent and far faster (Lee & Han 2024). The \code{ddf} argument is
 #' ignored for \code{family = "nbinom"}.
 #'
+#' \strong{Missing values.} The cells of a donor whose exposure or a
+#' covariate is missing, and cells without a cell-type label, are left out,
+#' with a message, before either family is fitted, so that the full and
+#' reduced models of a likelihood-ratio test use the same cells.
+#'
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
@@ -493,6 +498,30 @@ run_sc_exwas_glmm <- function(x, exposure,
     genes <- if (is.null(target_genes)) rownames(x)
              else intersect(target_genes, rownames(x))
     if (!length(genes)) stop("No target genes present in x")
+
+    ## Cells of a donor with a missing exposure or covariate, and cells
+    ## without a cell-type label, cannot enter the model. Leaving them out
+    ## here fits the full and reduced models of each likelihood-ratio test
+    ## to the same cells.
+    has_values <- stats::complete.cases(
+        exp_data[samples, c(exposure, covariates), drop = FALSE])
+    has_label <- !is.na(cell_types)
+    complete <- has_values & has_label
+    if (!all(complete)) {
+        if (!any(complete))
+            stop("No labelled cell has a donor with values of the exposure ",
+                "and of every covariate.")
+        if (!all(has_values))
+            message("[exposomeSC] Leaving ",
+                    length(unique(samples[!has_values])), " donor(s) with a ",
+                    "missing exposure or covariate out of the model.")
+        if (!all(has_label))
+            message("[exposomeSC] Leaving ", sum(!has_label), " cell(s) ",
+                    "without a cell-type label out of the model.")
+        counts_mat <- counts_mat[, complete, drop = FALSE]
+        samples <- samples[complete]
+        cell_types <- cell_types[complete]
+    }
 
     ## shared cell-level design (donor, cell type, exposure, covariates) ----
     ct_f <- factor(cell_types)
