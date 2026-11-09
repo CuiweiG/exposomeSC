@@ -43,7 +43,11 @@ A \code{DataFrame}, one row per gene x cell type:
   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
   \eqn{\log_2} rate scale), \code{se} (on the same scale), \code{statistic}
   (donor-level Wald z from the NB GLM), \code{pvalue}, and BH-adjusted
-  \code{padj} across all strata. Rows ordered by \code{padj}.
+  \code{padj} across all tested gene-by-cell-type strata, the family of
+  \code{padj_global} in \code{\link{run_sc_exwas}}, whose \code{padj} is
+  within a cell type. Rows ordered by \code{padj}. A gene whose GLM
+  cannot be fitted gets \code{NA} estimates; the function stops when no
+  cell type has at least three donors with cells.
 }
 \description{
 A donor-level negative-binomial alternative to \code{\link{run_sc_exwas}}.

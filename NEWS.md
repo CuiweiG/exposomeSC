@@ -504,6 +504,14 @@ with warnings.
   `?exposure_impute_lod` describes each method correctly and points to the
   LOD imputation in rexposome.
 * Requires R 4.6.0. BiocCheck and statmod are no longer suggested.
+* `?run_sc_exwas_glmm` and `?run_sc_exwas_pb_offset` state that their `padj`
+  adjusts across all gene-by-cell-type strata, the family of `padj_global`
+  in `run_sc_exwas()`, whose `padj` is within a cell type, and what they do
+  when a fit fails: the mixed model leaves out a stratum it cannot fit,
+  keeps a negative binomial stratum whose likelihood-ratio test fails with
+  an `NA` p-value, and stops when it can fit none, and the offset model
+  returns `NA` estimates for a gene it cannot fit.
+  `?run_sc_exwas_glmm` did not say which family its `padj` uses.
 
 # exposomeSC 0.99.1
 

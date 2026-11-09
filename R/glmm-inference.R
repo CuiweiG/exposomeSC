@@ -202,7 +202,11 @@ NULL
 #'   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
 #'   \eqn{\log_2} rate scale), \code{se} (on the same scale), \code{statistic}
 #'   (donor-level Wald z from the NB GLM), \code{pvalue}, and BH-adjusted
-#'   \code{padj} across all strata. Rows ordered by \code{padj}.
+#'   \code{padj} across all tested gene-by-cell-type strata, the family of
+#'   \code{padj_global} in \code{\link{run_sc_exwas}}, whose \code{padj} is
+#'   within a cell type. Rows ordered by \code{padj}. A gene whose GLM
+#'   cannot be fitted gets \code{NA} estimates; the function stops when no
+#'   cell type has at least three donors with cells.
 #'
 #' @note Report empirical calibration from a donor-permutation null, with the
 #'   exposure permuted across donors, before quoting any type-I rate.
@@ -406,8 +410,18 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #' @return A \code{DataFrame}, one row per gene x cell type: \code{gene},
 #'   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic} (Satterthwaite
 #'   /KR \eqn{t} for gaussian, LR \eqn{\chi^2} for nbinom), \code{df} (finite
-#'   denominator df; 1 for the nbinom LRT), \code{pvalue}, BH-adjusted
-#'   \code{padj}, and \code{method}. Rows ordered by \code{padj}.
+#'   denominator df; 1 for the nbinom LRT), \code{pvalue}, \code{padj}
+#'   (BH across all gene-by-cell-type strata, the family of
+#'   \code{padj_global} in \code{\link{run_sc_exwas}}, whose \code{padj} is
+#'   within a cell type), and \code{method}. Rows ordered by \code{padj}.
+#'   A gene-by-cell-type stratum that cannot be fitted is left out of the
+#'   result; with \code{family = "nbinom"}, a stratum whose likelihood-ratio
+#'   test cannot be computed is kept with \code{NA} \code{pvalue} and
+#'   \code{padj}. Its \code{statistic} is \code{NA} when the reduced model
+#'   or \code{anova()} fails, and close to 0 when the test has no degrees
+#'   of freedom, as when a covariate is a linear function of the exposure.
+#'   \code{padj} adjusts over the strata with a p-value, and the function
+#'   stops when no stratum can be fitted.
 #'
 #' @note Calibrate against a donor-permutation null, with the exposure permuted
 #'   across donors, before quoting any type-I rate;

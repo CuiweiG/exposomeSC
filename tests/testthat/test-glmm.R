@@ -415,3 +415,18 @@ test_that("cells of a donor without an exposure value are left out", {
             tolerance = 1e-6)
     }
 })
+
+test_that("padj of the mixed and offset models adjusts across all strata", {
+    scee <- .reserved_names_scee()
+    ## Poisson counts: glm.nb() warns while it estimates theta
+    offset_fit <- suppressWarnings(run_sc_exwas_pb_offset(scee,
+        exposure = "E1", target_genes = c("G1", "G2")))
+    expect_setequal(offset_fit$celltype, c("Mono", "NK"))
+    expect_equal(offset_fit$padj, stats::p.adjust(offset_fit$pvalue, "BH"))
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    mixed_fit <- suppressWarnings(suppressMessages(run_sc_exwas_glmm(scee,
+        exposure = "E1", target_genes = c("G1", "G2"))))
+    expect_setequal(mixed_fit$celltype, c("Mono", "NK"))
+    expect_equal(mixed_fit$padj, stats::p.adjust(mixed_fit$pvalue, "BH"))
+})
