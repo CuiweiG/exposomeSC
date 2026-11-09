@@ -172,6 +172,10 @@ with warnings.
   `"statistic"` and `"stat"`, or `"log2FC"` and `"log2FoldChange"`.
 * `run_meta_exwas()` no longer returns `meta_z`, which duplicated
   `meta_statistic`.
+* `run_exposure_network()` takes `lambda_w` and `lambda_b`, the penalties of
+  the block graphical lasso (defaults 0.3 and 0.5, the values it used
+  before), and records the penalties of its network in
+  `metadata(result)$selection` (see Bug fixes).
 * A SingleCellExposomeExperiment no longer keeps a second copy of the
   cell-to-donor mapping in a `sampleMap` slot. It stores the name of the
   donor column of `colData`, returned by the new `sampleColumn()`, and
@@ -523,6 +527,13 @@ with warnings.
   adjustment. The exposure listed in `meta_moderators` is now an error, and
   `meta_moderators = character(0)` means no moderators, as `NULL` does; it
   used to fail with a parse error.
+* `run_exposure_network()` takes the penalties `lambda_w` and `lambda_b` of
+  the block graphical lasso, as `run_celltype_network()` does, and records
+  the penalties of its network in `metadata(result)$selection` for both
+  estimators, for coglasso with the selected `c`. The block graphical
+  lasso, also used when only one omic layer is selected, ran with fixed
+  penalties (0.3 within and 0.5 between layers) that were neither
+  documented nor recorded.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

@@ -386,11 +386,22 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #'   requires the \pkg{coglasso} package (an error when it is not
 #'   installed). The estimator used is recorded in
 #'   \code{metadata(result)$network_method}.
+#' @param lambda_w Numeric; graphical-lasso penalty for pairs of
+#'   features in the same omic layer, on the correlation scale, for the
+#'   block graphical lasso (\code{network_method = "block_glasso"}, or the
+#'   fallback when only one omic layer is selected). Default 0.3.
+#' @param lambda_b Numeric; graphical-lasso penalty for pairs of
+#'   features in different omic layers, on the correlation scale, for the
+#'   block graphical lasso. Default 0.5.
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}}
 #'   restricted to exposure-associated features. Its metadata record
-#'   the expression transform, the selection settings and, for
-#'   stability selection, \code{pfer_bound}.
+#'   the expression transform, the selection settings, for stability
+#'   selection \code{pfer_bound}, and in \code{selection} the penalties of
+#'   the network: \code{lambda_w} and \code{lambda_b} for the block
+#'   graphical lasso, or the \code{selected_lambda_w},
+#'   \code{selected_lambda_b} and \code{selected_c} that coglasso
+#'   selected, with \code{stars_variability}.
 #'
 #' @details
 #' Stage 1: Feature selection. For each transcript and
@@ -472,7 +483,9 @@ run_exposure_network <- function(x, metabolites, celltype,
                                   stability_q = NULL,
                                   min_cells = 10L,
                                   network_method = c("coglasso",
-                                                     "block_glasso")) {
+                                                     "block_glasso"),
+                                  lambda_w = 0.3,
+                                  lambda_b = 0.5) {
 
     stopifnot(is(x, "SingleCellExposomeExperiment"))
     celltype <- .single_name(celltype, "celltype")
@@ -612,11 +625,17 @@ run_exposure_network <- function(x, metabolites, celltype,
         adjacency <- as.matrix(cg_stars$sel_adj)
         diag(adjacency) <- 0L
         stab_mat <- matrix(nrow = 0, ncol = 0)
+        selection <- list(selected_lambda_w = cg_stars$sel_lambda_w,
+            selected_lambda_b = cg_stars$sel_lambda_b,
+            selected_c = cg_stars$sel_c,
+            stars_variability = cg_stars$sel_variability)
     } else {
-        bg <- .block_glasso(S, sel_blocks)
+        bg <- .block_glasso(S, sel_blocks, lambda_w = lambda_w,
+            lambda_b = lambda_b)
         precision <- bg$wi
         adjacency <- bg$adj
         stab_mat <- matrix(nrow = 0, ncol = 0)
+        selection <- list(lambda_w = lambda_w, lambda_b = lambda_b)
     }
 
     feat_names <- sel_node_info$feature
@@ -648,6 +667,7 @@ run_exposure_network <- function(x, metabolites, celltype,
             pfer_bound        = pfer_bound,
             network_method    = if (use_coglasso) "coglasso" else
                 "block_glasso",
+            selection         = selection,
             transform         = assembled$transform,
             n_total_features  = p,
             edge_counts       = edge_counts

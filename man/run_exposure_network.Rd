@@ -16,7 +16,9 @@ run_exposure_network(
   pi_threshold = 0.6,
   stability_q = NULL,
   min_cells = 10L,
-  network_method = c("coglasso", "block_glasso")
+  network_method = c("coglasso", "block_glasso"),
+  lambda_w = 0.3,
+  lambda_b = 0.5
 )
 }
 \arguments{
@@ -69,12 +71,25 @@ block graphical lasso is used instead, with a warning. Otherwise it
 requires the \pkg{coglasso} package (an error when it is not
 installed). The estimator used is recorded in
 \code{metadata(result)$network_method}.}
+
+\item{lambda_w}{Numeric; graphical-lasso penalty for pairs of
+features in the same omic layer, on the correlation scale, for the
+block graphical lasso (\code{network_method = "block_glasso"}, or the
+fallback when only one omic layer is selected). Default 0.3.}
+
+\item{lambda_b}{Numeric; graphical-lasso penalty for pairs of
+features in different omic layers, on the correlation scale, for the
+block graphical lasso. Default 0.5.}
 }
 \value{
 A \code{\linkS4class{CelltypeNetworkResult}}
   restricted to exposure-associated features. Its metadata record
-  the expression transform, the selection settings and, for
-  stability selection, \code{pfer_bound}.
+  the expression transform, the selection settings, for stability
+  selection \code{pfer_bound}, and in \code{selection} the penalties of
+  the network: \code{lambda_w} and \code{lambda_b} for the block
+  graphical lasso, or the \code{selected_lambda_w},
+  \code{selected_lambda_b} and \code{selected_c} that coglasso
+  selected, with \code{stars_variability}.
 }
 \description{
 Pre-selects features associated with exposure by stability
