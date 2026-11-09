@@ -103,7 +103,11 @@ NULL
 #'   its package version, \code{se_method} and \code{statistic_type};
 #'   \code{metadata(result)$diagnostics} holds, for each fitted cell type,
 #'   the donors used, the numbers of genes before and after filtering and the
-#'   design columns.
+#'   design columns; for the edgeR backend also \code{dropped_design_columns},
+#'   the covariate columns left out of the design as collinear (each is also
+#'   reported in a warning), and \code{residual_df}, the smallest adjusted
+#'   residual degrees of freedom over the fitted genes
+#'   (\code{df.residual.adj}).
 #'
 #' @details
 #' The pseudobulk approach aggregates single-cell counts
@@ -541,15 +545,6 @@ setMethod("run_sc_exwas",
             next
         }
         dropped_design <- setdiff(colnames(design_full), colnames(design))
-        if (length(dropped_design)) {
-            warning(
-                celltype, ": covariate column(s) ",
-                paste(dropped_design, collapse = ", "),
-                " dropped from the design as collinear with the other ",
-                "terms; the test is not adjusted for them.",
-                call. = FALSE
-            )
-        }
         if (nrow(design) <= ncol(design) + 2L) {
             warning(
                 "Skipping ", celltype,
@@ -607,6 +602,16 @@ setMethod("run_sc_exwas",
         })
         if (is.null(fit_result)) {
             next
+        }
+        ## a dropped covariate matters only for a cell type that is fitted
+        if (length(dropped_design)) {
+            warning(
+                celltype, ": covariate column(s) ",
+                paste(dropped_design, collapse = ", "),
+                " dropped from the design as collinear with the other ",
+                "terms; the test is not adjusted for them.",
+                call. = FALSE
+            )
         }
 
         fitted_result <- fit_result$table

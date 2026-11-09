@@ -421,6 +421,32 @@ test_that("a collinear covariate is dropped with a warning and recorded", {
     expect_identical(diag$NK$dropped_design_columns, "exposure_copy")
 })
 
+test_that("a cell type that is skipped gets no collinear-covariate warning", {
+    skip_if_not_installed("edgeR")
+    scee <- .make_edger_scee()
+    exp_data <- exposureData(scee)
+    exp_data <- cbind(exp_data, exposure_copy = exp_data[, "exposure"])
+    sce <- methods::as(scee, "SingleCellExperiment")
+    cells <- SummarizedExperiment::colData(sce)
+    keep <- cells$cell_type == "Mono" |
+        cells$donor_id %in% c("D9", "D10", "D11", "D12")
+    scee2 <- build_scee(sce[, keep], exp_data, sample_col = "donor_id")
+    warnings <- character()
+    withCallingHandlers(
+        run_sc_exwas(scee2, exposure = "exposure",
+            celltype_col = "cell_type", covariates = "exposure_copy",
+            min_donors = 3L, min_group_donors = 2L, robust = FALSE),
+        warning = function(w) {
+            warnings <<- c(warnings, conditionMessage(w))
+            invokeRestart("muffleWarning")
+        }
+    )
+    ## NK keeps four donors, too few residual degrees of freedom to fit
+    expect_length(warnings, 2L)
+    expect_true(any(startsWith(warnings, "Mono: covariate column(s)")))
+    expect_true(any(startsWith(warnings, "Skipping NK: insufficient")))
+})
+
 test_that("the residual df diagnostic uses edgeR's adjusted residual df", {
     skip_if_not_installed("edgeR")
     scee <- .make_edger_scee()

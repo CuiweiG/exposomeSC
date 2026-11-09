@@ -64,8 +64,9 @@ NULL
 #'   without re-estimation, with elements \code{adjacency} (symmetric
 #'   binary matrix, required), \code{precision} (numeric matrix, optional),
 #'   \code{stability} (numeric matrix, optional),
-#'   \code{feature_names} (character vector, optional; taken from
-#'   the column names of \code{adjacency} when absent), and either
+#'   \code{feature_names} (character vector of unique, non-missing and
+#'   non-empty names, optional; taken from the column names of
+#'   \code{adjacency} when absent), and either
 #'   \code{block_sizes} (a named vector giving the size of each omic
 #'   block) or \code{feature_blocks} (a character vector labelling
 #'   each feature), both optional. The block labels become the
@@ -375,11 +376,12 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #' @param min_cells Integer; minimum cells per pseudobulk.
 #' @param network_method Character; \code{"coglasso"} (default) or
 #'   \code{"block_glasso"}, the estimator for the network on the
-#'   selected features. \code{"coglasso"} requires the \pkg{coglasso}
-#'   package (an error otherwise) and at least one selected transcript and
-#'   metabolite; when only one omic layer is selected the block graphical
-#'   lasso is used instead, with a warning. The estimator used is recorded
-#'   in \code{metadata(result)$network_method}.
+#'   selected features. \code{"coglasso"} needs at least one selected
+#'   transcript and metabolite; when only one omic layer is selected the
+#'   block graphical lasso is used instead, with a warning. Otherwise it
+#'   requires the \pkg{coglasso} package (an error when it is not
+#'   installed). The estimator used is recorded in
+#'   \code{metadata(result)$network_method}.
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}}
 #'   restricted to exposure-associated features. Its metadata record
@@ -660,6 +662,10 @@ run_exposure_network <- function(x, metabolites, celltype,
         stop("precomputed_network list must have '$adjacency'.",
              call. = FALSE)
     adj  <- as.matrix(net$adjacency)
+    if (nrow(adj) != ncol(adj)) {
+        stop("'adjacency' of precomputed_network must be square.",
+            call. = FALSE)
+    }
     if (is.logical(adj)) {
         storage.mode(adj) <- "integer"
     }
@@ -667,18 +673,44 @@ run_exposure_network <- function(x, metabolites, celltype,
     diag(adj) <- 0L
     prec <- if (!is.null(net$precision))
         as.matrix(net$precision) else matrix(NA_real_, nrow(adj), ncol(adj))
+    if (!identical(dim(prec), dim(adj))) {
+        stop("'precision' of precomputed_network must have the dimensions ",
+            "of 'adjacency'.", call. = FALSE)
+    }
     stab <- if (!is.null(net$stability))
         as.matrix(net$stability) else matrix(nrow = 0, ncol = 0)
     fnames <- if (!is.null(net$feature_names))
         net$feature_names else colnames(adj)
-    if (is.null(fnames)) fnames <- paste0("F", seq_len(ncol(adj)))
+    if (is.null(fnames)) fnames <- sprintf("F%d", seq_len(ncol(adj)))
+    fnames <- as.character(fnames)
     ## Block info
     if (!is.null(net$block_sizes)) {
-        blk <- rep(names(net$block_sizes), net$block_sizes)
+        sizes <- unlist(net$block_sizes)
+        if (!is.numeric(sizes) || !all(is.finite(sizes)) ||
+                any(sizes < 0) || any(sizes != round(sizes)) ||
+                is.null(names(sizes)) || anyNA(names(sizes)) ||
+                !all(nzchar(names(sizes)))) {
+            stop("'block_sizes' of precomputed_network must be a vector of ",
+                "non-negative whole numbers named by omic layer.",
+                call. = FALSE)
+        }
+        blk <- rep(names(sizes), sizes)
     } else if (!is.null(net$feature_blocks)) {
         blk <- net$feature_blocks
     } else {
         blk <- rep("unknown", length(fnames))
+    }
+    blk <- as.character(blk)
+    if (length(fnames) != ncol(adj) || anyNA(fnames) ||
+            !all(nzchar(fnames)) || anyDuplicated(fnames)) {
+        stop("'feature_names' of precomputed_network, or the column names ",
+            "of 'adjacency', must give one unique, non-missing and ",
+            "non-empty name per row of 'adjacency'.", call. = FALSE)
+    }
+    if (length(blk) != length(fnames) || anyNA(blk) || !all(nzchar(blk))) {
+        stop("'block_sizes' or 'feature_blocks' of precomputed_network must ",
+            "label every feature, with no missing or empty labels.",
+            call. = FALSE)
     }
 
     p <- length(fnames)

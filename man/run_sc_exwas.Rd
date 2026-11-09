@@ -133,7 +133,11 @@ A \code{DataFrame} with one row per tested gene and cell type and
   its package version, \code{se_method} and \code{statistic_type};
   \code{metadata(result)$diagnostics} holds, for each fitted cell type,
   the donors used, the numbers of genes before and after filtering and the
-  design columns.
+  design columns; for the edgeR backend also \code{dropped_design_columns},
+  the covariate columns left out of the design as collinear (each is also
+  reported in a warning), and \code{residual_df}, the smallest adjusted
+  residual degrees of freedom over the fitted genes
+  (\code{df.residual.adj}).
 }
 \description{
 Performs pseudobulk differential expression analysis with

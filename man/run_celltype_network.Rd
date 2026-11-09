@@ -92,8 +92,9 @@ pre-estimated network to wrap into a CelltypeNetworkResult
 without re-estimation, with elements \code{adjacency} (symmetric
 binary matrix, required), \code{precision} (numeric matrix, optional),
 \code{stability} (numeric matrix, optional),
-\code{feature_names} (character vector, optional; taken from
-the column names of \code{adjacency} when absent), and either
+\code{feature_names} (character vector of unique, non-missing and
+non-empty names, optional; taken from the column names of
+\code{adjacency} when absent), and either
 \code{block_sizes} (a named vector giving the size of each omic
 block) or \code{feature_blocks} (a character vector labelling
 each feature), both optional. The block labels become the

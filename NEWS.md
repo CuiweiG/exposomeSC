@@ -83,7 +83,7 @@ with warnings.
 
 * `exposureData<-` can add, drop or reorder exposures: `exposureInfo` now
   follows the new column names, keeping the rows of retained exposures and
-  adding rows with missing family and unit for new ones. The two setters
+  adding rows of missing metadata for new ones. The two setters
   used to validate against each other, so an exposure could be replaced but
   not added or removed through the API.
 * New `donor_pseudobulk()` returns the donor-by-cell-type pseudobulk counts
@@ -160,17 +160,19 @@ with warnings.
 * A dimension mismatch in a CelltypeNetworkResult is reported as one
   validity message instead of two fragments.
 * `run_celltype_network(precomputed_network = )` named the omic layer column
-  of its node table `omic`, so `show()`, `plot_celltype_network()` and
-  `run_comparative_network()` failed on a wrapped network. The column is now
-  `omic_layer`, with an integer `block` index, as for estimated networks.
+  of its node table `omic`, so `show()` counted no transcripts or metabolites
+  and `plot_celltype_network()` and `run_comparative_network()` failed on a
+  wrapped network. The column is now `omic_layer`, with an integer `block`
+  index, as for estimated networks.
 * `run_sc_exwas()` refuses a covariate called `exposure`. That name is the
   model's exposure term, and a covariate of the same name silently replaced
   the exposure in the design, so the reported test was of the wrong
   variable.
 * The edgeR backend of `run_sc_exwas()` warns when it drops a covariate
-  column that is collinear with the other model terms. The dropped columns
-  were recorded in `metadata(result)$diagnostics` but the result otherwise
-  looked adjusted for them.
+  column that is collinear with the other model terms from the design of a
+  cell type it fits. The dropped columns were recorded in
+  `metadata(result)$diagnostics` but the result otherwise looked adjusted
+  for them.
 * The `residual_df` diagnostic of the edgeR backend reads the adjusted
   residual degrees of freedom that `glmQLFit(legacy = FALSE)` returns
   (`df.residual.adj`). It looked for the legacy field `df.residual.zeros`
@@ -243,6 +245,17 @@ with warnings.
   type's likelihood-ratio test without a p-value; and `logoff` turned the
   library-size offset into a free coefficient. The same rule for
   `run_sc_exwas()` is now stated in its argument documentation.
+* `run_celltype_network(precomputed_network = )` checks the labels and
+  dimensions of the network it wraps: the adjacency must be square, the
+  precision matrix must have the dimensions of the adjacency, the feature
+  names must be unique, non-missing and non-empty, `block_sizes` must hold
+  non-negative whole numbers named by omic layer, and `block_sizes` or
+  `feature_blocks` must label every feature, with no missing or empty
+  labels. A mismatch used to surface as a base R error from `rep()`,
+  `dimnames<-` or `DataFrame()`, and a duplicated name or a missing block
+  label was accepted silently. A 0 x 0 adjacency without feature names,
+  which failed with "length of 'dimnames' [1] not equal to array extent", is
+  now wrapped into an empty network.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

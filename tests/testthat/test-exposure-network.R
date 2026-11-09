@@ -71,7 +71,7 @@ test_that("run_exposure_network honours network_method", {
         selection_method = "univariate", network_method = "lasso"))
 })
 
-test_that("the switch from coglasso to the block graphical lasso is announced", {
+test_that("the switch from coglasso to block glasso is announced", {
     skip_if_not_installed("glasso")
     set.seed(3)
     donors <- sprintf("D%02d", 1:20)

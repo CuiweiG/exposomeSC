@@ -273,3 +273,25 @@ test_that("run_sc_exwas filter_genes=FALSE allows all genes", {
         filter_genes = FALSE)
     expect_true(nrow(r2) >= nrow(r1))
 })
+
+test_that("a new exposure gets missing metadata in every column", {
+    scee <- .make_test_scee()
+    info <- exposureInfo(scee)
+    info$lod <- S4Vectors::Rle(seq_len(nrow(info)))
+    info$range <- matrix(seq_len(2L * nrow(info)), ncol = 2L)
+    info$family <- "gaussian"
+    info$detection <- S4Vectors::DataFrame(value = seq_len(nrow(info)),
+        unit = "ug/m3")
+    exposureInfo(scee) <- info
+    old <- exposureData(scee)
+    exposureData(scee) <- cbind(old, extra = seq_len(nrow(old)))
+    added <- exposureInfo(scee)
+    expect_identical(as.vector(added$lod), c(seq_len(nrow(info)), NA))
+    expect_identical(added$family, c(rep("gaussian", nrow(info)), NA))
+    ## matrix and nested-table columns keep their rows and get a missing
+    ## row for the new exposure
+    expect_identical(added$range[seq_len(nrow(info)), ], info$range)
+    expect_true(all(is.na(added$range[nrow(added), ])))
+    expect_identical(added$detection$value, c(seq_len(nrow(info)), NA))
+    expect_identical(added$detection$unit, c(rep("ug/m3", nrow(info)), NA))
+})

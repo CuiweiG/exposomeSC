@@ -89,7 +89,23 @@ setMethod("exposureData<-",
     if (identical(current, exposures)) {
         return(info)
     }
-    aligned <- info[match(exposures, current), , drop = FALSE]
+    ## subset with valid row indices, then blank the rows of new exposures,
+    ## so that list-like and run-length columns get missing values too
+    index <- match(exposures, current)
+    is_new <- is.na(index)
+    aligned <- info[ifelse(is_new, 1L, index), , drop = FALSE]
+    if (any(is_new)) {
+        for (column in setdiff(colnames(aligned), "exposure")) {
+            values <- aligned[[column]]
+            ## a matrix or a nested table is blanked by row
+            if (length(dim(values)) == 2L) {
+                values[is_new, ] <- NA
+            } else {
+                values[is_new] <- NA
+            }
+            aligned[[column]] <- values
+        }
+    }
     aligned$exposure <- exposures
     rownames(aligned) <- NULL
     aligned

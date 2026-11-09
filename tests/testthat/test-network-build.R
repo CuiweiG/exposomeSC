@@ -206,6 +206,65 @@ test_that("a precomputed network is accepted as a named list", {
         run_celltype_network(scee, celltype = "Mono",
                              precomputed_network = seq_len(3L)),
         "must be a list")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                feature_names = c("A", "B"))),
+        "unique, non-missing and non-empty name")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                feature_names = c("A", "A", "B"))),
+        "unique, non-missing and non-empty name")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                feature_names = c("A", "", "B"))),
+        "unique, non-missing and non-empty name")
+    ## an empty adjacency gets no default names and an empty network
+    expect_message(
+        empty <- run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = matrix(0L, 0, 0))),
+        "p=0 features, 0 edges")
+    expect_identical(nrow(networkNodes(empty)), 0L)
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                feature_blocks = c("transcript", NA, "metabolite"))),
+        "no missing or empty labels")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                block_sizes = c(transcript = 2L, metabolite = NA))),
+        "whole numbers named by omic layer")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                block_sizes = c(transcript = 2L, 1L))),
+        "whole numbers named by omic layer")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                precision = diag(2L))),
+        "dimensions of 'adjacency'")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                block_sizes = c(transcript = 1.5, metabolite = 1.5))),
+        "whole numbers named by omic layer")
+    from_factor <- suppressMessages(run_celltype_network(scee,
+        celltype = "Mono", precomputed_network = list(adjacency = adj,
+            feature_names = factor(c("G1", "G2", "M1")))))
+    expect_identical(networkNodes(from_factor)$feature, c("G1", "G2", "M1"))
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = adj,
+                block_sizes = c(transcript = 2L, metabolite = 2L))),
+        "label every feature")
+    expect_error(
+        run_celltype_network(scee, celltype = "Mono",
+            precomputed_network = list(adjacency = matrix(0L, 2L, 3L))),
+        "must be square")
 })
 
 test_that("CelltypeNetworkResult S4 class validation", {
