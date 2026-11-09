@@ -194,6 +194,8 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
                                   precomputed_network = NULL) {
 
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    celltype <- .single_name(celltype, "celltype")
+    if (!is.null(exposure)) exposure <- .single_name(exposure, "exposure")
 
     ## --- Handle precomputed network (named list) ---
     if (!is.null(precomputed_network)) {
@@ -473,6 +475,8 @@ run_exposure_network <- function(x, metabolites, celltype,
                                                      "block_glasso")) {
 
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    celltype <- .single_name(celltype, "celltype")
+    exposure <- .single_name(exposure, "exposure")
     selection_method <- match.arg(selection_method)
     network_method <- match.arg(network_method)
     .check_adjustment_names(x, c(exposure, covariates))

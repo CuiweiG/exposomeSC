@@ -105,6 +105,13 @@ with warnings.
 * `run_multi_exwas()` with `covariates` and the default `exposures` no
   longer tests the covariates as exposures, so with the edgeR backend it
   returns fewer rows and other `padj_all` values (see Bug fixes).
+* `run_sc_exwas()`, `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()`,
+  `run_interaction_test()`, the dose-response functions,
+  `run_cell_coupling()` and the two network functions use the exposure that
+  a factor `exposure` names. They indexed the exposures by the factor's
+  integer code, so a call that succeeded used the exposure at that position,
+  except `run_celltype_network()` with `covariates`, which adjusted the
+  network for the covariates alone (see Bug fixes).
 
 ## Interface
 
@@ -399,6 +406,30 @@ with warnings.
   `min_donors = 3.5` as 4, and the edgeR backend recorded it as 3 in
   `metadata(result)$parameters`. The DESeq2 and voom-dream backends now also
   refuse `min_donors` below 3, as the edgeR backend did.
+* `run_dose_response()`, `run_dose_response_gam()`, `run_cell_coupling()`,
+  `run_sc_mixture()` and `run_mixture_qgcomp()` require `celltype` to be a
+  single label. A vector of cell types was recycled in the cell selection,
+  so `celltype = c("Mono", "NK")` pooled or interleaved the cells of both
+  types; the dose-response functions reported the estimate for those cells
+  once for each label, and `run_cell_coupling()`, `run_sc_mixture()` and
+  `run_mixture_qgcomp()` as if for one cell type. A number or a factor is
+  taken as its label, since the cell-type column is compared as text.
+  `run_celltype_network()` and `run_exposure_network()` check `celltype` the
+  same way. A vector used to return the network of those cells, with the
+  whole vector as its cell type, and a number or a factor used to run the
+  whole estimation and then fail when the result was built.
+* `run_sc_exwas()`, `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()`,
+  `run_interaction_test()`, the dose-response functions,
+  `run_cell_coupling()` and the two network functions require `exposure` to
+  be a single name and take a factor as its label. A factor indexed
+  `exposureData` by its integer code, so `exposure = factor("E2")` analysed
+  the first exposure, which `run_sc_exwas()` and the network functions
+  labelled `E2`, and `run_celltype_network()` adjusted the network for the
+  first exposure. With `covariates`, `run_sc_exwas()` stopped with
+  "Exposure/covariate column(s) not found in exposureData: 1" and
+  `run_celltype_network()` adjusted the network for the covariates alone.
+  `run_celltype_network()` used to regress out every name of a vector
+  `exposure`; giving the extra names as `covariates` gives the same network.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

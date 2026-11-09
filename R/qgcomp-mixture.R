@@ -115,6 +115,7 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
                                 q = 4L, bootstrap = FALSE,
                                 B = 200L, min_cells = 10L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    celltype <- .single_name(celltype, "celltype")
     sample_col <- sampleColumn(x)
 
     if (!requireNamespace("qgcomp", quietly = TRUE))

@@ -172,6 +172,8 @@ run_cell_coupling <- function(x,
                               n_boot = 200L) {
 
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    exposure <- .single_name(exposure, "exposure")
+    celltype <- .single_name(celltype, "celltype")
     stopifnot(altexp_name %in% altExpNames(x))
     sample_col <- sampleColumn(x)
     var_method <- match.arg(var_method)

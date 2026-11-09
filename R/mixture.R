@@ -122,6 +122,7 @@ run_sc_mixture <- function(x, exposures, celltype,
                             covariates = NULL,
                             q = 4L, min_cells = 10L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    celltype <- .single_name(celltype, "celltype")
     sample_col <- sampleColumn(x)
 
     exp_data <- exposureData(x)

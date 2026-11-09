@@ -234,6 +234,7 @@ setMethod("run_sc_exwas",
     method <- match.arg(method)
     .stop_on_unused_dots("run_sc_exwas", ...)
     .check_sc_exwas_arguments(min_cells, min_donors, filter_genes)
+    exposure <- .single_name(exposure, "exposure")
 
     if (method != "edgeR" && !is.null(test_features)) {
         stop(

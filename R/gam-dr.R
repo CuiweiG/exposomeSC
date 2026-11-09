@@ -124,6 +124,8 @@ run_dose_response_gam <- function(x, exposure, celltype,
                                     min_cells = 10L,
                                     loocv = TRUE) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    exposure <- .single_name(exposure, "exposure")
+    celltype <- .single_name(celltype, "celltype")
     sample_col <- sampleColumn(x)
 
     if (!requireNamespace("mgcv", quietly = TRUE))

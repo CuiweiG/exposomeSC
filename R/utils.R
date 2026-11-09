@@ -303,6 +303,21 @@ NULL
          paste(extra_names, collapse = ", "), ".", call. = FALSE)
 }
 
+# Arguments that name one cell type or one exposure. A longer vector would be
+# recycled in comparisons such as cell_types == celltype and analyse several
+# cell types as one. A factor or a number is taken as its label: the columns
+# are compared as text, and a factor would index exposureData by its code.
+# @keywords internal
+# @noRd
+.single_name <- function(value, argument) {
+    if (is.factor(value) || is.numeric(value)) value <- as.character(value)
+    if (!is.character(value) || length(value) != 1L || is.na(value) ||
+            !nzchar(value)) {
+        stop("'", argument, "' must be a single name.", call. = FALSE)
+    }
+    value
+}
+
 # Exposure, covariate and moderator names are pasted into model formulas, so
 # each must be a syntactic R name: 'age-years' would be read as age minus
 # years, and a ratio such as 'MEHP/DEHP' as a nested term.

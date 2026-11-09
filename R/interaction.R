@@ -85,6 +85,7 @@ run_interaction_test <- function(x, exposure,
                                   min_cells = 10L,
                                   min_donors = 5L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    exposure <- .single_name(exposure, "exposure")
     sample_col <- sampleColumn(x)
 
     exp_data <- exposureData(x)

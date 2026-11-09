@@ -164,3 +164,46 @@ test_that("run_sc_exwas checks its thresholds for every backend", {
     expect_error(run_sc_exwas(scee, exposure = "E1", min_cells = 3e9),
         "min_cells must be one positive integer")
 })
+
+test_that("celltype and exposure must each be a single name", {
+    scee <- .formula_name_fixture()
+    single <- "'celltype' must be a single name"
+    expect_error(run_dose_response(scee, exposure = "E1",
+        celltype = c("Mono", "NK"), min_cells = 3L), single)
+    expect_error(run_dose_response(scee, exposure = c("E1", "age"),
+        celltype = "Mono", min_cells = 3L), "'exposure' must be a single name")
+    expect_error(run_sc_mixture(scee, exposures = c("E1", "age"),
+        celltype = c("Mono", "NK"), min_cells = 3L), single)
+    ## a factor label is taken as its value
+    by_factor <- run_dose_response(scee, exposure = "E1",
+        celltype = factor("Mono"), min_cells = 3L, max_degree = 2L,
+        target_genes = "G1")
+    expect_identical(by_factor$celltype, "Mono")
+    ## so is a number, for a cluster column of integers
+    scee$cluster <- 1L
+    by_number <- run_dose_response(scee, exposure = "E1", celltype = 1,
+        celltype_col = "cluster", min_cells = 3L, max_degree = 2L,
+        target_genes = "G1")
+    expect_equal(by_number$linear_coef, by_factor$linear_coef)
+    ## a factor exposure is its label, not the column of its integer code
+    by_name <- run_sc_exwas(scee, exposure = "age")
+    expect_equal(run_sc_exwas(scee, exposure = factor("age"))$pvalue,
+        by_name$pvalue)
+    expect_equal(
+        run_dose_response(scee, exposure = factor("age"), celltype = "Mono",
+            min_cells = 3L, max_degree = 2L, target_genes = "G1"),
+        run_dose_response(scee, exposure = "age", celltype = "Mono",
+            min_cells = 3L, max_degree = 2L, target_genes = "G1"))
+    skip_if_not_installed("mgcv")
+    expect_error(run_dose_response_gam(scee, exposure = "E1",
+        celltype = c("Mono", "NK"), min_cells = 3L), single)
+    skip_if_not_installed("qgcomp")
+    expect_error(run_mixture_qgcomp(scee, exposures = c("E1", "age"),
+        celltype = c("Mono", "NK"), min_cells = 3L), single)
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    expect_error(run_cell_coupling(scee, genes = "G1", proteins = "P1",
+        min_cells = 10L, min_donors = 5L,
+        exposure = "E1", celltype = c("Mono", "NK"), altexp_name = "CITE"),
+        single)
+})

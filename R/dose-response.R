@@ -86,6 +86,8 @@ run_dose_response <- function(x, exposure, celltype,
                                max_degree = 3L,
                                min_cells = 10L) {
     stopifnot(is(x, "SingleCellExposomeExperiment"))
+    exposure <- .single_name(exposure, "exposure")
+    celltype <- .single_name(celltype, "celltype")
     sample_col <- sampleColumn(x)
     max_degree <- min(max_degree, 3L)
 

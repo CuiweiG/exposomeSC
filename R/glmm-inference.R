@@ -260,6 +260,7 @@ run_sc_exwas_pb_offset <- function(x, exposure,
                                     covariates = NULL, target_genes = NULL,
                                     BPPARAM = BiocParallel::SerialParam()) {
     stopifnot(methods::is(x, "SingleCellExposomeExperiment"))
+    exposure <- .single_name(exposure, "exposure")
     sample_col <- sampleColumn(x)
 
     exp_data <- exposureData(x)
@@ -471,6 +472,7 @@ run_sc_exwas_glmm <- function(x, exposure,
                               family = c("gaussian", "nbinom"),
                               BPPARAM = BiocParallel::SerialParam()) {
     stopifnot(methods::is(x, "SingleCellExposomeExperiment"))
+    exposure <- .single_name(exposure, "exposure")
     sample_col <- sampleColumn(x)
     ddf <- match.arg(ddf); family <- match.arg(family)
     if (!requireNamespace("lmerTest", quietly = TRUE))

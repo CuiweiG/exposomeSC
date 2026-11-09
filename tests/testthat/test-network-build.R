@@ -475,3 +475,38 @@ test_that("donors with a missing covariate are left out of the network", {
             celltype = "Mono", method = "block_glasso", covariates = "Pb")),
         "Only 4 of the donors shared between pseudobulk and metabolites")
 })
+
+test_that("the network functions take one cell type and one exposure name", {
+    skip_if_not_installed("glasso")
+    set.seed(4)
+    donors <- sprintf("D%02d", 1:20)
+    donor <- rep(donors, each = 20)
+    counts <- matrix(stats::rpois(30 * length(donor), 20), nrow = 30,
+        dimnames = list(paste0("G", 1:30), paste0("c", seq_along(donor))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono",
+            cluster = 1L))
+    exposures <- cbind(E1 = stats::rnorm(20), E2 = stats::rnorm(20))
+    rownames(exposures) <- donors
+    scee <- build_scee(sce, exposures, sample_col = "donor_id")
+    metab <- matrix(stats::rnorm(60), nrow = 20,
+        dimnames = list(donors, paste0("M", 1:3)))
+    network <- function(...) {
+        suppressMessages(run_celltype_network(scee, metab,
+            method = "block_glasso", ...))
+    }
+    expect_error(network(celltype = c("Mono", "NK")),
+        "'celltype' must be a single name")
+    expect_identical(
+        networkCelltype(network(celltype = 1, celltype_col = "cluster")), "1")
+    ## a factor exposure is its label, not the column of its integer code
+    expect_equal(
+        networkPrecision(network(celltype = "Mono", exposure = factor("E2"))),
+        networkPrecision(network(celltype = "Mono", exposure = "E2")))
+    expect_error(
+        suppressMessages(run_exposure_network(scee, metab,
+            celltype = c("Mono", "NK"), exposure = "E1",
+            selection_method = "univariate", network_method = "block_glasso")),
+        "'celltype' must be a single name")
+})
