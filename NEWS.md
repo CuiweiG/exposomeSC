@@ -544,6 +544,15 @@ with warnings.
   exposure unimputed without a message, and when no name matched, the
   function returned the input matrix with a warning, which for
   `method = "multiple"` is not the documented list of imputed matrices.
+* `run_celltype_network()` and `run_exposure_network()` stop with an error
+  that names the metabolites with a missing or infinite value for an
+  analysed donor. Such a value used to cause an unrelated error, for example
+  "'from' must be a finite number" from coglasso, or, in the selection stage
+  of `run_exposure_network()` without covariates, kept the metabolite from
+  being selected without a message. Without adjustment, a `NaN` was silently
+  replaced by the column mean, and the block graphical lasso stopped on an
+  `NA` with "missing value where TRUE/FALSE needed" and silently gave a
+  metabolite with an infinite value no edges.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

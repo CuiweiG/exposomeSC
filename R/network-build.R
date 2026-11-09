@@ -17,7 +17,9 @@ NULL
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
 #' @param metabolites Numeric matrix; rows = donors,
-#'   cols = metabolites. Row names must be donor IDs.
+#'   cols = metabolites. Row names must be donor IDs. A matrix without
+#'   columns, or a missing or infinite value for an analysed donor, is an
+#'   error.
 #' @param celltype Character; which cell type to build
 #'   the network for.
 #' @param celltype_col Character; column in \code{colData}
@@ -352,7 +354,8 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
 #' @param metabolites Numeric matrix; rows = donors,
-#'   cols = metabolites.
+#'   cols = metabolites. A matrix without columns, or a missing or
+#'   infinite value for an analysed donor, is an error.
 #' @param celltype Character; cell type to analyse.
 #' @param exposure Character; exposure variable name, a column of
 #'   \code{exposureData(x)}; another name is an error.

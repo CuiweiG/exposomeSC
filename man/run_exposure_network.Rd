@@ -27,7 +27,8 @@ cell's donor is read from the \code{colData} column named by
 \code{\link{sampleColumn}(x)}.}
 
 \item{metabolites}{Numeric matrix; rows = donors,
-cols = metabolites.}
+cols = metabolites. A matrix without columns, or a missing or
+infinite value for an analysed donor, is an error.}
 
 \item{celltype}{Character; cell type to analyse.}
 

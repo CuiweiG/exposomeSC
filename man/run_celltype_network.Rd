@@ -30,7 +30,9 @@ cell's donor is read from the \code{colData} column named by
 \code{\link{sampleColumn}(x)}.}
 
 \item{metabolites}{Numeric matrix; rows = donors,
-cols = metabolites. Row names must be donor IDs.}
+cols = metabolites. Row names must be donor IDs. A matrix without
+columns, or a missing or infinite value for an analysed donor, is an
+error.}
 
 \item{celltype}{Character; which cell type to build
 the network for.}

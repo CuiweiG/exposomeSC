@@ -391,6 +391,48 @@ test_that("unnamed and missing metabolite columns are reported clearly", {
         "has no columns")
 })
 
+test_that("missing or infinite metabolite values are an error", {
+    skip_if_not_installed("glasso")
+    fx <- .constant_fixture()
+    gaps <- fx$metab
+    gaps["D3", "M2"] <- NA
+    gaps["D5", "M1"] <- Inf
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, gaps,
+            celltype = "Mono", method = "block_glasso")),
+        "for the analysed donors in: M1, M2.", fixed = TRUE)
+    ## a NaN used to be replaced by the column mean without a word
+    not_a_number <- fx$metab
+    not_a_number["D7", "M1"] <- NaN
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, not_a_number,
+            celltype = "Mono", method = "block_glasso")),
+        "for the analysed donors in: M1.", fixed = TRUE)
+    expect_error(
+        suppressMessages(run_celltype_network(fx$scee, gaps,
+            celltype = "Mono", method = "block_glasso", exposure = "PM2.5")),
+        "in: M1, M2.", fixed = TRUE)
+    ## the selection of run_exposure_network() used to skip such a
+    ## metabolite; a data frame is checked as well
+    expect_error(
+        suppressMessages(run_exposure_network(fx$scee, as.data.frame(gaps),
+            celltype = "Mono", exposure = "PM2.5",
+            selection_method = "univariate", fdr_threshold = 1,
+            network_method = "block_glasso")),
+        "in: M1, M2.", fixed = TRUE)
+    ## a missing value of a donor that is not analysed is no error: D99 has
+    ## no cells, and D3 is left out for its missing covariate
+    exposures <- exposureData(fx$scee)
+    exposures["D3", "Pb"] <- NA
+    scee <- build_scee(methods::as(fx$scee, "SingleCellExperiment"),
+        exposures, sample_col = "donor_id")
+    others <- rbind(fx$metab, D99 = c(NA, 1, 1))
+    others["D3", "M2"] <- NA
+    net <- suppressMessages(run_celltype_network(scee, others,
+        celltype = "Mono", method = "block_glasso", covariates = "Pb"))
+    expect_equal(metadata(net)$n_donors, 19L)
+})
+
 test_that("unknown exposure or covariate names are an error", {
     skip_if_not_installed("glasso")
     fx <- .constant_fixture()

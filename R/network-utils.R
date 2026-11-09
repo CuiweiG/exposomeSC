@@ -160,6 +160,21 @@ NULL
     colnames(tx_mat) <- .column_labels(tx_mat, "gene_")
     colnames(met_mat) <- .column_labels(met_mat, "metab_")
 
+    ## --- Missing metabolite values ---
+    ## The graphical lasso needs a finite value of every feature for every
+    ## donor; the univariate screen of run_exposure_network() would take a
+    ## metabolite with a missing value for a constant one and skip it, and
+    ## stability selection would rank it only in the half-samples that leave
+    ## out the donors whose value is missing
+    met_values <- as.matrix(met_mat)
+    incomplete <- colSums(is.na(met_values) | is.infinite(met_values)) > 0L
+    if (any(incomplete)) {
+        stop("'metabolites' has missing or infinite values for the ",
+            "analysed donors in: ",
+            paste(colnames(met_mat)[incomplete], collapse = ", "),
+            ". Impute them or leave those metabolites out.", call. = FALSE)
+    }
+
     ## --- Constant features ---
     ## A feature without variance across the donors (for example a gene
     ## with no counts in this cell type) has no partial correlation with
@@ -244,7 +259,8 @@ NULL
 }
 
 # Columns of a numeric matrix that take one value in every row; columns
-# with missing values are left to the later checks
+# with missing values are not flagged (.assemble_crossomic() refuses
+# missing metabolite values before it calls this)
 # @keywords internal
 # @noRd
 .constant_columns <- function(m) {
