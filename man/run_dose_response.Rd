@@ -40,7 +40,9 @@ A \code{DataFrame} with columns: gene, best_model
   ("linear", "quadratic", "cubic"), linear_coef, AIC_linear,
   AIC_best, p_nonlinear (F-test of \code{nonlinear_model}
   against the linear model), nonlinear_model, celltype,
-  n_donors.
+  n_donors (donors with at least \code{min_cells} cells and a
+  non-missing exposure; donors with a missing exposure are left out,
+  with a message).
 }
 \description{
 Fits linear and polynomial dose-response models for each

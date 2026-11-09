@@ -33,7 +33,9 @@ NULL
 #'   ("linear", "quadratic", "cubic"), linear_coef, AIC_linear,
 #'   AIC_best, p_nonlinear (F-test of \code{nonlinear_model}
 #'   against the linear model), nonlinear_model, celltype,
-#'   n_donors.
+#'   n_donors (donors with at least \code{min_cells} cells and a
+#'   non-missing exposure; donors with a missing exposure are left out,
+#'   with a message).
 #'
 #' @details
 #' For each gene, the function fits:
@@ -104,15 +106,15 @@ run_dose_response <- function(x, exposure, celltype,
         stop("Cell type '", celltype, "' not found or no ",
              "donors with >= ", min_cells, " cells")
 
-    valid <- pb_result$valid_donors
-    pb <- pb_result$pb_mat
+    valid <- .donors_with_dose(exp_data, pb_result$valid_donors, exposure)
+    pb <- pb_result$pb_mat[, valid, drop = FALSE]
 
     ## Need enough donors for polynomial fitting
     min_needed <- max_degree + 2L
     if (length(valid) < min_needed)
-        stop("Need >= ", min_needed, " donors for degree-",
-             max_degree, " polynomial. Found: ",
-             length(valid))
+        stop("Need >= ", min_needed, " donors with a non-missing exposure ",
+            "for degree-", max_degree, " polynomial. Found: ",
+            length(valid))
 
     log_cpm <- .log_cpm(pb)
 
@@ -201,4 +203,18 @@ run_dose_response <- function(x, exposure, celltype,
             celltype = character(), n_donors = integer()))
     }
     S4Vectors::DataFrame(out)
+}
+
+# Donors with a missing exposure cannot enter the dose-response fits. They are
+# left out before the donor checks, so that the checks, the default gene
+# screen and n_donors refer to the donors the models use.
+# @keywords internal
+# @noRd
+.donors_with_dose <- function(exp_data, donors, exposure) {
+    has_dose <- !is.na(exp_data[donors, exposure])
+    if (!all(has_dose)) {
+        message("[exposomeSC] Leaving ", sum(!has_dose), " donor(s) with a ",
+                "missing '", exposure, "' value out of the fits.")
+    }
+    donors[has_dose]
 }

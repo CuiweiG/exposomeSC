@@ -58,3 +58,38 @@ test_that("run_dose_response errors on too few donors", {
         celltype_col = "cell_type",
         min_cells = 1L, max_degree = 2L), "donors")
 })
+
+.missing_dose_parts <- function() {
+    set.seed(1)
+    donor <- rep(paste0("D", 1:8), each = 10)
+    counts <- matrix(rpois(50 * 80, 8), nrow = 50,
+        dimnames = list(paste0("G", 1:50), paste0("c", 1:80)))
+    sce <- SingleCellExperiment(assays = list(counts = counts),
+        colData = DataFrame(donor_id = donor, cell_type = "Mono"))
+    dose <- matrix(c(1, 2, NA, 4:8), ncol = 1,
+        dimnames = list(paste0("D", 1:8), "E1"))
+    list(sce = sce, dose = dose, donor = donor)
+}
+
+test_that("run_dose_response leaves donors without a dose out", {
+    parts <- .missing_dose_parts()
+    scee <- build_scee(parts$sce, parts$dose, sample_col = "donor_id")
+    expect_message(
+        with_missing <- run_dose_response(scee, exposure = "E1",
+            celltype = "Mono", min_cells = 3L, max_degree = 2L),
+        "Leaving 1 donor\\(s\\) with a missing 'E1' value")
+    expect_true(all(with_missing$n_donors == 7L))
+    kept <- parts$donor != "D3"
+    without <- run_dose_response(
+        build_scee(parts$sce[, kept], parts$dose[-3, , drop = FALSE],
+            sample_col = "donor_id"),
+        exposure = "E1", celltype = "Mono", min_cells = 3L, max_degree = 2L)
+    expect_equal(with_missing, without)
+    ## three donors with a dose are too few for a quadratic
+    few <- parts$donor %in% paste0("D", 1:4)
+    expect_error(suppressMessages(run_dose_response(
+        build_scee(parts$sce[, few], parts$dose[1:4, , drop = FALSE],
+            sample_col = "donor_id"),
+        exposure = "E1", celltype = "Mono", min_cells = 3L, max_degree = 2L)),
+        "Need >= 4 donors with a non-missing exposure")
+})

@@ -88,6 +88,13 @@ with warnings.
 * `run_sc_exwas_glmm(family = "nbinom")` gives each cell type its own
   exposure slope also when `make.names()` maps several cell-type labels to
   one name; such cell types shared one slope (see Bug fixes).
+* The dose-response functions give other results when a donor has no dose:
+  `n_donors` and the genes of the default screen change;
+  `run_dose_response()` chooses the degree of the polynomial from the donors
+  with a dose, so with five of them it fits a quadratic instead of a cubic
+  and `nonlinear_model`, `p_nonlinear`, `best_model` and `AIC_best` change;
+  and in `run_dose_response_gam()` the leave-one-out R² and, where the
+  default `k` changes, the columns of the smooth change (see Bug fixes).
 
 ## Interface
 
@@ -323,6 +330,16 @@ with warnings.
   applies only to vectors". The formula may only list columns of
   `exposureData(x)`: terms such as `I(age^2)` or `age:sex` are refused
   rather than reduced to their variables.
+* `run_dose_response()` and `run_dose_response_gam()` leave donors with a
+  missing exposure value out, with a message, before they count donors.
+  Such donors were counted in the donor checks, in the default gene screen
+  and in `n_donors`, although the fits dropped them: `n_donors` was too
+  large; with `max_degree = 2`, four donors of which one had no dose fitted
+  a saturated quadratic (`AIC_best = -Inf`) instead of stopping; the
+  leave-one-out R² of `run_dose_response_gam()` was `NA` for every gene;
+  and the default `k` of its smooth counted them too, so that with two
+  such donors it could exceed the donors with a dose, every smooth failed
+  and the function returned an empty table without a message.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

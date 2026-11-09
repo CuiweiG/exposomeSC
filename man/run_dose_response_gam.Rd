@@ -50,7 +50,9 @@ A \code{DataFrame} with columns: gene, edf
   departure from linearity; see Details),
   AIC_linear, AIC_gam, R2_linear, R2_gam,
   R2_loocv_linear (if loocv=TRUE), R2_loocv_gam,
-  deviance_explained, celltype, n_donors.
+  deviance_explained, celltype, n_donors (donors with at least
+  \code{min_cells} cells and a non-missing exposure; donors with a
+  missing exposure are left out, with a message).
 }
 \description{
 Fits generalized additive models (GAMs) for cell-type-

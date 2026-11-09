@@ -41,7 +41,9 @@ NULL
 #'   departure from linearity; see Details),
 #'   AIC_linear, AIC_gam, R2_linear, R2_gam,
 #'   R2_loocv_linear (if loocv=TRUE), R2_loocv_gam,
-#'   deviance_explained, celltype, n_donors.
+#'   deviance_explained, celltype, n_donors (donors with at least
+#'   \code{min_cells} cells and a non-missing exposure; donors with a
+#'   missing exposure are left out, with a message).
 #'
 #' @details
 #' For each gene, two models are fit:
@@ -142,16 +144,17 @@ run_dose_response_gam <- function(x, exposure, celltype,
     if (is.null(pb_result))
         stop("No valid donors for '", celltype, "'")
 
-    valid <- pb_result$valid_donors
+    valid <- .donors_with_dose(exp_data, pb_result$valid_donors, exposure)
     n <- length(valid)
 
     if (n < 6L)
-        stop("Need >= 6 donors for GAM. Found: ", n)
+        stop("Need >= 6 donors with a non-missing exposure for GAM. ",
+            "Found: ", n)
 
     if (is.null(k)) k <- min(n - 1L, 10L)
     k <- max(k, 3L)  # mgcv minimum
 
-    log_cpm <- .log_cpm(pb_result$pb_mat)
+    log_cpm <- .log_cpm(pb_result$pb_mat[, valid, drop = FALSE])
 
     if (is.null(target_genes)) {
         gv <- apply(log_cpm, 1, stats::var)

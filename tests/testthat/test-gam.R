@@ -56,3 +56,31 @@ test_that("GAM LOOCV R² is computed", {
     ## LOOCV R² should be <= apparent R²
     expect_true(all(dr$R2_loocv_linear <= dr$R2_linear + 0.01))
 })
+
+test_that("run_dose_response_gam leaves donors without a dose out", {
+    skip_if_not_installed("mgcv")
+    set.seed(1)
+    donor <- rep(paste0("D", 1:8), each = 10)
+    counts <- matrix(rpois(50 * 80, 8), nrow = 50,
+        dimnames = list(paste0("G", 1:50), paste0("c", 1:80)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+    dose <- matrix(c(1, 2, NA, 4:8), ncol = 1,
+        dimnames = list(paste0("D", 1:8), "E1"))
+    scee <- build_scee(sce, dose, sample_col = "donor_id")
+    genes <- paste0("G", 1:3)
+    expect_message(
+        with_missing <- run_dose_response_gam(scee, exposure = "E1",
+            celltype = "Mono", min_cells = 3L, target_genes = genes),
+        "Leaving 1 donor\\(s\\) with a missing 'E1' value")
+    expect_true(all(with_missing$n_donors == 7L))
+    expect_false(anyNA(with_missing$R2_loocv_linear))
+    kept <- donor != "D3"
+    without <- run_dose_response_gam(
+        build_scee(sce[, kept], dose[-3, , drop = FALSE],
+            sample_col = "donor_id"),
+        exposure = "E1", celltype = "Mono", min_cells = 3L,
+        target_genes = genes)
+    expect_equal(with_missing, without)
+})
