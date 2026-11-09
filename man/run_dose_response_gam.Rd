@@ -31,9 +31,12 @@ labels. Default \code{"cell_type"}.}
 test. Default: top 50 most variable.}
 
 \item{k}{Integer. Maximum basis dimension for the smooth
-term. Default \code{min(n_donors - 1, 10)}. Higher k
-allows more wiggliness; the REML smoothing penalty
-limits overfitting.}
+term, at least 4 and at most the number of distinct exposure
+values. Default \code{min(n_donors - 1, 10)}, capped at that number.
+Higher k allows more wiggliness; the REML smoothing penalty
+limits overfitting. The exposure needs at least 4 distinct values,
+because the test of nonlinearity needs \code{k} of at least 4; for an
+exposure with 3 values use \code{\link{run_dose_response}}.}
 
 \item{min_cells}{Integer. Min cells per donor. Default 10.}
 

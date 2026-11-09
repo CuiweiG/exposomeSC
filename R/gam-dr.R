@@ -25,9 +25,12 @@ NULL
 #' @param target_genes Character vector (optional). Genes to
 #'   test. Default: top 50 most variable.
 #' @param k Integer. Maximum basis dimension for the smooth
-#'   term. Default \code{min(n_donors - 1, 10)}. Higher k
-#'   allows more wiggliness; the REML smoothing penalty
-#'   limits overfitting.
+#'   term, at least 4 and at most the number of distinct exposure
+#'   values. Default \code{min(n_donors - 1, 10)}, capped at that number.
+#'   Higher k allows more wiggliness; the REML smoothing penalty
+#'   limits overfitting. The exposure needs at least 4 distinct values,
+#'   because the test of nonlinearity needs \code{k} of at least 4; for an
+#'   exposure with 3 values use \code{\link{run_dose_response}}.
 #' @param min_cells Integer. Min cells per donor. Default 10.
 #' @param loocv Logical. If \code{TRUE}, compute leave-one-out
 #'   cross-validated R² for the linear and GAM models.
@@ -130,6 +133,8 @@ run_dose_response_gam <- function(x, exposure, celltype,
 
     if (!requireNamespace("mgcv", quietly = TRUE))
         stop("Package 'mgcv' required. install.packages('mgcv')")
+    if (!is.null(k) && (!.is_whole_number(k) || k < 4))
+        stop("k must be NULL or one whole number >= 4.")
 
     exp_data <- exposureData(x)
     if (!exposure %in% colnames(exp_data))
@@ -153,8 +158,20 @@ run_dose_response_gam <- function(x, exposure, celltype,
         stop("Need >= 6 donors with a non-missing exposure for GAM. ",
             "Found: ", n)
 
-    if (is.null(k)) k <- min(n - 1L, 10L)
-    k <- max(k, 3L)  # mgcv minimum
+    ## mgcv cannot fit a smooth with more basis functions than distinct
+    ## exposure values, and it cannot build the departure model of the test
+    ## of nonlinearity with k = 3
+    n_distinct <- length(unique(exp_data[valid, exposure]))
+    if (n_distinct < 4L)
+        stop("A smooth dose-response needs at least 4 distinct exposure ",
+            "values; found ", n_distinct, ". Use run_dose_response() for ",
+            "an exposure with 3 values, or run_sc_exwas() for a binary one.")
+    if (is.null(k)) {
+        k <- min(n - 1L, 10L, n_distinct)
+    } else if (k > n_distinct) {
+        stop("k (", k, ") exceeds the number of distinct exposure values (",
+            n_distinct, ").")
+    }
 
     log_cpm <- .log_cpm(pb_result$pb_mat[, valid, drop = FALSE])
 
@@ -225,9 +242,10 @@ run_dose_response_gam <- function(x, exposure, celltype,
                     pred_loo_lin[i] <- NA_real_
                 }
 
+                ## at least 3: each training set keeps 3 of the >= 4 values
+                k_train <- min(k, n - 2L, length(unique(df_train$dose)))
                 f_gam <- tryCatch(
-                    mgcv::gam(y ~ s(dose, k = min(k, n - 2L),
-                        bs = "tp"),
+                    mgcv::gam(y ~ s(dose, k = k_train, bs = "tp"),
                         data = df_train, method = "REML"),
                     error = function(e) NULL)
                 if (!is.null(f_gam)) {

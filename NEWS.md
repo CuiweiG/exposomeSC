@@ -112,6 +112,10 @@ with warnings.
   integer code, so a call that succeeded used the exposure at that position,
   except `run_celltype_network()` with `covariates`, which adjusted the
   network for the covariates alone (see Bug fixes).
+* `run_dose_response_gam()` no longer returns an empty table when the
+  default `k` exceeds the number of distinct exposure values, and its
+  leave-one-out R² is no longer `NA` when a refit has fewer distinct values
+  than `k` (see Bug fixes).
 
 ## Interface
 
@@ -441,6 +445,16 @@ with warnings.
   duplicated exposure was counted twice in the weights and the mixture
   effect of `run_sc_mixture()`, without a message, and stopped
   `run_mixture_qgcomp()` with "duplicate subscripts for columns".
+* `run_dose_response_gam()` compares `k` with the number of distinct
+  exposure values. An exposure with fewer than four values stops with a
+  message that points to `run_dose_response()` or, for a binary exposure,
+  to `run_sc_exwas()`; the default `k` is at most the number of distinct
+  values; a `k` above that number, below 4 or not a single whole number is
+  an error; and the leave-one-out refits cap `k` the same way. With fewer
+  distinct values than `k` every smooth used to fail, and the function
+  returned an empty table without a message. A `k` below 3 was raised to 3
+  without a word, and with `k = 3` the test of nonlinearity could not be
+  fitted, so `p_nonlinear` was `NA` for every gene.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
