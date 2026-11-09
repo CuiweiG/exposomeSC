@@ -43,7 +43,8 @@ exposure listed here. Names must be syntactic, as for
 
 \item{bootstrap}{Logical. If \code{TRUE}, use
 \code{qgcomp.boot()} for bootstrap confidence intervals.
-Default \code{FALSE} (faster; uses asymptotic CI).}
+Default \code{FALSE} (faster; a t interval on the residual degrees
+of freedom, see Details).}
 
 \item{B}{Integer. Number of bootstrap replicates (only if
 \code{bootstrap = TRUE}). Default 200.}
@@ -54,7 +55,8 @@ Default \code{FALSE} (faster; uses asymptotic CI).}
 A one-row \code{DataFrame} with columns \code{celltype},
   \code{mixture_effect} (the overall mixture effect \eqn{\psi}),
   \code{mixture_se}, \code{ci_lower} and \code{ci_upper} (95\%
-  confidence interval for \eqn{\psi}), \code{mixture_pvalue},
+  confidence interval for \eqn{\psi}), \code{mixture_pvalue} (for the
+  interval and the p-value see Details),
   \code{n_donors}, \code{n_genes} and \code{method}
   (\code{"qgcomp.noboot"} or \code{"qgcomp.boot"}).
   \code{metadata(result)} holds:
@@ -91,10 +93,19 @@ similar shape (Keil et al. 2020).
 The pseudobulk response is the mean log-CPM of the target
 genes over donors with complete exposure and covariate data.
 
+Without bootstrapping, \code{mixture_pvalue} is a two-sided t test of
+\eqn{\psi} on the residual degrees of freedom of the fitted model, and
+\code{ci_lower} and \code{ci_upper} are the matching t interval.
+\code{qgcomp.noboot()} itself uses the null degrees of freedom minus the
+number of exposures for its p-value, which leaves the covariates out, and
+a normal interval; its own values are kept in
+\code{metadata(result)$fit}. With \code{bootstrap = TRUE} the p-value
+and the interval are those of \code{qgcomp.boot()}.
+
 \strong{Comparison with \code{run_sc_mixture}:}
 \tabular{lll}{
   Feature \tab run_sc_mixture \tab run_mixture_qgcomp \cr
-  CI for overall effect \tab No \tab Yes (asymptotic or bootstrap) \cr
+  CI for overall effect \tab No \tab Yes (t interval or bootstrap) \cr
   Pos/neg weights \tab No \tab Yes (without bootstrap) \cr
   P-value for overall effect \tab No \tab Yes \cr
   Speed \tab Fast \tab Moderate \cr

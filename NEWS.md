@@ -120,6 +120,11 @@ with warnings.
   the weight `NA` instead of 0; when no coefficient can be estimated, the
   weights, `mixture_effect` and `mixture_coef` are `NA` instead of equal
   weights and zero effects (see Bug fixes).
+* `run_mixture_qgcomp(bootstrap = FALSE)` refers the mixture effect to a t
+  distribution on the residual degrees of freedom of the fitted model:
+  `mixture_pvalue` is larger than before when `covariates` add to the
+  model's rank, and `ci_lower` and `ci_upper` are a t interval instead of a
+  normal interval, so they are wider in every call (see Bug fixes).
 
 ## Interface
 
@@ -486,6 +491,16 @@ with warnings.
   the DESeq2 and voom-dream backends failed for every cell type and
   returned no rows, with a warning; and the negative binomial mixed model
   reported every likelihood-ratio test without a p-value.
+* `run_mixture_qgcomp(bootstrap = FALSE)` tests the mixture effect against a
+  t distribution with the residual degrees of freedom of the fitted model,
+  and gives the matching t interval. It passed on the p-value of
+  `qgcomp::qgcomp.noboot()`, which uses the null degrees of freedom minus
+  the number of exposures and so leaves the covariates out: with 10
+  donors, 3 exposures and 2 covariates the reference distribution had 6
+  instead of 4 degrees of freedom, which makes the p-value too small. Its
+  interval was a normal one, so it could exclude 0 while the p-value was
+  above 0.05. Without covariates the p-value is unchanged, but the
+  interval is wider in every call.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

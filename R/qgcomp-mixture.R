@@ -34,7 +34,8 @@ NULL
 #' @param q Integer. Number of quantile bins. Default 4.
 #' @param bootstrap Logical. If \code{TRUE}, use
 #'   \code{qgcomp.boot()} for bootstrap confidence intervals.
-#'   Default \code{FALSE} (faster; uses asymptotic CI).
+#'   Default \code{FALSE} (faster; a t interval on the residual degrees
+#'   of freedom, see Details).
 #' @param B Integer. Number of bootstrap replicates (only if
 #'   \code{bootstrap = TRUE}). Default 200.
 #' @param min_cells Integer. Default 10.
@@ -42,7 +43,8 @@ NULL
 #' @return A one-row \code{DataFrame} with columns \code{celltype},
 #'   \code{mixture_effect} (the overall mixture effect \eqn{\psi}),
 #'   \code{mixture_se}, \code{ci_lower} and \code{ci_upper} (95\%
-#'   confidence interval for \eqn{\psi}), \code{mixture_pvalue},
+#'   confidence interval for \eqn{\psi}), \code{mixture_pvalue} (for the
+#'   interval and the p-value see Details),
 #'   \code{n_donors}, \code{n_genes} and \code{method}
 #'   (\code{"qgcomp.noboot"} or \code{"qgcomp.boot"}).
 #'   \code{metadata(result)} holds:
@@ -70,10 +72,19 @@ NULL
 #' The pseudobulk response is the mean log-CPM of the target
 #' genes over donors with complete exposure and covariate data.
 #'
+#' Without bootstrapping, \code{mixture_pvalue} is a two-sided t test of
+#' \eqn{\psi} on the residual degrees of freedom of the fitted model, and
+#' \code{ci_lower} and \code{ci_upper} are the matching t interval.
+#' \code{qgcomp.noboot()} itself uses the null degrees of freedom minus the
+#' number of exposures for its p-value, which leaves the covariates out, and
+#' a normal interval; its own values are kept in
+#' \code{metadata(result)$fit}. With \code{bootstrap = TRUE} the p-value
+#' and the interval are those of \code{qgcomp.boot()}.
+#'
 #' \strong{Comparison with \code{run_sc_mixture}:}
 #' \tabular{lll}{
 #'   Feature \tab run_sc_mixture \tab run_mixture_qgcomp \cr
-#'   CI for overall effect \tab No \tab Yes (asymptotic or bootstrap) \cr
+#'   CI for overall effect \tab No \tab Yes (t interval or bootstrap) \cr
 #'   Pos/neg weights \tab No \tab Yes (without bootstrap) \cr
 #'   P-value for overall effect \tab No \tab Yes \cr
 #'   Speed \tab Fast \tab Moderate \cr
@@ -202,14 +213,32 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
     mixture_effect <- fit$psi
     mixture_se <- sqrt(fit$var.psi)
     mixture_ci <- as.numeric(fit$ci)
-    ## fit$pval follows fit$coef, whose first element is the intercept
-    psi_index <- match("psi1", names(fit$coef))
-    mixture_pval <- if (!is.na(psi_index) &&
-                        length(fit$pval) >= psi_index) {
-        fit$pval[psi_index]
+    if (!bootstrap) {
+        ## qgcomp.noboot() refers psi to t with df.null - length(exposures)
+        ## degrees of freedom, which leaves the covariates out, and gives a
+        ## normal interval; the p-value and the 95% interval here both use t
+        ## on the residual df of the fitted model
+        df_residual <- fit$fit$df.residual
+        if (df_residual > 0) {
+            mixture_pval <- 2 * stats::pt(abs(mixture_effect / mixture_se),
+                df = df_residual, lower.tail = FALSE)
+            mixture_ci <- mixture_effect +
+                c(-1, 1) * stats::qt(0.975, df = df_residual) * mixture_se
+        } else {
+            ## no residual degrees of freedom: NaN, as qgcomp gives them
+            mixture_pval <- NaN
+            mixture_ci <- c(NaN, NaN)
+        }
     } else {
-        2 * stats::pnorm(abs(mixture_effect / mixture_se),
-            lower.tail = FALSE)
+        ## fit$pval follows fit$coef, whose first element is the intercept
+        psi_index <- match("psi1", names(fit$coef))
+        mixture_pval <- if (!is.na(psi_index) &&
+                            length(fit$pval) >= psi_index) {
+            fit$pval[psi_index]
+        } else {
+            2 * stats::pnorm(abs(mixture_effect / mixture_se),
+                lower.tail = FALSE)
+        }
     }
 
     result <- S4Vectors::DataFrame(
