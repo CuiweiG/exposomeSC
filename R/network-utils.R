@@ -123,8 +123,32 @@ NULL
     shared_donors <- intersect(tx_donors, met_donors)
     if (length(shared_donors) < 5L)
         stop("Only ", length(shared_donors),
-             " shared donors between pseudobulk and ",
-             "metabolites. Need at least 5.")
+            " shared donors between pseudobulk and ",
+            "metabolites. Need at least 5.")
+    ## A donor with a missing exposure or covariate cannot be adjusted; it is
+    ## left out, as run_sc_exwas() leaves it out of its design
+    adj_vars <- c(exposure, covariates)
+    if (length(adj_vars)) {
+        complete <- stats::complete.cases(
+            exposureData(x)[shared_donors, adj_vars, drop = FALSE])
+        if (!all(complete)) {
+            missing_what <- if (is.null(exposure)) {
+                "covariate"
+            } else if (is.null(covariates)) {
+                "exposure"
+            } else {
+                "exposure or covariate"
+            }
+            message("[exposomeSC] Leaving ", sum(!complete), " donor(s) ",
+                    "with a missing ", missing_what, " value out of the ",
+                    "network for '", celltype, "'.")
+            shared_donors <- shared_donors[complete]
+        }
+        if (length(shared_donors) < 5L)
+            stop("Only ", length(shared_donors), " of the donors shared ",
+                "between pseudobulk and metabolites have values of the ",
+                "adjustment variables. Need at least 5.", call. = FALSE)
+    }
 
     tx_mat <- tx_mat[shared_donors, , drop = FALSE]
     met_mat <- metabolites[shared_donors, , drop = FALSE]

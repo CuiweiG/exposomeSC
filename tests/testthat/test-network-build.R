@@ -433,3 +433,45 @@ test_that("unknown exposure or covariate names are an error", {
     expect_identical(metadata(net)$exposure, "PM2.5")
     expect_identical(metadata(net)$covariates, "Pb")
 })
+
+test_that("donors with a missing covariate are left out of the network", {
+    skip_if_not_installed("glasso")
+    fx <- .constant_fixture()
+    exposures <- exposureData(fx$scee)
+    exposures["D3", "Pb"] <- NA
+    scee <- build_scee(methods::as(fx$scee, "SingleCellExperiment"),
+        exposures, sample_col = "donor_id")
+    msgs <- character()
+    net <- withCallingHandlers(
+        run_celltype_network(scee, fx$metab, celltype = "Mono",
+            method = "block_glasso", covariates = "Pb"),
+        message = function(m) {
+            msgs <<- c(msgs, conditionMessage(m))
+            invokeRestart("muffleMessage")
+        })
+    expect_true(any(grepl("1 donor(s) with a missing", msgs, fixed = TRUE)))
+    expect_equal(metadata(net)$n_donors, 19L)
+    expect_false("D3" %in% metadata(net)$donors)
+    msgs <- character()
+    selected <- withCallingHandlers(
+        run_exposure_network(scee, fx$metab, celltype = "Mono",
+            exposure = "PM2.5", covariates = "Pb",
+            selection_method = "univariate", fdr_threshold = 1,
+            network_method = "block_glasso"),
+        message = function(m) {
+            msgs <<- c(msgs, conditionMessage(m))
+            invokeRestart("muffleMessage")
+        })
+    expect_equal(metadata(selected)$n_donors, 19L)
+    ## only the covariate is adjusted for here
+    expect_true(any(grepl("1 donor(s) with a missing covariate value",
+        msgs, fixed = TRUE)))
+    ## too few donors with values of the adjustment variables
+    exposures[paste0("D", 1:16), "Pb"] <- NA
+    sparse <- build_scee(methods::as(fx$scee, "SingleCellExperiment"),
+        exposures, sample_col = "donor_id")
+    expect_error(
+        suppressMessages(run_celltype_network(sparse, fx$metab,
+            celltype = "Mono", method = "block_glasso", covariates = "Pb")),
+        "Only 4 of the donors shared between pseudobulk and metabolites")
+})

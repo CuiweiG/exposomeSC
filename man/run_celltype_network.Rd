@@ -44,7 +44,8 @@ another name is an error. Default NULL.}
 
 \item{covariates}{Character vector or NULL; adjustment
 covariates, columns of \code{exposureData(x)}; another name is an
-error. Default NULL.}
+error. Donors with a missing value of \code{exposure} or of a
+covariate are left out, with a message. Default NULL.}
 
 \item{method}{Character; \code{"coglasso"} (default) or
 \code{"block_glasso"}. The coglasso method uses

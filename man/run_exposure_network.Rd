@@ -38,7 +38,8 @@ Default \code{"cell_type"}.}
 \item{covariates}{Character vector or NULL; columns of
 \code{exposureData(x)}, regressed out of the transcript and
 metabolite values before the selection (the exposure is used as
-given); another name is an error.}
+given); another name is an error. Donors with a missing covariate
+value are left out, with a message.}
 
 \item{selection_method}{Character; \code{"stability"}
 (default) or \code{"univariate"}.}

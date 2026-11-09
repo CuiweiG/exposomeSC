@@ -287,6 +287,13 @@ with warnings.
   p-value was computed partly from invalid permutations. When every
   stratum has at least two donors, the permutations, and so seeded
   results, are unchanged.
+* `run_celltype_network()` leaves donors with a missing `exposure` or
+  covariate value, and `run_exposure_network()` donors with a missing
+  covariate value, out of the network, with a message, as `run_sc_exwas()`
+  leaves them out of its design; when fewer than five donors remain, the
+  error says so. One such donor used to stop both functions with the base
+  R error "values must be length ..., but FUN(X[[1]]) result is length
+  ...".
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
