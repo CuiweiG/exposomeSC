@@ -52,8 +52,11 @@ Default \code{NULL} (library sizes only).}
 \item{min_cells}{Integer; minimum cells per donor to include.
 Default 30.}
 
-\item{min_donors}{Integer; minimum donors with sufficient
-cells. Default 10.}
+\item{min_donors}{Integer; minimum number of donors with enough cells
+(at least \code{min_cells}, and at least 7 plus the number of
+confounders, because the two library sizes are always adjusted for)
+and values of the exposure and of every moderator. A gene-protein pair
+also needs a partial correlation in that many donors. Default 10.}
 
 \item{meta_moderators}{Character vector or one-sided formula of
 additional donor-level moderators for the meta-regression
@@ -82,7 +85,9 @@ A \code{DataFrame} with one row per gene-protein pair
   (zero rows when too few donors qualify):
   \describe{
     \item{gene, protein}{Feature names.}
-    \item{n_donors}{Number of donors included.}
+    \item{n_donors}{Number of donors in the meta-regression: donors
+      with enough cells, a partial correlation and values of the
+      exposure and of every moderator.}
     \item{beta0, se0, pval0}{Intercept (baseline coupling).}
     \item{beta1, se1, pval1}{Exposure coefficient (rewiring).}
     \item{tau2}{Between-donor heterogeneity variance (REML).}

@@ -171,3 +171,60 @@ test_that("meta_moderators accepts a one-sided formula of column names", {
             "must be one-sided and only list columns of exposureData")
     }
 })
+
+test_that("run_cell_coupling leaves out donors without a moderator value", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(1)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 60)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = gene),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T"))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = protein))
+    exp_mat <- cbind(exposure = seq(0, 2, length.out = 12),
+        age = c(NA, 51, 47, 29, 62, 55, 41, 38, 58, 45, 33, 49))
+    rownames(exp_mat) <- donors
+    couple <- function(cells, min_donors = 10L) {
+        scee <- build_scee(sce[, cells],
+            exp_mat[unique(donor[cells]), , drop = FALSE],
+            sample_col = "donor_id")
+        run_cell_coupling(scee, genes = "Gene1", proteins = "Prot1",
+            exposure = "exposure", celltype = "T", min_cells = 20L,
+            min_donors = min_donors, meta_moderators = "age")
+    }
+    all_cells <- rep(TRUE, length(donor))
+    expect_message(with_missing <- couple(all_cells),
+        "Leaving 1 donor\\(s\\) with a missing exposure or moderator")
+    expect_identical(with_missing$n_donors, 11L)
+    without <- suppressMessages(couple(donor != "D01"))
+    expect_equal(with_missing, without)
+    ## eleven donors with an age are fewer than min_donors = 12
+    expect_warning(too_few <- suppressMessages(couple(all_cells, 12L)),
+        "Only 11 donors with >= 20 cells and complete exposure and moderator")
+    expect_identical(nrow(too_few), 0L)
+    ## donors without an exposure are counted the same way, also without
+    ## moderators
+    exp_mat[c("D01", "D02"), "exposure"] <- NA
+    plain <- function(cells, min_donors) {
+        scee <- build_scee(sce[, cells],
+            exp_mat[unique(donor[cells]), , drop = FALSE],
+            sample_col = "donor_id")
+        run_cell_coupling(scee, genes = "Gene1", proteins = "Prot1",
+            exposure = "exposure", celltype = "T", min_cells = 20L,
+            min_donors = min_donors)
+    }
+    expect_warning(none <- suppressMessages(plain(all_cells, 11L)),
+        "Only 10 donors with >= 20 cells and complete exposure")
+    expect_identical(nrow(none), 0L)
+    expect_message(ten <- plain(all_cells, 10L), "Leaving 2 donor\\(s\\)")
+    expect_identical(ten$n_donors, 10L)
+    expect_equal(ten,
+        suppressMessages(plain(!donor %in% c("D01", "D02"), 10L)))
+})

@@ -33,8 +33,11 @@ utils::globalVariables(c("yi", "vi"))
 #'   Default \code{NULL} (library sizes only).
 #' @param min_cells Integer; minimum cells per donor to include.
 #'   Default 30.
-#' @param min_donors Integer; minimum donors with sufficient
-#'   cells. Default 10.
+#' @param min_donors Integer; minimum number of donors with enough cells
+#'   (at least \code{min_cells}, and at least 7 plus the number of
+#'   confounders, because the two library sizes are always adjusted for)
+#'   and values of the exposure and of every moderator. A gene-protein pair
+#'   also needs a partial correlation in that many donors. Default 10.
 #' @param meta_moderators Character vector or one-sided formula of
 #'   additional donor-level moderators for the meta-regression
 #'   (e.g., \code{"age"}, \code{c("age", "sex")} or
@@ -59,7 +62,9 @@ utils::globalVariables(c("yi", "vi"))
 #'   (zero rows when too few donors qualify):
 #'   \describe{
 #'     \item{gene, protein}{Feature names.}
-#'     \item{n_donors}{Number of donors included.}
+#'     \item{n_donors}{Number of donors in the meta-regression: donors
+#'       with enough cells, a partial correlation and values of the
+#'       exposure and of every moderator.}
 #'     \item{beta0, se0, pval0}{Intercept (baseline coupling).}
 #'     \item{beta1, se1, pval1}{Exposure coefficient (rewiring).}
 #'     \item{tau2}{Between-donor heterogeneity variance (REML).}
@@ -258,6 +263,24 @@ run_cell_coupling <- function(x,
         return(S4Vectors::DataFrame())
     }
 
+    ## A donor enters the meta-regression only with an exposure value and a
+    ## value of every moderator
+    analysable <- !is.na(exp_vec)
+    if (!is.null(mod_mat))
+        analysable <- analysable & stats::complete.cases(mod_mat)
+    n_incomplete <- sum(!analysable[valid_donors])
+    if (n_incomplete > 0L)
+        message("[exposomeSC] Leaving ", n_incomplete, " donor(s) with a ",
+                "missing exposure or moderator value out of the ",
+                "meta-regression.")
+    n_analysable <- length(valid_donors) - n_incomplete
+    if (n_analysable < min_donors) {
+        warning("Only ", n_analysable, " donors with >= ", min_for_pcor,
+                " cells and complete exposure and moderator values (need ",
+                min_donors, ")")
+        return(S4Vectors::DataFrame())
+    }
+
     n_pairs <- length(genes) * length(proteins)
     fmt <- paste0("[exposomeSC] Cell coupling: %s, %d genes x %d proteins ",
                   "= %d pairs, %d confounders")
@@ -308,9 +331,10 @@ run_cell_coupling <- function(x,
                     var_method = var_method,
                     n_boot = n_boot
                 )
-                ## the exposure is checked after the donor statistic so that
-                ## bootstrap draws do not depend on missing exposures
-                if (is.null(stat) || is.na(exp_vec[d])) next
+                ## the exposure and moderators are checked after the donor
+                ## statistic so that bootstrap draws do not depend on
+                ## missing values
+                if (is.null(stat) || !analysable[[d]]) next
                 donor_z[k] <- stat[["z"]]
                 donor_v[k] <- stat[["v"]]
                 donor_r[k] <- stat[["r"]]

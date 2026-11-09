@@ -95,6 +95,9 @@ with warnings.
   and `nonlinear_model`, `p_nonlinear`, `best_model` and `AIC_best` change;
   and in `run_dose_response_gam()` the leave-one-out R² and, where the
   default `k` changes, the columns of the smooth change (see Bug fixes).
+* `run_cell_coupling()` gives other `n_donors`, `mean_r` and `mean_n_cells`
+  when a donor has no moderator value, and leaves out a pair that is then
+  left with fewer than `min_donors` donors (see Bug fixes).
 
 ## Interface
 
@@ -340,6 +343,15 @@ with warnings.
   and the default `k` of its smooth counted them too, so that with two
   such donors it could exceed the donors with a dose, every smooth failed
   and the function returned an empty table without a message.
+* `run_cell_coupling()` leaves donors with a missing moderator value out of
+  the meta-regression, as it left out donors with a missing exposure, and
+  says how many donors it leaves out. `metafor::rma()` dropped such donors
+  with a warning, but `n_donors`, `mean_r`, `mean_n_cells` and the
+  `min_donors` check still counted them, so a pair could be reported from
+  fewer donors than `min_donors`. When fewer than `min_donors` donors with
+  enough cells have values of the exposure and of every moderator, the
+  function warns and returns an empty table; with missing exposures it
+  used to return that table with only the message "0 pairs tested".
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
