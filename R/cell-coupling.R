@@ -50,7 +50,8 @@ utils::globalVariables(c("yi", "vi"))
 #'   \code{~ age + sex}). These must be columns in
 #'   \code{exposureData(x)} with syntactic R names (see
 #'   \code{\link[base]{make.names}}); a formula may only list such
-#'   columns, without transformations or interactions.
+#'   columns, without transformations or interactions. The exposure itself
+#'   cannot be a moderator.
 #'   Default \code{NULL} (exposure only).
 #' @param var_method Character. Method for estimating the
 #'   sampling variance of Fisher z-transformed correlations.
@@ -65,7 +66,9 @@ utils::globalVariables(c("yi", "vi"))
 #'   Default 200.
 #'
 #' @return A \code{DataFrame} with one row per gene-protein pair
-#'   (zero rows when too few donors qualify):
+#'   (zero rows when too few donors qualify). A pair whose exposure does
+#'   not vary among its donors, or is collinear with the moderators, is
+#'   not tested, with a warning that counts such pairs:
 #'   \describe{
 #'     \item{gene, protein}{Feature names.}
 #'     \item{n_donors}{Number of donors in the meta-regression: donors
@@ -208,6 +211,9 @@ run_cell_coupling <- function(x,
             stop("Moderators not in exposureData: ",
                  paste(missing_mods, collapse = ", "))
         .check_formula_names(meta_moderators, "moderator")
+        if (exposure %in% meta_moderators)
+            stop("The exposure must not also be listed in ",
+                "'meta_moderators'.", call. = FALSE)
         mod_mat <- exp_data[, meta_moderators, drop = FALSE]
     }
 
@@ -315,12 +321,16 @@ run_cell_coupling <- function(x,
     meta_formula <- as.formula("~ donor_exp")
     if (!is.null(meta_moderators)) {
         mod_terms <- paste(meta_moderators, collapse = " + ")
-        meta_formula <- as.formula(paste("~ donor_exp +", mod_terms))
+        ## the exposure comes last: metafor drops the later of two collinear
+        ## columns, so an exposure collinear with the moderators is dropped
+        ## and the pair is counted as not tested below
+        meta_formula <- as.formula(paste("~", mod_terms, "+ donor_exp"))
     }
 
     ## Results accumulator
     results <- vector("list", n_pairs)
     idx <- 0L
+    n_untestable <- 0L
 
     for (gene in genes) {
         gene_row <- match(gene, rownames(x))
@@ -373,6 +383,11 @@ run_cell_coupling <- function(x,
             donor_exp <- unname(exp_vec[donor_ids])
 
             if (length(donor_z) < min_donors) next
+            ## the meta-regression needs an exposure that varies
+            if (length(unique(donor_exp)) < 2L) {
+                n_untestable <- n_untestable + 1L
+                next
+            }
 
             ## Build meta-regression data
             meta_df <- data.frame(
@@ -394,17 +409,25 @@ run_cell_coupling <- function(x,
                     method = "REML", test = "knha"),
                 error = function(e) NULL)
             if (is.null(fit)) next
+            ## coefficients are taken by name: metafor drops a predictor
+            ## that is collinear with the others
+            k0 <- match("intrcpt", rownames(fit$beta))
+            k1 <- match("donor_exp", rownames(fit$beta))
+            if (is.na(k0) || is.na(k1)) {
+                n_untestable <- n_untestable + 1L
+                next
+            }
 
             results[[idx]] <- data.frame(
                 gene = gene,
                 protein = protein,
                 n_donors = length(donor_z),
-                beta0 = fit$beta[1, 1],
-                se0 = fit$se[1],
-                pval0 = fit$pval[1],
-                beta1 = fit$beta[2, 1],
-                se1 = fit$se[2],
-                pval1 = fit$pval[2],
+                beta0 = fit$beta[k0, 1],
+                se0 = fit$se[k0],
+                pval0 = fit$pval[k0],
+                beta1 = fit$beta[k1, 1],
+                se1 = fit$se[k1],
+                pval1 = fit$pval[k1],
                 tau2 = fit$tau2,
                 I2 = fit$I2,
                 mean_r = mean(donor_r),
@@ -414,6 +437,10 @@ run_cell_coupling <- function(x,
         }
     }
 
+    if (n_untestable > 0L)
+        warning(n_untestable, " gene-protein pair(s) not tested: the ",
+                "exposure does not vary among their donors, or is collinear ",
+                "with the moderators.", call. = FALSE)
     out <- do.call(rbind, results[!vapply(results, is.null, logical(1))])
     if (is.null(out)) out <- data.frame()
 

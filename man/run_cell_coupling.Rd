@@ -70,7 +70,8 @@ additional donor-level moderators for the meta-regression
 \code{~ age + sex}). These must be columns in
 \code{exposureData(x)} with syntactic R names (see
 \code{\link[base]{make.names}}); a formula may only list such
-columns, without transformations or interactions.
+columns, without transformations or interactions. The exposure itself
+cannot be a moderator.
 Default \code{NULL} (exposure only).}
 
 \item{var_method}{Character. Method for estimating the
@@ -88,7 +89,9 @@ Default 200.}
 }
 \value{
 A \code{DataFrame} with one row per gene-protein pair
-  (zero rows when too few donors qualify):
+  (zero rows when too few donors qualify). A pair whose exposure does
+  not vary among its donors, or is collinear with the moderators, is
+  not tested, with a warning that counts such pairs:
   \describe{
     \item{gene, protein}{Feature names.}
     \item{n_donors}{Number of donors in the meta-regression: donors

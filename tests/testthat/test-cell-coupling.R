@@ -270,3 +270,56 @@ test_that("run_cell_coupling refuses an unordered confounder label", {
     expect_identical(nrow(couple("Phase_ordered")), 1L)
     expect_identical(nrow(couple(c("S_phase", "G2M_phase"))), 1L)
 })
+
+test_that("run_cell_coupling does not test an exposure that does not vary", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(1)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 60)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = gene),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T"))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = protein))
+    exp_mat <- cbind(exposure = rep(1, 12),
+        age = c(34, 51, 47, 29, 62, 55, 41, 38, 58, 45, 33, 49))
+    rownames(exp_mat) <- donors
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    for (moderators in list(NULL, "age")) {
+        expect_warning(
+            res <- suppressMessages(run_cell_coupling(scee, genes = "Gene1",
+                proteins = "Prot1", exposure = "exposure", celltype = "T",
+                min_cells = 20L, min_donors = 10L,
+                meta_moderators = moderators)),
+            "1 gene-protein pair\\(s\\) not tested: the exposure does not vary")
+        expect_identical(nrow(res), 0L)
+    }
+    ## an exposure collinear with a moderator leaves nothing to test
+    exp_mat <- cbind(exposure = seq(0, 2, length.out = 12),
+        lin = 2 * seq(0, 2, length.out = 12) + 1)
+    rownames(exp_mat) <- donors
+    collinear <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    warnings <- character()
+    res <- withCallingHandlers(
+        suppressMessages(run_cell_coupling(collinear, genes = "Gene1",
+            proteins = "Prot1", exposure = "exposure", celltype = "T",
+            min_cells = 20L, min_donors = 10L, meta_moderators = "lin")),
+        warning = function(w) {
+            warnings <<- c(warnings, conditionMessage(w))
+            invokeRestart("muffleWarning")
+        })
+    expect_identical(nrow(res), 0L)
+    expect_true(any(grepl("1 gene-protein pair(s) not tested", warnings,
+        fixed = TRUE)))
+    ## the exposure itself is refused before anything is computed
+    expect_error(run_cell_coupling(collinear, genes = "Gene1",
+        proteins = "Prot1", exposure = "exposure", celltype = "T",
+        min_cells = 20L, min_donors = 10L, meta_moderators = "exposure"),
+        "must not also be listed in 'meta_moderators'")
+})

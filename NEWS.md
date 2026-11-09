@@ -125,6 +125,10 @@ with warnings.
   `mixture_pvalue` is larger than before when `covariates` add to the
   model's rank, and `ci_lower` and `ci_upper` are a t interval instead of a
   normal interval, so they are wider in every call (see Bug fixes).
+* With `meta_moderators`, `run_cell_coupling()` leaves out a pair whose
+  exposure is constant or collinear with the moderators; it reported such a
+  pair with a moderator's coefficient or without the adjustment (see Bug
+  fixes).
 
 ## Interface
 
@@ -507,6 +511,18 @@ with warnings.
   score in alphabetical or level order (G1 < G2M < S), without a message.
   Numeric, logical and ordered-factor confounders and two-valued labels are
   used as before.
+* `run_cell_coupling()` takes the meta-regression coefficients by name and
+  leaves out, with a warning, a pair whose exposure does not vary among its
+  donors or is collinear with the moderators. It took them by position: when
+  the exposure was constant, for example in an object holding one exposure
+  group, `metafor::rma()` dropped it, so the call failed with "subscript out
+  of bounds", or, with `meta_moderators`, reported the first moderator's
+  coefficient and p-value as the exposure effect. When a moderator was
+  collinear with the exposure, for example the exposure itself, metafor
+  dropped the moderator, and the exposure effect was reported without that
+  adjustment. The exposure listed in `meta_moderators` is now an error, and
+  `meta_moderators = character(0)` means no moderators, as `NULL` does; it
+  used to fail with a parse error.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
