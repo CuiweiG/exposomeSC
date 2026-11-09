@@ -501,6 +501,12 @@ with warnings.
   interval was a normal one, so it could exclude 0 while the p-value was
   above 0.05. Without covariates the p-value is unchanged, but the
   interval is wider in every call.
+* `run_cell_coupling()` refuses a confounder that is an unordered label with
+  more than two values, such as a cell-cycle phase. The partial correlation
+  ranks each confounder, so such a label was adjusted for as an ordinal
+  score in alphabetical or level order (G1 < G2M < S), without a message.
+  Numeric, logical and ordered-factor confounders and two-valued labels are
+  used as before.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

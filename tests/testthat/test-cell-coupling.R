@@ -228,3 +228,45 @@ test_that("run_cell_coupling leaves out donors without a moderator value", {
     expect_equal(ten,
         suppressMessages(plain(!donor %in% c("D01", "D02"), 10L)))
 })
+
+test_that("run_cell_coupling refuses an unordered confounder label", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(1)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 60)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    phase <- sample(c("G1", "S", "G2M"), length(donor), replace = TRUE)
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = gene),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T",
+            Phase = phase,
+            Phase_ordered = factor(phase, levels = c("G1", "S", "G2M"),
+                ordered = TRUE),
+            Phase_factor = factor(phase),
+            two_valued = ifelse(phase == "G1", "a", "b"),
+            S_phase = as.integer(phase == "S"),
+            G2M_phase = as.integer(phase == "G2M")))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = protein))
+    exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
+        dimnames = list(donors, "exposure"))
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    couple <- function(confounders) {
+        suppressMessages(run_cell_coupling(scee, genes = "Gene1",
+            proteins = "Prot1", exposure = "exposure", celltype = "T",
+            min_cells = 20L, min_donors = 10L, confounders = confounders))
+    }
+    expect_error(couple("Phase"),
+        "more than two unordered categories: Phase")
+    expect_error(couple("Phase_factor"),
+        "more than two unordered categories: Phase_factor")
+    ## a label with two values is used as before
+    expect_identical(nrow(couple("two_valued")), 1L)
+    expect_identical(nrow(couple("Phase_ordered")), 1L)
+    expect_identical(nrow(couple(c("S_phase", "G2M_phase"))), 1L)
+})

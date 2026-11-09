@@ -29,7 +29,13 @@ utils::globalVariables(c("yi", "vi"))
 #'   \code{colData(x)} to partial out (e.g.,
 #'   \code{c("S.Score", "G2M.Score", "percent.mt")}).
 #'   Library sizes (nCount_RNA, nCount_protein) are always
-#'   controlled regardless of this parameter.
+#'   controlled regardless of this parameter. Each confounder is ranked
+#'   within a donor, so it must be numeric, logical, an ordered factor or
+#'   a label with at most two values; an unordered label with more
+#'   categories, such as a cell-cycle phase, is an error and must be
+#'   given as 0/1 indicator columns for all its categories but one,
+#'   leaving out a category that every donor has cells of (for G1, S and
+#'   G2M, for example S and G2M when every donor has G1 cells).
 #'   Default \code{NULL} (library sizes only).
 #' @param min_cells Integer; minimum cells per donor to include.
 #'   Default 30.
@@ -251,6 +257,22 @@ run_cell_coupling <- function(x,
     if (!is.null(confounders)) {
         conf_data <- as.data.frame(cd[ct_idx, confounders, drop = FALSE])
         n_conf <- n_conf + length(confounders)
+        ## each confounder is ranked within a donor, so an unordered label
+        ## with more than two values would be adjusted for in an arbitrary
+        ## order (G1 < G2M < S)
+        categorical <- vapply(conf_data, function(value) {
+            (is.character(value) || (is.factor(value) && !is.ordered(value))) &&
+                length(unique(value[!is.na(value)])) > 2L
+        }, logical(1))
+        if (any(categorical)) {
+            categorical_names <- paste(confounders[categorical],
+                collapse = ", ")
+            stop("Confounder(s) with more than two unordered categories: ",
+                categorical_names, ". Each confounder is ranked, so give ",
+                "such a variable as 0/1 indicator columns of colData(x), ",
+                "one for each of its categories except one that every ",
+                "donor has.", call. = FALSE)
+        }
     }
 
     ## Identify valid donors

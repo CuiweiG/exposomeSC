@@ -46,7 +46,13 @@ protein data. Default \code{"CITE"}.}
 \code{colData(x)} to partial out (e.g.,
 \code{c("S.Score", "G2M.Score", "percent.mt")}).
 Library sizes (nCount_RNA, nCount_protein) are always
-controlled regardless of this parameter.
+controlled regardless of this parameter. Each confounder is ranked
+within a donor, so it must be numeric, logical, an ordered factor or
+a label with at most two values; an unordered label with more
+categories, such as a cell-cycle phase, is an error and must be
+given as 0/1 indicator columns for all its categories but one,
+leaving out a category that every donor has cells of (for G1, S and
+G2M, for example S and G2M when every donor has G1 cells).
 Default \code{NULL} (library sizes only).}
 
 \item{min_cells}{Integer; minimum cells per donor to include.
