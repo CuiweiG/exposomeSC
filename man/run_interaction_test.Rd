@@ -28,7 +28,9 @@ labels. Default \code{"cell_type"}.}
 test. Default: top 50 most variable genes across all
 cell types.}
 
-\item{covariates}{Character vector (optional).}
+\item{covariates}{Character vector (optional). Columns of
+\code{exposureData} adjusted for; listing the exposure here is an
+error.}
 
 \item{min_cells}{Integer. Min cells per donor per celltype.
 Default 10.}

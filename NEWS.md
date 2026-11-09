@@ -430,6 +430,17 @@ with warnings.
   `run_celltype_network()` adjusted the network for the covariates alone.
   `run_celltype_network()` used to regress out every name of a vector
   `exposure`; giving the extra names as `covariates` gives the same network.
+* `run_sc_mixture()`, `run_mixture_qgcomp()` and `run_interaction_test()`
+  refuse an exposure that is also listed in `covariates`, as
+  `run_exposure_composition()` does, and the two mixture functions refuse
+  duplicated exposures. In `run_sc_mixture()` the covariate replaced the
+  exposure's quantile score with its raw values, so that exposure's weight
+  was on another scale than the others; `run_mixture_qgcomp()` dropped the
+  adjustment without a word; and in `run_interaction_test()` the full and
+  reduced models coincided, so every gene was dropped without a message. A
+  duplicated exposure was counted twice in the weights and the mixture
+  effect of `run_sc_mixture()`, without a message, and stopped
+  `run_mixture_qgcomp()` with "duplicate subscripts for columns".
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

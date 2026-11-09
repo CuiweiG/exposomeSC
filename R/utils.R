@@ -318,6 +318,24 @@ NULL
     value
 }
 
+# The exposures of a mixture must be distinct, and none may also be a
+# covariate: the covariate would replace the exposure's quantile score with
+# its raw values, or the adjustment would be dropped without a word.
+# @keywords internal
+# @noRd
+.check_mixture_exposures <- function(exposures, covariates) {
+    if (anyDuplicated(exposures)) {
+        stop("'exposures' must not contain duplicated names.", call. = FALSE)
+    }
+    overlap <- intersect(exposures, covariates)
+    if (length(overlap)) {
+        overlap_names <- paste(overlap, collapse = ", ")
+        stop("An exposure must not also be listed as a covariate: ",
+            overlap_names, ".", call. = FALSE)
+    }
+    invisible(TRUE)
+}
+
 # Exposure, covariate and moderator names are pasted into model formulas, so
 # each must be a syntactic R name: 'age-years' would be read as age minus
 # years, and a ratio such as 'MEHP/DEHP' as a nested term.

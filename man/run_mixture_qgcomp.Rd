@@ -22,9 +22,9 @@ run_mixture_qgcomp(
 cell's donor is read from the \code{colData} column named by
 \code{\link{sampleColumn}(x)}.}
 
-\item{exposures}{Character vector. Exposure variable names. Each
-name must be a syntactic R name (see \code{\link[base]{make.names}})
-because it goes into the model formula.}
+\item{exposures}{Character vector. Exposure variable names, distinct.
+Each name must be a syntactic R name (see
+\code{\link[base]{make.names}}) because it goes into the model formula.}
 
 \item{celltype}{Character. Target cell type.}
 
@@ -35,8 +35,9 @@ labels. Default \code{"cell_type"}.}
 summarise. Default: top 20 most variable.}
 
 \item{covariates}{Character vector (optional). Columns of
-\code{exposureData}; an unknown name is an error. Names must be
-syntactic, as for \code{exposures}.}
+\code{exposureData}; an unknown name is an error, and so is an
+exposure listed here. Names must be syntactic, as for
+\code{exposures}.}
 
 \item{q}{Integer. Number of quantile bins. Default 4.}
 

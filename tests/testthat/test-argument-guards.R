@@ -207,3 +207,29 @@ test_that("celltype and exposure must each be a single name", {
         exposure = "E1", celltype = c("Mono", "NK"), altexp_name = "CITE"),
         single)
 })
+
+test_that("an exposure cannot also be a covariate", {
+    scee <- .formula_name_fixture()
+    overlap <- "must not also be listed as a covariate"
+    expect_error(run_sc_mixture(scee, exposures = c("E1", "age"),
+        celltype = "Mono", covariates = "E1", min_cells = 3L),
+        paste0(overlap, ": E1"))
+    expect_error(run_sc_mixture(scee, exposures = c("E1", "E1"),
+        celltype = "Mono", min_cells = 3L), "duplicated")
+    ## two cell types, so that without the check the F tests would run
+    donor <- rep(sprintf("D%02d", 1:10), each = 6)
+    counts <- matrix(stats::rpois(20 * length(donor), 8), nrow = 20,
+        dimnames = list(paste0("G", 1:20), paste0("c", seq_along(donor))))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor,
+            cell_type = rep(c("Mono", "NK"), length.out = length(donor))))
+    exposures <- cbind(E1 = stats::rnorm(10), age = stats::rnorm(10, 50, 10))
+    rownames(exposures) <- sprintf("D%02d", 1:10)
+    two_types <- build_scee(sce, exposures, sample_col = "donor_id")
+    expect_error(run_interaction_test(two_types, exposure = "E1",
+        covariates = "E1", min_cells = 3L, min_donors = 3L), overlap)
+    skip_if_not_installed("qgcomp")
+    expect_error(run_mixture_qgcomp(scee, exposures = c("E1", "age"),
+        celltype = "Mono", covariates = "E1", min_cells = 3L), overlap)
+})

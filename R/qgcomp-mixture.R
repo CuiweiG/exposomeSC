@@ -19,17 +19,18 @@ NULL
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
-#' @param exposures Character vector. Exposure variable names. Each
-#'   name must be a syntactic R name (see \code{\link[base]{make.names}})
-#'   because it goes into the model formula.
+#' @param exposures Character vector. Exposure variable names, distinct.
+#'   Each name must be a syntactic R name (see
+#'   \code{\link[base]{make.names}}) because it goes into the model formula.
 #' @param celltype Character. Target cell type.
 #' @param celltype_col Character. \code{colData} column with cell type
 #'   labels. Default \code{"cell_type"}.
 #' @param target_genes Character vector (optional). Genes to
 #'   summarise. Default: top 20 most variable.
 #' @param covariates Character vector (optional). Columns of
-#'   \code{exposureData}; an unknown name is an error. Names must be
-#'   syntactic, as for \code{exposures}.
+#'   \code{exposureData}; an unknown name is an error, and so is an
+#'   exposure listed here. Names must be syntactic, as for
+#'   \code{exposures}.
 #' @param q Integer. Number of quantile bins. Default 4.
 #' @param bootstrap Logical. If \code{TRUE}, use
 #'   \code{qgcomp.boot()} for bootstrap confidence intervals.
@@ -145,6 +146,7 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
     if (length(missing_cov) > 0)
         stop("Covariates not found: ",
              paste(missing_cov, collapse = ", "))
+    .check_mixture_exposures(exposures, covariates)
     .check_formula_names(covariates, "covariate")
 
     valid <- pb_result$valid_donors
