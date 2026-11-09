@@ -32,9 +32,12 @@ transcript-metabolite edges. Default TRUE.}
 \item{label_top}{Integer; label top N nodes by degree.
 Default 10.}
 
-\item{edge_alpha_by}{Character; \code{"weight"} (default)
-or \code{"stability"} (an error unless every edge has a stability
-score).}
+\item{edge_alpha_by}{Character; \code{"weight"} (default), the
+absolute precision-matrix entry of each edge, or \code{"stability"}
+(an error unless every edge has a stability score). Precision
+entries are not scaled by the diagonal, so their order can differ
+from that of the partial correlations, which
+\code{\link{run_comparative_network}} compares.}
 }
 \value{
 A \code{ggplot} object (requires \pkg{ggraph}
@@ -42,8 +45,8 @@ A \code{ggplot} object (requires \pkg{ggraph}
 }
 \description{
 Renders a cell-type network graph with nodes coloured by
-omic layer and edges weighted by partial correlation
-strength or stability.
+omic layer and edges weighted by the absolute entries of the
+precision matrix or by stability.
 }
 \examples{
 features <- c("G1", "G2", "M1")

@@ -270,3 +270,26 @@ test_that("edge opacity follows edge_alpha_by in both edge styles", {
             layout = "circle"),
         "every edge")
 })
+
+test_that("edge opacity follows the absolute precision entries", {
+    skip_if_not_installed("ggraph")
+    skip_if_not_installed("igraph")
+    features <- c("G1", "G2", "M1")
+    ## |precision| ranks edge G2-M1 first, the partial correlation
+    ## (0.3 against 0.5 / sqrt(4) = 0.25) ranks edge G1-G2 first
+    precision <- diag(c(1, 1, 4))
+    precision[1, 2] <- precision[2, 1] <- -0.3
+    precision[2, 3] <- precision[3, 2] <- -0.5
+    adjacency <- (precision != 0) * 1L
+    diag(adjacency) <- 0L
+    dimnames(precision) <- dimnames(adjacency) <- list(features, features)
+    net <- CelltypeNetworkResult(precision, adjacency,
+        node_info = S4Vectors::DataFrame(feature = features,
+            omic_layer = c("transcript", "transcript", "metabolite")),
+        celltype = "Mono")
+    p <- plot_celltype_network(net, layout = "circle",
+        highlight_cross_omic = FALSE)
+    edges <- ggplot2::layer_data(p, 1L)
+    alpha <- as.numeric(tapply(edges$edge_alpha, edges$group, unique))
+    expect_gt(alpha[2], alpha[1])
+})

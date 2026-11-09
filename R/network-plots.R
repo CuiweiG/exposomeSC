@@ -12,8 +12,8 @@ utils::globalVariables(".data")
 #' Plot cell-type-specific cross-omic network
 #'
 #' Renders a cell-type network graph with nodes coloured by
-#' omic layer and edges weighted by partial correlation
-#' strength or stability.
+#' omic layer and edges weighted by the absolute entries of the
+#' precision matrix or by stability.
 #'
 #' @param network \code{\linkS4class{CelltypeNetworkResult}}.
 #' @param layout Character; graph layout algorithm.
@@ -28,9 +28,12 @@ utils::globalVariables(".data")
 #'   transcript-metabolite edges. Default TRUE.
 #' @param label_top Integer; label top N nodes by degree.
 #'   Default 10.
-#' @param edge_alpha_by Character; \code{"weight"} (default)
-#'   or \code{"stability"} (an error unless every edge has a stability
-#'   score).
+#' @param edge_alpha_by Character; \code{"weight"} (default), the
+#'   absolute precision-matrix entry of each edge, or \code{"stability"}
+#'   (an error unless every edge has a stability score). Precision
+#'   entries are not scaled by the diagonal, so their order can differ
+#'   from that of the partial correlations, which
+#'   \code{\link{run_comparative_network}} compares.
 #'
 #' @return A \code{ggplot} object (requires \pkg{ggraph}
 #'   and \pkg{igraph}).

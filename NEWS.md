@@ -569,6 +569,9 @@ with warnings.
   an `NA` p-value, and stops when it can fit none, and the offset model
   returns `NA` estimates for a gene it cannot fit.
   `?run_sc_exwas_glmm` did not say which family its `padj` uses.
+* `?plot_celltype_network` says that edges are weighted by the absolute
+  entries of the precision matrix; it said partial correlation strength,
+  whose order can differ when the diagonal of the precision matrix varies.
 
 # exposomeSC 0.99.1
 
