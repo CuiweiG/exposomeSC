@@ -21,12 +21,15 @@ cell's donor is read from the \code{colData} column named by
 \code{\link{sampleColumn}(x)}.}
 
 \item{exposures}{Character vector. Exposure names to test.
-Default: all exposures in \code{exposureData}.}
+Default: all exposures in \code{exposureData} except the
+\code{covariates}.}
 
 \item{celltype_col}{Character. \code{colData} column with cell type
 labels. Default \code{"cell_type"}.}
 
-\item{covariates}{Character vector (optional).}
+\item{covariates}{Character vector (optional). Columns of
+\code{exposureData} adjusted for in every model; they are not tested
+as exposures, and listing one in \code{exposures} is an error.}
 
 \item{min_cells}{Integer. Default 10.}
 

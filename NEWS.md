@@ -102,6 +102,9 @@ with warnings.
   one labelled cell type and unlabelled cells, and, when every cell of the
   first cell type is left out, no longer reports the next type's estimate
   under the first type's label (see Bug fixes).
+* `run_multi_exwas()` with `covariates` and the default `exposures` no
+  longer tests the covariates as exposures, so with the edgeR backend it
+  returns fewer rows and other `padj_all` values (see Bug fixes).
 
 ## Interface
 
@@ -380,6 +383,13 @@ with warnings.
   failure of a single exposure, for example the documented `test_features`
   error, shrank the family that `padj_all` adjusts over, with nothing in
   the result to show it.
+* `run_multi_exwas()` no longer tests its covariates as exposures. By
+  default it tested every column of `exposureData(x)`, the covariates
+  included, each in a model adjusted for itself (the DESeq2 and voom-dream
+  backends failed on these models with a warning), and pooled those tests
+  into `padj_all`. The default is now every column except the covariates,
+  and listing a covariate in `exposures` is an error, as is a call whose
+  covariates are every column.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

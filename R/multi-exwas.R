@@ -17,10 +17,13 @@ NULL
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
 #' @param exposures Character vector. Exposure names to test.
-#'   Default: all exposures in \code{exposureData}.
+#'   Default: all exposures in \code{exposureData} except the
+#'   \code{covariates}.
 #' @param celltype_col Character. \code{colData} column with cell type
 #'   labels. Default \code{"cell_type"}.
-#' @param covariates Character vector (optional).
+#' @param covariates Character vector (optional). Columns of
+#'   \code{exposureData} adjusted for in every model; they are not tested
+#'   as exposures, and listing one in \code{exposures} is an error.
 #' @param min_cells Integer. Default 10.
 #' @param min_donors Integer. Default 5.
 #' @param filter_genes Logical. Default TRUE.
@@ -84,7 +87,10 @@ run_multi_exwas <- function(x, exposures = NULL,
     }
 
     if (is.null(exposures)) {
-        exposures <- exposureVariables(x)
+        exposures <- setdiff(exposureVariables(x), covariates)
+        if (!length(exposures))
+            stop("Every column of exposureData(x) is listed in covariates; ",
+                "no exposure is left to test.")
     }
     if (!is.character(exposures) || !length(exposures) ||
             anyNA(exposures) || any(!nzchar(exposures)) ||
@@ -100,6 +106,13 @@ run_multi_exwas <- function(x, exposures = NULL,
     if (length(missing) > 0) {
         stop("Exposures not found: ",
              paste(missing, collapse = ", "))
+    }
+    ## a covariate tested as an exposure is adjusted for itself
+    overlap <- intersect(exposures, covariates)
+    if (length(overlap)) {
+        overlap_names <- paste(overlap, collapse = ", ")
+        stop("A covariate cannot also be tested as an exposure: ",
+            overlap_names, ".")
     }
 
     all_results <- stats::setNames(vector("list", length(exposures)),

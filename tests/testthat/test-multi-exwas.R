@@ -139,3 +139,30 @@ test_that("run_multi_exwas stops when an exposure fails", {
             test_features = c("G1", "G2", "G3"))),
         "failed for exposure 'E2': Requested test_features did not pass")
 })
+
+test_that("run_multi_exwas does not test its covariates as exposures", {
+    ## eight donors, so that E1 and E2 can be fitted adjusted for E3
+    set.seed(42)
+    counts <- matrix(rpois(50 * 160, 10), nrow = 50,
+        dimnames = list(paste0("G", 1:50), paste0("c", 1:160)))
+    sce <- SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = DataFrame(donor_id = rep(paste0("D", 1:8), each = 20),
+            cell_type = rep(c("Mono", "NK"), 80)))
+    exp_mat <- matrix(rnorm(24), nrow = 8,
+        dimnames = list(paste0("D", 1:8), c("E1", "E2", "E3")))
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    result <- suppressMessages(run_multi_exwas(scee, covariates = "E3",
+        min_cells = 5L, min_donors = 3L))
+    per_exposure <- S4Vectors::metadata(result)$per_exposure
+    expect_identical(names(per_exposure), c("E1", "E2"))
+    expect_setequal(unique(result$exposure), c("E1", "E2"))
+    expect_identical(per_exposure$E1$parameters$covariates, "E3")
+    expect_equal(result$padj_all, p.adjust(result$pvalue, method = "BH"))
+    expect_error(
+        run_multi_exwas(scee, exposures = c("E1", "E3"), covariates = "E3"),
+        "cannot also be tested as an exposure: E3")
+    expect_error(
+        run_multi_exwas(scee, covariates = c("E1", "E2", "E3")),
+        "no exposure is left to test")
+})
