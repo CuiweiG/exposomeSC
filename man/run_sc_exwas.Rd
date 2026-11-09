@@ -55,8 +55,8 @@ because it goes into the model formula.}
 stratum. Default 10.}
 
 \item{min_donors}{Integer. Minimum donors per cell type.
-Default 5. Cell types with fewer valid donors are skipped
-with a warning.}
+Default 5, and at least 3, for every backend. Cell types with
+fewer valid donors are skipped with a warning.}
 
 \item{filter_genes}{Logical. If \code{TRUE} (default), filter
 low-expression genes before model fitting. The edgeR backend defaults to
@@ -75,7 +75,8 @@ moderated t statistic uses the residual degrees of freedom. This
 backend does not use the \pkg{dreamlet} package.}
 
 \item{min_group_donors}{Integer. For a binary exposure, minimum complete
-donors required in each group for the edgeR backend. Default 5.}
+donors required in each group for the edgeR backend, at least 2.
+Default 5.}
 
 \item{filter_min_count}{Numeric. Minimum count passed to
 \code{edgeR::filterByExpr} when \code{filter_method = "filterByExpr"}.}

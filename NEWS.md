@@ -390,6 +390,15 @@ with warnings.
   into `padj_all`. The default is now every column except the covariates,
   and listing a covariate in `exposures` is an error, as is a call whose
   covariates are every column.
+* `run_sc_exwas()` checks `min_cells`, `min_donors` and `filter_genes` for
+  every backend; `min_cells` and `min_donors`, and for the edgeR backend
+  `min_group_donors`, must be whole numbers. Only the edgeR backend checked
+  them: with `method = "DESeq2"` or `"voom_dream"`, `min_cells = -1` kept
+  every donor and `filter_genes = NA` failed with "missing value where
+  TRUE/FALSE needed". No backend refused a fractional count: each applied
+  `min_donors = 3.5` as 4, and the edgeR backend recorded it as 3 in
+  `metadata(result)$parameters`. The DESeq2 and voom-dream backends now also
+  refuse `min_donors` below 3, as the edgeR backend did.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

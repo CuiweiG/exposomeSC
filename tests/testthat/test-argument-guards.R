@@ -134,3 +134,33 @@ test_that("run_cell_coupling refuses moderator names a formula would misread", {
             min_cells = 10L, min_donors = 5L, meta_moderators = "age-years"),
         "moderator name\\(s\\) .*'age-years'")
 })
+
+test_that("run_sc_exwas checks its thresholds for every backend", {
+    scee <- .guard_fixture()
+    for (method in c("edgeR", "DESeq2", "voom_dream")) {
+        for (min_cells in list(-1, 2.5, NA_real_)) {
+            expect_error(
+                run_sc_exwas(scee, exposure = "E1", method = method,
+                    min_cells = min_cells),
+                "min_cells must be one positive integer")
+        }
+        expect_error(
+            run_sc_exwas(scee, exposure = "E1", method = method,
+                min_donors = 3.5),
+            "min_donors must be one integer >= 3")
+        expect_error(
+            run_sc_exwas(scee, exposure = "E1", method = method,
+                min_donors = 2L),
+            "min_donors must be one integer >= 3")
+        expect_error(
+            run_sc_exwas(scee, exposure = "E1", method = method,
+                filter_genes = NA),
+            "filter_genes must be TRUE or FALSE")
+    }
+    expect_error(
+        run_sc_exwas(scee, exposure = "E1", min_group_donors = 2.5),
+        "min_group_donors must be one integer >= 2")
+    ## a whole number that as.integer() cannot keep
+    expect_error(run_sc_exwas(scee, exposure = "E1", min_cells = 3e9),
+        "min_cells must be one positive integer")
+})

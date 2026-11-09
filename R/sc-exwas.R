@@ -34,8 +34,8 @@ NULL
 #' @param min_cells Integer. Minimum cells per donor-celltype
 #'   stratum. Default 10.
 #' @param min_donors Integer. Minimum donors per cell type.
-#'   Default 5. Cell types with fewer valid donors are skipped
-#'   with a warning.
+#'   Default 5, and at least 3, for every backend. Cell types with
+#'   fewer valid donors are skipped with a warning.
 #' @param filter_genes Logical. If \code{TRUE} (default), filter
 #'   low-expression genes before model fitting. The edgeR backend defaults to
 #'   exposure-label-independent donor-support filtering; the DESeq2 and
@@ -51,7 +51,8 @@ NULL
 #'   moderated t statistic uses the residual degrees of freedom. This
 #'   backend does not use the \pkg{dreamlet} package.
 #' @param min_group_donors Integer. For a binary exposure, minimum complete
-#'   donors required in each group for the edgeR backend. Default 5.
+#'   donors required in each group for the edgeR backend, at least 2.
+#'   Default 5.
 #' @param filter_min_count Numeric. Minimum count passed to
 #'   \code{edgeR::filterByExpr} when \code{filter_method = "filterByExpr"}.
 #' @param filter_min_total_count Numeric. Minimum total pseudobulk count for
@@ -232,6 +233,7 @@ setMethod("run_sc_exwas",
 
     method <- match.arg(method)
     .stop_on_unused_dots("run_sc_exwas", ...)
+    .check_sc_exwas_arguments(min_cells, min_donors, filter_genes)
 
     if (method != "edgeR" && !is.null(test_features)) {
         stop(
@@ -472,8 +474,7 @@ setMethod("run_sc_exwas",
                                 filter_min_cpm, filter_min_donors,
                                 test_features, robust) {
     .check_edger_arguments(
-        min_cells = min_cells, min_donors = min_donors,
-        min_group_donors = min_group_donors, filter_genes = filter_genes,
+        min_group_donors = min_group_donors,
         filter_min_cpm = filter_min_cpm,
         filter_min_donors = filter_min_donors,
         filter_min_count = filter_min_count,
@@ -732,25 +733,34 @@ setMethod("run_sc_exwas",
     .sc_exwas_finalise(tables, diagnostics, parameters)
 }
 
-# Argument checks of the edgeR backend.
-.check_edger_arguments <- function(min_cells, min_donors, min_group_donors,
-                                   filter_genes, filter_min_cpm,
-                                   filter_min_donors, filter_min_count,
-                                   filter_min_total_count, robust) {
-    if (!is.numeric(min_cells) || length(min_cells) != 1L || min_cells < 1) {
+# Argument checks shared by every backend. The counts must be whole numbers,
+# so that the threshold applied is the one recorded in the parameters.
+.check_sc_exwas_arguments <- function(min_cells, min_donors, filter_genes) {
+    if (!.is_whole_number(min_cells) || min_cells < 1) {
         stop("min_cells must be one positive integer.")
     }
-    if (!is.numeric(min_donors) || length(min_donors) != 1L ||
-            min_donors < 3) {
+    if (!.is_whole_number(min_donors) || min_donors < 3) {
         stop("min_donors must be one integer >= 3.")
-    }
-    if (!is.numeric(min_group_donors) || length(min_group_donors) != 1L ||
-            min_group_donors < 2) {
-        stop("min_group_donors must be one integer >= 2.")
     }
     if (!is.logical(filter_genes) || length(filter_genes) != 1L ||
             is.na(filter_genes)) {
         stop("filter_genes must be TRUE or FALSE.")
+    }
+    invisible(NULL)
+}
+
+# Whole numbers within the integer range, so that as.integer() keeps them
+.is_whole_number <- function(value) {
+    is.numeric(value) && length(value) == 1L && is.finite(value) &&
+        value == round(value) && abs(value) <= .Machine$integer.max
+}
+
+# Argument checks of the edgeR backend.
+.check_edger_arguments <- function(min_group_donors, filter_min_cpm,
+                                   filter_min_donors, filter_min_count,
+                                   filter_min_total_count, robust) {
+    if (!.is_whole_number(min_group_donors) || min_group_donors < 2) {
+        stop("min_group_donors must be one integer >= 2.")
     }
     if (!is.numeric(filter_min_cpm) || length(filter_min_cpm) != 1L ||
             !is.finite(filter_min_cpm) || filter_min_cpm <= 0) {
