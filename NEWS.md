@@ -352,6 +352,11 @@ with warnings.
   enough cells have values of the exposure and of every moderator, the
   function warns and returns an empty table; with missing exposures it
   used to return that table with only the message "0 pairs tested".
+* `run_sc_exwas_glmm(family = "nbinom")` fits data with a single cell type.
+  Its formulas began with `0 + celltype`, which `model.matrix()` refuses for
+  a factor with one level, so every gene failed and the function stopped
+  with "No gene/cell-type stratum yielded an estimable model". A single cell
+  type now has a plain intercept.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

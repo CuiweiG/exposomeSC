@@ -284,3 +284,37 @@ test_that("nbinom keeps cell types apart whose labels make.names() merges", {
     expect_false(isTRUE(all.equal(merged$log2FC[1], merged$log2FC[2])))
     expect_equal(merged, distinct, tolerance = 1e-6, ignore_attr = TRUE)
 })
+
+test_that("nbinom fits a single cell type", {
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    set.seed(5)
+    donors <- paste0("D", 1:10)
+    exposure <- rep(c(0, 1), 5)
+    donor <- rep(donors, each = 24)
+    counts <- rbind(
+        G1 = stats::rnbinom(length(donor),
+            mu = 20 * exp(0.5 * exposure[match(donor, donors)]), size = 5),
+        G2 = stats::rnbinom(length(donor), mu = 20, size = 5))
+    colnames(counts) <- paste0("c", seq_along(donor))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "Mono"))
+    scee <- build_scee(sce, matrix(exposure, ncol = 1,
+        dimnames = list(donors, "exposure")), sample_col = "donor_id")
+    res <- suppressMessages(run_sc_exwas_glmm(scee, exposure = "exposure",
+        target_genes = "G1", family = "nbinom"))
+    ## the same model fitted directly
+    cells <- data.frame(y = counts["G1", ], donor = factor(donor),
+        exposure = exposure[match(donor, donors)],
+        logoff = log(colSums(counts)))
+    full <- suppressMessages(lme4::glmer.nb(
+        y ~ exposure + offset(logoff) + (1 | donor), data = cells))
+    reduced <- suppressMessages(lme4::glmer.nb(
+        y ~ 1 + offset(logoff) + (1 | donor), data = cells))
+    expect_identical(nrow(res), 1L)
+    expect_equal(res$log2FC,
+        unname(lme4::fixef(full)["exposure"]) / log(2), tolerance = 1e-6)
+    expect_equal(res$statistic, stats::anova(reduced, full)$Chisq[2],
+        tolerance = 1e-6)
+})

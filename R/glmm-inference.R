@@ -120,7 +120,7 @@ NULL
 # Cell-level negative-binomial GLMM for one gene (family = "nbinom"): one row
 # per cell type, its exposure slope tested by a likelihood-ratio test.
 .glmm_nb_fit_gene <- function(gi, Yc, meta, full_form, control, lvls,
-                              expo_cols, cov_rhs, re_rhs, genes) {
+                              expo_cols, base_rhs, cov_rhs, re_rhs, genes) {
     df <- meta
     df$y <- as.integer(round(pmax(Yc[gi, ], 0)))
     full <- tryCatch(lme4::glmer.nb(full_form, data = df,
@@ -137,7 +137,7 @@ NULL
         se_nat <- if (!is.null(V) && cn %in% rownames(V))
             sqrt(max(V[cn, cn], 0)) else NA_real_
         other_slopes <- setdiff(expo_cols, cn)
-        red_rhs <- paste("0 + celltype",
+        red_rhs <- paste(base_rhs,
                          if (length(other_slopes))
                              paste("+", paste(other_slopes,
                                               collapse = " + ")),
@@ -539,7 +539,10 @@ run_sc_exwas_glmm <- function(x, exposure,
         meta$logoff <- log(pmax(Matrix::colSums(counts_mat), 1))  # cell offset
         for (k in seq_along(lvls))
             meta[[expo_cols[k]]] <- meta$exposure * (meta$celltype == lvls[k])
-        full_rhs <- paste("0 + celltype +",
+        ## one intercept per cell type; a single cell type gets a plain
+        ## intercept, as model.matrix() refuses a factor with one level
+        base_rhs <- if (multi_celltype) "0 + celltype" else "1"
+        full_rhs <- paste(base_rhs, "+",
                           paste(expo_cols, collapse = " + "), cov_rhs,
                           "+ offset(logoff)", re_rhs)
         full_form <- stats::as.formula(paste("y ~", full_rhs))
@@ -549,8 +552,8 @@ run_sc_exwas_glmm <- function(x, exposure,
                         BPPARAM = BPPARAM, Yc = Yc, meta = meta,
                         full_form = full_form, control = control,
                         lvls = lvls, expo_cols = expo_cols,
-                        cov_rhs = cov_rhs, re_rhs = re_rhs,
-                        genes = genes)
+                        base_rhs = base_rhs, cov_rhs = cov_rhs,
+                        re_rhs = re_rhs, genes = genes)
         method_lbl <- "lme4::glmer.nb/LRT"
     }
 
