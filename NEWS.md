@@ -534,6 +534,11 @@ with warnings.
   lasso, also used when only one omic layer is selected, ran with fixed
   penalties (0.3 within and 0.5 between layers) that were neither
   documented nor recorded.
+* `rbind()` of SingleCellExposomeExperiment objects requires every argument
+  to be one, with the same sample column and `exposureInfo` and the same
+  exposure values for each donor. There was no method for it, so the
+  `SingleCellExperiment` method kept the exposure slots of the first
+  object, whatever the others held, without a check.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

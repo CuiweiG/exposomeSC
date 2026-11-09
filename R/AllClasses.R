@@ -41,15 +41,18 @@ NULL
 #'   cell; feature subsetting leaves the donor-level slots unchanged.
 #'   \code{cbind} combines objects with the same exposure variables, exposure
 #'   metadata and sample column; donors present in more than one object must
-#'   have identical exposure values. Every argument to \code{cbind} must be
-#'   a \code{SingleCellExposomeExperiment}: when a plain
+#'   have identical exposure values. Every argument to \code{cbind} or
+#'   \code{rbind} must be a \code{SingleCellExposomeExperiment}: when a plain
 #'   \code{SingleCellExperiment} comes first, R dispatches to the
 #'   \code{SingleCellExperiment} method, which returns a
 #'   \code{SingleCellExperiment} without the exposure data (with only a
 #'   warning about ambiguous dispatch), so convert such objects with
-#'   \code{\link{build_scee}} first. The replacement methods return the
-#'   modified object. The \code{show} method is called for its display side
-#'   effect and returns \code{NULL} invisibly.
+#'   \code{\link{build_scee}} first. \code{rbind} combines objects with the
+#'   same cells and different features; they must have the same sample
+#'   column and \code{exposureInfo}, and the same exposure values for each
+#'   donor. The replacement methods return the modified object. The
+#'   \code{show} method is called for its display side effect and returns
+#'   \code{NULL} invisibly.
 #'
 #' @section Data hierarchy:
 #' \preformatted{

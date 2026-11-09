@@ -213,6 +213,57 @@ setMethod("cbind", "SingleCellExposomeExperiment",
             sampleColumn = slot(first, "sampleColumn"))
     })
 
+# The same exposure variables and the same values for each donor, in any row
+# order and storage mode; NA matches NA
+# @keywords internal
+# @noRd
+.same_donor_values <- function(a, b) {
+    if (!identical(colnames(a), colnames(b)) || nrow(a) != nrow(b) ||
+            !setequal(rownames(a), rownames(b))) {
+        return(FALSE)
+    }
+    b <- b[rownames(a), , drop = FALSE]
+    all((is.na(a) & is.na(b)) | (!is.na(a) & !is.na(b) & a == b))
+}
+
+#' @rdname SingleCellExposomeExperiment-class
+#' @aliases rbind,SingleCellExposomeExperiment-method
+#' @importFrom BiocGenerics rbind
+#' @export
+setMethod("rbind", "SingleCellExposomeExperiment",
+    function(..., deparse.level = 1) {
+        objects <- list(...)
+        if (!all(vapply(objects, is, logical(1),
+                "SingleCellExposomeExperiment"))) {
+            stop("rbind() combines SingleCellExposomeExperiment objects ",
+                "only; build the others with build_scee() first.")
+        }
+        ## the objects describe the same cells, so one set of donor-level
+        ## slots must fit all of them
+        first <- objects[[1L]]
+        for (other in objects[-1L]) {
+            if (!identical(slot(other, "sampleColumn"),
+                    slot(first, "sampleColumn")) ||
+                    !.same_donor_values(slot(other, "exposureData"),
+                        slot(first, "exposureData")) ||
+                    !isTRUE(all.equal(
+                        as.data.frame(slot(other, "exposureInfo")),
+                        as.data.frame(slot(first, "exposureInfo")),
+                        check.attributes = FALSE))) {
+                stop("rbind() needs objects with the same sample column ",
+                    "and exposureInfo, and the same exposure values for ",
+                    "each donor.")
+            }
+        }
+        sces <- lapply(objects, methods::as, "SingleCellExperiment")
+        combined <- do.call(rbind, sces)
+        new("SingleCellExposomeExperiment",
+            combined,
+            exposureData = slot(first, "exposureData"),
+            exposureInfo = slot(first, "exposureInfo"),
+            sampleColumn = slot(first, "sampleColumn"))
+    })
+
 ## colData<- (also reached through $<- and [[<-) and dimnames<- (reached
 ## through colnames<- and rownames<-) check validity, so that an edit cannot
 ## leave the donor column out of step with exposureData.
