@@ -280,3 +280,20 @@ test_that("target_genes missing from the data are named in a warning", {
     expect_warning(suppressMessages(run_sc_exwas_glmm(scee, exposure = "E1",
         target_genes = c("G1", "GX"))), absent)
 })
+
+test_that("run_sc_exwas refuses the exposure as its own covariate", {
+    scee <- .guard_fixture()
+    expect_error(run_sc_exwas(scee, exposure = "E1", covariates = "E1"),
+        "The exposure must not also be listed as a covariate")
+    expect_error(run_sc_exwas(scee, exposure = "E1",
+        covariates = c("age", "E1")),
+        "The exposure must not also be listed as a covariate")
+    expect_error(run_sc_exwas_pb_offset(scee, exposure = "E1",
+        covariates = "E1"),
+        "The exposure must not also be listed as a covariate")
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    expect_error(run_sc_exwas_glmm(scee, exposure = "E1", covariates = "E1",
+        family = "nbinom", target_genes = "G1"),
+        "The exposure must not also be listed as a covariate")
+})

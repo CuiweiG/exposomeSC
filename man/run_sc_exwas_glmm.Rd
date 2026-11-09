@@ -31,7 +31,8 @@ names \code{exposure}, \code{donor}, \code{celltype} and \code{y} are
 used by the model and cannot be covariate names; with
 \code{family = "nbinom"} the same holds for \code{logoff} and the
 \code{expo_<cell type>} columns. Each name must be a syntactic R name
-(see \code{\link[base]{make.names}}).}
+(see \code{\link[base]{make.names}}), and the exposure itself cannot
+be a covariate.}
 
 \item{target_genes}{Character; genes to test (default: all rows of
 \code{x}). A cell-level LMM per gene is costly -- passing a focused gene

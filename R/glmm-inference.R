@@ -189,7 +189,8 @@ NULL
 #'   \code{exposureData} (numeric), added as GLM main effects. The names
 #'   \code{y}, \code{A} and \code{logoff} are used by the model and cannot
 #'   be covariate names, and each name must be a syntactic R name (see
-#'   \code{\link[base]{make.names}}).
+#'   \code{\link[base]{make.names}}). The exposure itself cannot be a
+#'   covariate.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{x}).
 #' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes.
@@ -273,6 +274,8 @@ run_sc_exwas_pb_offset <- function(x, exposure,
     if (length(covariates) && !all(covariates %in% colnames(exp_data)))
         stop("Covariate(s) not in exposureData: ",
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
+    if (exposure %in% covariates)
+        stop("The exposure must not also be listed as a covariate.")
     .check_formula_names(covariates, "covariate")
     .check_reserved_covariates(covariates, c("y", "A", "logoff"))
     if (!is.null(target_genes)) {
@@ -392,7 +395,8 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #'   used by the model and cannot be covariate names; with
 #'   \code{family = "nbinom"} the same holds for \code{logoff} and the
 #'   \code{expo_<cell type>} columns. Each name must be a syntactic R name
-#'   (see \code{\link[base]{make.names}}).
+#'   (see \code{\link[base]{make.names}}), and the exposure itself cannot
+#'   be a covariate.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{x}). A cell-level LMM per gene is costly -- passing a focused gene
 #'   set is strongly recommended.
@@ -507,6 +511,8 @@ run_sc_exwas_glmm <- function(x, exposure,
     if (length(covariates) && !all(covariates %in% colnames(exp_data)))
         stop("Covariate(s) not in exposureData: ",
              paste(setdiff(covariates, colnames(exp_data)), collapse = ", "))
+    if (exposure %in% covariates)
+        stop("The exposure must not also be listed as a covariate.")
     .check_formula_names(covariates, "covariate")
     .check_reserved_covariates(covariates,
         c("exposure", "donor", "celltype", "y"))

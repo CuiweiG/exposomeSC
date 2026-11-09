@@ -189,6 +189,9 @@ NULL
             "exposureData(x)."
         )
     }
+    if (exposure %in% covariates) {
+        stop("The exposure must not also be listed as a covariate.")
+    }
     .check_formula_names(covariates, "covariate")
     cd <- SummarizedExperiment::colData(x)
     if (!celltype_col %in% colnames(cd)) {

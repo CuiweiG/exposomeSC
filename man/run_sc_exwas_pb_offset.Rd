@@ -27,7 +27,8 @@ containing cell type annotations. Default \code{"cell_type"}.}
 \code{exposureData} (numeric), added as GLM main effects. The names
 \code{y}, \code{A} and \code{logoff} are used by the model and cannot
 be covariate names, and each name must be a syntactic R name (see
-\code{\link[base]{make.names}}).}
+\code{\link[base]{make.names}}). The exposure itself cannot be a
+covariate.}
 
 \item{target_genes}{Character; genes to test (default: all rows of
 \code{x}).}

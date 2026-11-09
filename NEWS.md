@@ -477,6 +477,15 @@ with warnings.
   p-values, or changed the genes a mixture is averaged over. When none is
   present, `run_sc_exwas_pb_offset()` now says so instead of stopping with
   "No gene/cell-type stratum yielded an estimable NB GLM".
+* `run_sc_exwas()`, `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`
+  refuse an exposure that is also listed in `covariates`, as
+  `run_multi_exwas()`, `run_exposure_composition()` and the mixture and
+  interaction functions do. The edgeR backend, the offset model and the
+  linear mixed model dropped the duplicate column as collinear (the last
+  with lme4's rank-deficiency message), so the fit was not adjusted for it;
+  the DESeq2 and voom-dream backends failed for every cell type and
+  returned no rows, with a warning; and the negative binomial mixed model
+  reported every likelihood-ratio test without a p-value.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.
