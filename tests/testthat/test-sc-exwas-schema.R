@@ -287,6 +287,44 @@ test_that("all backends share one result schema", {
     expect_setequal(results$DESeq2$gene, results$voom_dream$gene)
 })
 
+test_that("no backend tests a gene without any count", {
+    skip_if_not_installed("DESeq2")
+    skip_if_not_installed("variancePartition")
+    scee <- .make_backend_schema_scee()
+    counts <- SummarizedExperiment::assay(scee, "counts")
+    ## G7 has no count; G8 has counts in one donor only, so the default
+    ## filters would leave it out as well
+    counts["G7", ] <- 0L
+    counts["G8", ] <- 0L
+    counts["G8", 1L] <- 3L
+    SummarizedExperiment::assay(scee, "counts") <- counts
+    fit <- function(object, method) {
+        suppressWarnings(run_sc_exwas(
+            object,
+            exposure = "smoking",
+            celltype_col = "cell_type",
+            method = method,
+            min_cells = 5L,
+            min_donors = 6L,
+            min_group_donors = 4L,
+            filter_min_donors = 4L,
+            filter_genes = FALSE
+        ))
+    }
+    for (method in c("edgeR", "DESeq2", "voom_dream")) {
+        result <- fit(scee, method)
+        ## with filter_genes = FALSE only the gene without counts is left out
+        expect_setequal(result$gene, setdiff(rownames(scee), "G7"))
+        diagnostics <- S4Vectors::metadata(result)$diagnostics$Mono
+        expect_identical(diagnostics$filter_method, "nonzero")
+        expect_identical(diagnostics$n_genes_input, 20L)
+        expect_identical(diagnostics$n_genes_tested, 19L)
+        ## and that gene does not change the results of the other genes
+        reference <- fit(scee[rownames(scee) != "G7", ], method)
+        expect_equal(as.data.frame(result), as.data.frame(reference))
+    }
+})
+
 test_that("empty results from every backend keep the full schema", {
     skip_if_not_installed("DESeq2")
     skip_if_not_installed("variancePartition")

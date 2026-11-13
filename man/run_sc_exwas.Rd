@@ -61,7 +61,9 @@ fewer valid donors are skipped with a warning.}
 \item{filter_genes}{Logical. If \code{TRUE} (default), filter
 low-expression genes before model fitting. The edgeR backend defaults to
 exposure-label-independent donor-support filtering; the DESeq2 and
-voom-dream backends retain genes detected in at least 20\% of donors.}
+voom-dream backends retain genes detected in at least 20\% of donors.
+If \code{FALSE}, every backend leaves out, in each cell type, only the
+genes without any count in the donors analysed for it.}
 
 \item{method}{Character. Backend for differential expression.
 \code{"edgeR"} (default) uses the edgeR v4 quasi-likelihood pipeline

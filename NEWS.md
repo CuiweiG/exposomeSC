@@ -129,6 +129,11 @@ with warnings.
   exposure is constant or collinear with the moderators; it reported such a
   pair with a moderator's coefficient or without the adjustment (see Bug
   fixes).
+* `run_sc_exwas(method = "voom_dream", filter_genes = FALSE)` no longer
+  tests genes without any count. In a cell type that had such genes, `se`,
+  `statistic`, `pvalue` and `padj` of the other genes change; `padj_global`
+  (and `padj_all` of `run_multi_exwas()`) can change in every cell type;
+  `log2FC` and `logCPM` stay the same (see Bug fixes).
 
 ## Interface
 
@@ -553,6 +558,15 @@ with warnings.
   replaced by the column mean, and the block graphical lasso stopped on an
   `NA` with "missing value where TRUE/FALSE needed" and silently gave a
   metabolite with an infinite value no edges.
+* `run_sc_exwas(method = "voom_dream", filter_genes = FALSE)` leaves out
+  the genes without any count, as the edgeR and DESeq2 backends do and as
+  its diagnostics record (`filter_method = "nonzero"`). Such a gene was
+  tested: its log-CPM values differ between donors only through the
+  library sizes, so it got an estimate and a p-value and counted in `padj`
+  and `padj_global` of the other genes. Its residual variance also entered
+  the empirical-Bayes prior of limma, so the standard errors, moderated
+  t statistics and p-values of the other genes of the cell type depended
+  on it as well.
 * When DESeq2 is not installed, or its variance-stabilising transformation
   fails, the network functions say so before using log-CPM values; the
   transform used was already recorded in the result's metadata.

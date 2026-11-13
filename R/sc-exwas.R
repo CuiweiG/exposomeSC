@@ -40,6 +40,8 @@ NULL
 #'   low-expression genes before model fitting. The edgeR backend defaults to
 #'   exposure-label-independent donor-support filtering; the DESeq2 and
 #'   voom-dream backends retain genes detected in at least 20\% of donors.
+#'   If \code{FALSE}, every backend leaves out, in each cell type, only the
+#'   genes without any count in the donors analysed for it.
 #' @param method Character. Backend for differential expression.
 #'   \code{"edgeR"} (default) uses the edgeR v4 quasi-likelihood pipeline
 #'   (see Details). \code{"DESeq2"} uses DESeq2 on aggregated counts.
@@ -897,11 +899,11 @@ setMethod("run_sc_exwas",
         )
         if (is.null(stratum)) next
         meta_df <- stratum$design$data
+        ## the filter of the DESeq2 backend: with filter_genes = FALSE only
+        ## the genes without any count are left out
         pb_mat <- stratum$pb_mat
-        if (filter_genes) {
-            pb_mat <- pb_mat[.detected_in_donors(pb_mat, TRUE), ,
-                             drop = FALSE]
-        }
+        pb_mat <- pb_mat[.detected_in_donors(pb_mat, filter_genes), ,
+            drop = FALSE]
         if (nrow(pb_mat) == 0) {
             warning("Skipping ", ct, ": no gene passed expression filtering.",
                     call. = FALSE)
