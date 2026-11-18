@@ -1,6 +1,6 @@
 ^(?!(DESCRIPTION|NAMESPACE|NEWS\.md|README\.md|R|man|tests|vignettes|inst|build)$)[^/]+$
 ^inst/(?!(extdata|doc|scripts|CITATION)$)[^/]+$
-^inst/extdata/(?!(demo_sce\.rds|demo_exposures\.csv)$)[^/]+$
-^inst/scripts/(?!create_demo_data\.R$)[^/]+$
+^inst/extdata/(?!(hlca_airway_subset|incov_pbmc_subset)\.rds$)[^/]+$
+^inst/scripts/(?!(make_hlca_airway_subset|make_incov_pbmc_subset|fetch_hlca|extract_hlca_design_metadata|extract_hlca_feature_metadata|create_hlca_input_manifest)\.R$)[^/]+$
 ^vignettes/.*_cache$
 ^.*\.log$

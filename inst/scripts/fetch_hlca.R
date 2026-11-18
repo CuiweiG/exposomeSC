@@ -1,7 +1,16 @@
-## data-raw/fetch_hlca.R
+## inst/scripts/fetch_hlca.R
 ## Build the HLCA-core smoking SingleCellExposomeExperiment from the CZ
 ## CELLxGENE download, PINNED TO THE VERIFIED OBS SCHEMA of the actual file
-## (inspected 2026-07-03 from data/hlca_core.h5ad).
+## (inspected 2026-07-03).
+##
+## Usage:
+##   Rscript fetch_hlca.R <hlca_core.h5ad> <output.rds> [<input_manifest.rds>]
+##   <hlca_core.h5ad>      the pinned H5AD (DATASET_URL below)
+##   <output.rds>          where the SingleCellExposomeExperiment is saved
+##   <input_manifest.rds>  optional: the manifest that
+##                         create_hlca_input_manifest.R wrote, from which
+##                         the SHA-256 of the H5AD is taken into the
+##                         provenance record of the object
 ##
 ## Verified file facts:
 ##   584,944 cells x 27,402 genes; sparse CSR. X = log-normalised;
@@ -24,18 +33,14 @@
 ## which stays FALSE), and subset to the cells with a smoking status.
 
 ## ------------------------- configuration --------------------------------
-.script_file <- function() {
-    args <- commandArgs(trailingOnly = FALSE)
-    file_arg <- sub("^--file=", "", args[grepl("^--file=", args)])
-    if (length(file_arg))
-        return(normalizePath(file_arg[[1]], mustWork = TRUE))
-    ofile <- tryCatch(sys.frame(1)$ofile, error = function(e) NULL)
-    if (!is.null(ofile)) return(normalizePath(ofile, mustWork = TRUE))
-    stop("Cannot identify the script path; run with Rscript or source().")
+args <- commandArgs(trailingOnly = TRUE)
+if (!length(args) %in% 2:3) {
+    stop("Usage: Rscript fetch_hlca.R <hlca_core.h5ad> <output.rds> ",
+         "[<input_manifest.rds>]")
 }
-PROJECT_ROOT <- dirname(dirname(.script_file()))
-IN_H5AD   <- file.path(PROJECT_ROOT, "data", "hlca_core.h5ad")
-OUT_SCEE  <- file.path(PROJECT_ROOT, "data", "hlca_smoking_scee.rds")
+IN_H5AD   <- args[[1]]
+OUT_SCEE  <- args[[2]]
+MANIFEST  <- if (length(args) == 3L) args[[3]] else NA_character_
 DATASET_URL <- paste0(
     "https://datasets.cellxgene.cziscience.com/",
     "688185ad-11c2-4172-a53a-f4f1f4076860.h5ad"
@@ -53,7 +58,36 @@ CELLTYPE_FIELD <- "ann_level_2"     # 11 clean types; use "ann_level_3" for fine
 USE_HDF5  <- FALSE                   # keep FALSE (sparse in-memory)
 DROP_CT   <- c("None", "Rare", "Unknown", "NA", "nan")  # non-cell-type labels
 
-need <- c("devtools", "zellkonverter", "SingleCellExperiment",
+## The paths are checked before any package is loaded or any data are read
+if (!file.exists(IN_H5AD)) {
+    stop("Canonical HLCA H5AD not found: ", IN_H5AD)
+}
+if (!dir.exists(dirname(OUT_SCEE))) {
+    stop("The directory of the output file does not exist: ",
+         dirname(OUT_SCEE))
+}
+## A manifest that is given must hold the H5AD under its file name and with
+## the pinned size; without a manifest the SHA-256 is recorded as NA
+input_sha256 <- NA_character_
+if (!is.na(MANIFEST)) {
+    if (!file.exists(MANIFEST)) {
+        stop("Input manifest not found: ", MANIFEST)
+    }
+    manifest <- readRDS(MANIFEST)
+    manifest_index <- match(basename(IN_H5AD), manifest$file)
+    if (is.na(manifest_index) ||
+            !identical(manifest$bytes[[manifest_index]],
+                       EXPECTED_H5AD_BYTES)) {
+        stop("The manifest ", MANIFEST, " has no entry for ",
+             basename(IN_H5AD), " with the pinned size.")
+    }
+    input_sha256 <- manifest$sha256[[manifest_index]]
+}
+if (unname(file.info(IN_H5AD)$size) != EXPECTED_H5AD_BYTES) {
+    stop("HLCA H5AD byte size differs from the pinned dataset version.")
+}
+
+need <- c("exposomeSC", "zellkonverter", "SingleCellExperiment",
           "SummarizedExperiment", "S4Vectors", "Matrix")
 miss <- need[!vapply(need, requireNamespace, logical(1), quietly = TRUE)]
 if (length(miss)) stop("Install first: ",
@@ -61,26 +95,6 @@ if (length(miss)) stop("Install first: ",
 suppressPackageStartupMessages({
     library(SingleCellExperiment); library(SummarizedExperiment); library(S4Vectors)
 })
-devtools::load_all(PROJECT_ROOT, quiet = TRUE)
-stopifnot(file.exists(IN_H5AD))
-if (unname(file.info(IN_H5AD)$size) != EXPECTED_H5AD_BYTES) {
-    stop("HLCA H5AD byte size differs from the pinned dataset version.")
-}
-manifest_path <- file.path(
-    PROJECT_ROOT,
-    "analysis",
-    "results",
-    "hlca_input_manifest.rds"
-)
-input_sha256 <- NA_character_
-if (file.exists(manifest_path)) {
-    manifest <- readRDS(manifest_path)
-    manifest_index <- match("data/hlca_core.h5ad", manifest$relative_path)
-    if (!is.na(manifest_index) &&
-            identical(manifest$bytes[[manifest_index]], EXPECTED_H5AD_BYTES)) {
-        input_sha256 <- manifest$sha256[[manifest_index]]
-    }
-}
 
 ## ------------------------- read the .h5ad -------------------------------
 ## reader = "R" uses rhdf5 (installed) -- no Python/basilisk needed.
@@ -348,5 +362,5 @@ message("cell types (", CELLTYPE_FIELD, ", n=",
 message("BMI missing in ", sum(is.na(exp_mat[, "BMI"])), " / ",
         nrow(exp_mat), " donors")
 message("saved: ", OUT_SCEE)
-message("NEXT: data-raw/extract_hlca_design_metadata.R, then ",
-        "data-raw/extract_hlca_feature_metadata.R")
+message("NEXT: extract_hlca_design_metadata.R, then ",
+        "extract_hlca_feature_metadata.R")

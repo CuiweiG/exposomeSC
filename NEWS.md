@@ -30,7 +30,12 @@ with warnings.
   `adjust`, `method = "descriptive"` included, stops with an error that
   names the argument.
 * The unexported developmental function `run_erd_interventional()`.
-* mediation and SpatialExperiment are no longer suggested.
+* The simulated example files `demo_sce.rds` and `demo_exposures.csv`, which
+  no example, vignette or test used, with their help topic `demo_data` and
+  the script `create_demo_data.R`. Two real data sets take their place (see
+  Documentation).
+* mediation and SpatialExperiment are no longer suggested, and neither are
+  BiocCheck and statmod, which nothing in the package used.
 
 ## Changes that can alter results
 
@@ -775,6 +780,7 @@ with warnings.
 
 ## Internal changes
 
+* testthat is suggested from version 3.1.7, which the tests need.
 * Pseudobulk counts are summed with `scrapper::aggregateAcrossCells()`
   instead of package code; the counts are identical. scrapper is a new
   import, from version 1.6.0, the first release whose
@@ -803,8 +809,43 @@ with warnings.
 
 ## Documentation
 
-* The demo data are described as what they are: independent Poisson counts
-  with an added PM2.5 signal, and simulated exposures without units.
+* The data shipped with the package are real.
+  `inst/extdata/hlca_airway_subset.rds` holds the
+  raw counts of 352 airway epithelial cells from 12 donors of the Human Lung
+  Cell Atlas, six heavy smokers and six never smokers, as a
+  SingleCellExposomeExperiment (`?hlca_airway_subset`). The donors and the
+  cell types were fixed before any result on cells of these donors was seen;
+  the number of cells per donor and cell type was set later by the size
+  limit of a source package, before this subset was drawn but after the
+  smoking model had been run on larger sets of cells of the same donors.
+  `inst/scripts/make_hlca_airway_subset.R` makes the file from the pinned
+  H5AD. The subset is redistributed under CC BY 4.0, with the source and
+  the two publications named in its help page. With the second data set
+  below it takes the place of the simulated demo files (see Removed from
+  this release).
+* A second real data set covers what the airway data lack: surface
+  proteins, measured exposures with missing values, and plasma metabolites.
+  `inst/extdata/incov_pbmc_subset.rds`
+  (`?incov_pbmc_subset`) holds the raw counts of 1,032 blood cells from 43
+  patients of the INCOV cohort (Su et al. 2020), 14 monocytes and 10 T
+  cells each, with the counts of 192 antibodies for the same cells, four of
+  them isotype controls, the plasma levels of 13 compounds of exogenous
+  origin among the donor variables and 182 plasma metabolites.
+  `inst/scripts/make_incov_pbmc_subset.R` makes the file from the public
+  sources after checking the size and the SHA-256 of each. The plasma and
+  clinical tables are redistributed under CC BY 4.0. For the single-cell
+  files of ArrayExpress E-MTAB-9357 the authors state no licence; the terms
+  of use of EMBL-EBI apply, and the help page says so.
+* The scripts that prepare the full HLCA analysis object are shipped in
+  `inst/scripts/`: `fetch_hlca.R`, `extract_hlca_design_metadata.R`,
+  `extract_hlca_feature_metadata.R` and `create_hlca_input_manifest.R`. They
+  were in `data-raw/`, which is not part of the built package, and found
+  their files from the place of the script in a clone of the repository;
+  they now take the paths of their inputs and of their output file or
+  directory as arguments, and check them before any data are read. The
+  input manifest names its files in a column `file`, formerly
+  `relative_path`, and `fetch_hlca.R` stops when a manifest it is given has
+  no entry for its H5AD.
 * References added or corrected: edgeR v4, the graphical lasso, the
   published coglasso paper, dream and variancePartition, and a DOI for Lee
   and Han (2024).

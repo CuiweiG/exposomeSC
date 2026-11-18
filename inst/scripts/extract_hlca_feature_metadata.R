@@ -1,23 +1,17 @@
 ## Extract immutable feature annotations from the canonical HLCA H5AD.
 ## This script reads only /var and writes a small, derived RDS used to annotate
 ## Ensembl-keyed statistical results. It does not read or transform counts.
+##
+## Usage:
+##   Rscript extract_hlca_feature_metadata.R <hlca_core.h5ad> <output.rds>
 
-.script_file <- function() {
-    args <- commandArgs(trailingOnly = FALSE)
-    file_arg <- sub("^--file=", "", args[grepl("^--file=", args)])
-    if (length(file_arg)) {
-        return(normalizePath(file_arg[[1]], mustWork = TRUE))
-    }
-    ofile <- tryCatch(sys.frame(1)$ofile, error = function(e) NULL)
-    if (!is.null(ofile)) {
-        return(normalizePath(ofile, mustWork = TRUE))
-    }
-    stop("Cannot identify the script path; run with Rscript or source().")
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) != 2L) {
+    stop("Usage: Rscript extract_hlca_feature_metadata.R <hlca_core.h5ad> ",
+         "<output.rds>")
 }
-
-project_root <- dirname(dirname(.script_file()))
-h5ad_path <- file.path(project_root, "data", "hlca_core.h5ad")
-output_path <- file.path(project_root, "data", "hlca_feature_metadata.rds")
+h5ad_path <- args[[1]]
+output_path <- args[[2]]
 dataset_url <- paste0(
     "https://datasets.cellxgene.cziscience.com/",
     "688185ad-11c2-4172-a53a-f4f1f4076860.h5ad"
@@ -28,18 +22,23 @@ collection_url <- paste0(
 )
 expected_h5ad_bytes <- 5873612847
 
+## The paths are checked before any package is loaded or any data are read
+if (!file.exists(h5ad_path)) {
+    stop("Canonical HLCA H5AD not found: ", h5ad_path)
+}
+if (!dir.exists(dirname(output_path))) {
+    stop("The directory of the output file does not exist: ",
+         dirname(output_path))
+}
+if (unname(file.info(h5ad_path)$size) != expected_h5ad_bytes) {
+    stop("HLCA H5AD byte size differs from the pinned dataset version.")
+}
 if (!requireNamespace("rhdf5", quietly = TRUE)) {
     stop("Package 'rhdf5' is required.")
 }
 if (!requireNamespace("AnnotationDbi", quietly = TRUE) ||
         !requireNamespace("org.Hs.eg.db", quietly = TRUE)) {
     stop("Packages 'AnnotationDbi' and 'org.Hs.eg.db' are required.")
-}
-if (!file.exists(h5ad_path)) {
-    stop("Canonical HLCA H5AD not found: ", h5ad_path)
-}
-if (unname(file.info(h5ad_path)$size) != expected_h5ad_bytes) {
-    stop("HLCA H5AD byte size differs from the pinned dataset version.")
 }
 
 h5_nodes <- rhdf5::h5ls(h5ad_path, recursive = TRUE)

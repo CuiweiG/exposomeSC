@@ -38,38 +38,36 @@ BiocManager::install("CuiweiG/exposomeSC")
 
 ## A first analysis
 
-The package ships a small simulated data set: 2,000 cells from 20 donors in
-three cell types, with five exposures and two covariates per donor. Ten genes
-were given a PM2.5-dependent increase in monocytes when the data were made.
-The counts are independent Poisson draws without donor effects or the
-sparsity of real data, so the data set shows how the functions are called,
-not how well they perform.
+The package ships a small real data set: 352 tracheal epithelial cells from 12
+donors of the Human Lung Cell Atlas, six heavy smokers and six never smokers,
+with up to 10 basal, secretory and multiciliated-lineage cells per donor.
+`?hlca_airway_subset` gives its source, licence and selection rule. The data
+set shows how the functions are called on real counts; with 12 donors and at
+most 10 cells per donor and cell type it is far too small to support
+conclusions about smoking. A second real data set, `?incov_pbmc_subset`, holds
+blood cells of 43 patients with their surface proteins, plasma metabolites and
+plasma levels of exogenous compounds, for the functions that need those.
 
 ```r
 library(exposomeSC)
 
-sce <- readRDS(system.file("extdata", "demo_sce.rds", package = "exposomeSC"))
-exposures <- as.matrix(read.csv(
-    system.file("extdata", "demo_exposures.csv", package = "exposomeSC"),
-    row.names = 1))
-
-scee <- build_scee(sce, exposures, sample_col = "donor_id")
+scee <- readRDS(system.file("extdata", "hlca_airway_subset.rds",
+    package = "exposomeSC"))
+scee
 
 fit <- run_sc_exwas(scee,
-    exposure = "PM2.5",
-    covariates = c("age", "sex"),
-    celltype_col = "cell_type")
+    exposure = "smoking",
+    covariates = "chemistry_v3")
 
 head(fit[order(fit$pvalue),
          c("gene", "celltype", "log2FC", "statistic", "pvalue", "padj_global")])
 ```
 
-`build_scee()` checks that the counts are raw non-negative integers and that
-every donor in the cells has a row in the exposure matrix. `run_sc_exwas()`
-returns one row per gene and cell type, with `padj_global` adjusted across the
-whole gene-by-cell-type family. On this data set the ten calls at
-`padj_global < 0.05` are the ten genes given an effect, all in monocytes, and
-there are none in the other two cell types.
+The object was made by `build_scee()`, which checks that every donor in the
+cells has a row in the exposure matrix and that every row belongs to a donor
+with cells; the script that made the file checks that its counts are
+non-negative whole numbers. `run_sc_exwas()` returns one row per gene and cell
+type, with `padj_global` adjusted across the whole gene-by-cell-type family.
 
 For the default edgeR backend, `se` is `NA` by design: the quasi-likelihood F
 test supplies no coefficient standard error, and `statistic` is the signed
@@ -123,18 +121,60 @@ The primary study uses the integrated HLCA normal-lung collection of Sikkema
 | Count layer | `/raw/X`; `/X` is not used for count modelling |
 | H5AD SHA-256 | `1cbdde1e513a31bdb6a3f70296e2d0612760d2af4032e239c94596ea87b44007` |
 
-`data-raw/fetch_hlca.R` rejects a missing raw layer, a changed asset size, and
-non-finite, negative or non-integer values. From a clone of the repository,
-after the pinned H5AD has been downloaded to `data/hlca_core.h5ad`:
+The example data set shipped with the package,
+`inst/extdata/hlca_airway_subset.rds`, is taken from this file: 352 cells of
+12 donors of its study `Seibold_2020`, which is
+[Goldfarbmuren *et al.*, *Nature Communications* (2020)](https://doi.org/10.1038/s41467-020-16239-z).
+`inst/scripts/make_hlca_airway_subset.R` checks the size and the SHA-256 of
+the H5AD and makes the subset from it; cells and genes are selected and the
+counts are unchanged. The subset is redistributed under the same CC BY 4.0
+licence.
 
-```r
-source(file.path("data-raw", "fetch_hlca.R"))
-source(file.path("data-raw", "extract_hlca_design_metadata.R"))
-source(file.path("data-raw", "extract_hlca_feature_metadata.R"))
+The scripts that prepare the full ever- versus never-smoking analysis object
+are installed with the package, in the directory that
+`system.file("scripts", package = "exposomeSC")` returns. `fetch_hlca.R`
+rejects a missing raw layer, a changed asset size, and non-finite, negative or
+non-integer values. Each script takes the paths of its inputs and of its
+output as arguments; `create_hlca_input_manifest.R` takes first the directory,
+here `.`, in which it writes `hlca_input_manifest.rds` and
+`hlca_input_manifest.csv`. With the pinned H5AD downloaded as
+`hlca_core.h5ad`:
+
+```sh
+scripts=$(Rscript -e 'cat(system.file("scripts", package = "exposomeSC"))')
+Rscript "$scripts/fetch_hlca.R" hlca_core.h5ad hlca_smoking_scee.rds
+Rscript "$scripts/extract_hlca_design_metadata.R" hlca_core.h5ad \
+    hlca_design_metadata.rds
+Rscript "$scripts/extract_hlca_feature_metadata.R" hlca_core.h5ad \
+    hlca_feature_metadata.rds
+Rscript "$scripts/create_hlca_input_manifest.R" . hlca_core.h5ad \
+    hlca_smoking_scee.rds hlca_design_metadata.rds hlca_feature_metadata.rds
 ```
 
-The scripts derive the project root from their own location and do not call
-`setwd()`.
+The scripts need rhdf5, zellkonverter, AnnotationDbi, org.Hs.eg.db and
+digest, which the package itself does not depend on.
+
+## INCOV data provenance
+
+The second data set, `inst/extdata/incov_pbmc_subset.rds`, is taken from the
+INCOV cohort of
+[Su *et al.*, *Cell* (2020)](https://doi.org/10.1016/j.cell.2020.10.037):
+1,032 blood mononuclear cells of 43 patients with COVID-19 at their first
+blood draw, with the counts of 192 antibodies for the same cells (four of them
+isotype controls), 182 plasma metabolites and the plasma levels of 13
+compounds of exogenous origin.
+
+| Item | Source |
+|---|---|
+| Clinical records, plasma metabolites | Table S1 of [Mendeley Data, doi:10.17632/tzydswhhb5.5](https://doi.org/10.17632/tzydswhhb5.5), version 5, CC BY 4.0 |
+| Single-cell genes and surface proteins | [ArrayExpress E-MTAB-9357](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-9357); the authors state no licence, and the terms of use of EMBL-EBI apply |
+
+`inst/scripts/make_incov_pbmc_subset.R` checks the size and the SHA-256 of the
+88 input files, recovers the counts from the logarithms that the archive
+holds, assigns monocytes and T cells by gates on surface proteins and marker
+genes, and draws the cells; `?incov_pbmc_subset` describes each step. It takes
+the folder with the input files and the output file as arguments and needs
+data.table and R.utils.
 
 ## Documentation
 
@@ -153,5 +193,14 @@ branch holds the package source only.
 
 ## Licence and citation
 
-Artistic-2.0. Until a release is archived with a DOI, cite the exact Git commit
-used together with the primary data publications.
+The code and the documentation of the package are under Artistic-2.0. The two
+data files in `inst/extdata` are not: they are parts of the data of others and
+keep their terms. `hlca_airway_subset.rds` is redistributed under CC BY 4.0. In
+`incov_pbmc_subset.rds` the clinical records and plasma measurements are
+redistributed under CC BY 4.0; for the single-cell counts, from ArrayExpress
+E-MTAB-9357, the authors state no licence, and the terms of use of EMBL-EBI
+apply. The two provenance sections above and the help pages of the data sets
+name the sources and the publications to cite.
+
+Until a release is archived with a DOI, cite the exact Git commit used
+together with the primary data publications.
