@@ -189,8 +189,9 @@ NULL
 #'   \code{exposureData} (numeric), added as GLM main effects. The names
 #'   \code{y}, \code{A} and \code{logoff} are used by the model and cannot
 #'   be covariate names, and each name must be a syntactic R name (see
-#'   \code{\link[base]{make.names}}). The exposure itself cannot be a
-#'   covariate.
+#'   \code{\link[base]{make.names}}) other than \code{.}, \code{...} and
+#'   names such as \code{..1}, which R reads specially in a formula. The
+#'   exposure itself cannot be a covariate.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{x}).
 #' @param BPPARAM A \code{BiocParallel} param used to parallelise over genes.
@@ -202,12 +203,12 @@ NULL
 #' @return A \code{DataFrame}, one row per gene x cell type:
 #'   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
 #'   \eqn{\log_2} rate scale), \code{se} (on the same scale), \code{statistic}
-#'   (donor-level Wald z from the NB GLM), \code{pvalue}, and BH-adjusted
-#'   \code{padj} across all tested gene-by-cell-type strata, the family of
-#'   \code{padj_global} in \code{\link{run_sc_exwas}}, whose \code{padj} is
-#'   within a cell type. Rows ordered by \code{padj}. A gene whose GLM
-#'   cannot be fitted gets \code{NA} estimates; the function stops when no
-#'   cell type has at least three donors with cells.
+#'   (donor-level Wald z from the NB GLM), \code{pvalue}, and
+#'   \code{padj_global} (BH across all tested gene-by-cell-type strata, as
+#'   in \code{\link{run_sc_exwas}}; there is no within-cell-type
+#'   \code{padj}). Rows ordered by \code{padj_global}, then \code{pvalue}.
+#'   A gene whose GLM cannot be fitted gets \code{NA} estimates; the
+#'   function stops when no cell type has at least three donors with cells.
 #'
 #' @note Report empirical calibration from a donor-permutation null, with the
 #'   exposure permuted across donors, before quoting any type-I rate.
@@ -277,7 +278,7 @@ run_sc_exwas_pb_offset <- function(x, exposure,
     if (exposure %in% covariates)
         stop("The exposure must not also be listed as a covariate.")
     .check_formula_names(covariates, "covariate")
-    .check_reserved_covariates(covariates, c("y", "A", "logoff"))
+    .check_reserved_names(covariates, "covariate", c("y", "A", "logoff"))
     if (!is.null(target_genes)) {
         target_genes <- .match_target_genes(target_genes, rownames(x))
         if (!length(target_genes)) stop("No target genes present in x")
@@ -323,8 +324,8 @@ run_sc_exwas_pb_offset <- function(x, exposure,
     out <- do.call(rbind, Filter(Negate(is.null), per_ct))
     if (is.null(out) || !nrow(out))
         stop("No gene/cell-type stratum yielded an estimable NB GLM")
-    out$padj <- stats::p.adjust(out$pvalue, "BH")
-    out <- out[order(out$padj, out$pvalue), , drop = FALSE]
+    out$padj_global <- stats::p.adjust(out$pvalue, "BH")
+    out <- out[order(out$padj_global, out$pvalue), , drop = FALSE]
     rownames(out) <- NULL
     S4Vectors::DataFrame(out, check.names = FALSE)
 }
@@ -338,8 +339,9 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #' model is a linear mixed model fitted by \code{lmerTest::lmer} with
 #' \strong{REML = TRUE} (mandatory), and p-values are referred to a finite
 #' denominator degrees of freedom -- \strong{Satterthwaite} (default) or
-#' \strong{Kenward-Roger} -- via \code{lmerTest::contest1D}. This replaces the
-#' anticonservative Wald-normal test of the retired \code{glmm.R} path.
+#' \strong{Kenward-Roger} -- via \code{lmerTest::contest1D}. A Wald test
+#' referred to the normal distribution would be anticonservative with few
+#' donors.
 #'
 #' @details
 #' \strong{Why REML.} Maximum likelihood biases the variance components
@@ -395,8 +397,9 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #'   used by the model and cannot be covariate names; with
 #'   \code{family = "nbinom"} the same holds for \code{logoff} and the
 #'   \code{expo_<cell type>} columns. Each name must be a syntactic R name
-#'   (see \code{\link[base]{make.names}}), and the exposure itself cannot
-#'   be a covariate.
+#'   (see \code{\link[base]{make.names}}) other than \code{.}, \code{...}
+#'   and names such as \code{..1}, which R reads specially in a formula,
+#'   and the exposure itself cannot be a covariate.
 #' @param target_genes Character; genes to test (default: all rows of
 #'   \code{x}). A cell-level LMM per gene is costly -- passing a focused gene
 #'   set is strongly recommended.
@@ -414,18 +417,18 @@ run_sc_exwas_pb_offset <- function(x, exposure,
 #' @return A \code{DataFrame}, one row per gene x cell type: \code{gene},
 #'   \code{celltype}, \code{log2FC}, \code{se}, \code{statistic} (Satterthwaite
 #'   /KR \eqn{t} for gaussian, LR \eqn{\chi^2} for nbinom), \code{df} (finite
-#'   denominator df; 1 for the nbinom LRT), \code{pvalue}, \code{padj}
-#'   (BH across all gene-by-cell-type strata, the family of
-#'   \code{padj_global} in \code{\link{run_sc_exwas}}, whose \code{padj} is
-#'   within a cell type), and \code{method}. Rows ordered by \code{padj}.
-#'   A gene-by-cell-type stratum that cannot be fitted is left out of the
-#'   result; with \code{family = "nbinom"}, a stratum whose likelihood-ratio
-#'   test cannot be computed is kept with \code{NA} \code{pvalue} and
-#'   \code{padj}. Its \code{statistic} is \code{NA} when the reduced model
-#'   or \code{anova()} fails, and close to 0 when the test has no degrees
-#'   of freedom, as when a covariate is a linear function of the exposure.
-#'   \code{padj} adjusts over the strata with a p-value, and the function
-#'   stops when no stratum can be fitted.
+#'   denominator df; 1 for the nbinom LRT), \code{pvalue}, \code{padj_global}
+#'   (BH across all gene-by-cell-type strata, as in
+#'   \code{\link{run_sc_exwas}}; there is no within-cell-type \code{padj}),
+#'   and \code{method}. Rows ordered by \code{padj_global}, then
+#'   \code{pvalue}. A gene-by-cell-type stratum that cannot be fitted is
+#'   left out of the result; with \code{family = "nbinom"}, a stratum whose
+#'   likelihood-ratio test cannot be computed is kept with \code{NA}
+#'   \code{pvalue} and \code{padj_global}. Its \code{statistic} is \code{NA}
+#'   when the reduced model or \code{anova()} fails, and close to 0 when the
+#'   test has no degrees of freedom, as when a covariate is a linear
+#'   function of the exposure. \code{padj_global} adjusts over the strata
+#'   with a p-value, and the function stops when no stratum can be fitted.
 #'
 #' @note Calibrate against a donor-permutation null, with the exposure permuted
 #'   across donors, before quoting any type-I rate;
@@ -514,7 +517,7 @@ run_sc_exwas_glmm <- function(x, exposure,
     if (exposure %in% covariates)
         stop("The exposure must not also be listed as a covariate.")
     .check_formula_names(covariates, "covariate")
-    .check_reserved_covariates(covariates,
+    .check_reserved_names(covariates, "covariate",
         c("exposure", "donor", "celltype", "y"))
 
     cd <- SummarizedExperiment::colData(x)
@@ -585,8 +588,8 @@ run_sc_exwas_glmm <- function(x, exposure,
         ## make.names() alone gives labels such as "CD16+ Mono" and
         ## "CD16- Mono" the same name, so the names are made unique
         expo_cols <- paste0("expo_", make.names(lvls, unique = TRUE))
-        .check_reserved_covariates(covariates, c("exposure", "donor",
-            "celltype", "y", "logoff", expo_cols))
+        .check_reserved_names(covariates, "covariate", c("exposure",
+            "donor", "celltype", "y", "logoff", expo_cols))
         message("family='nbinom': Satterthwaite/KR are LMM-only; using ",
                 "likelihood-ratio tests (ddf ignored). This refits glmer.nb ",
                 "per cell type per gene -- prefer run_sc_exwas_pb_offset for ",
@@ -616,29 +619,11 @@ run_sc_exwas_glmm <- function(x, exposure,
     out <- do.call(rbind, Filter(Negate(is.null), res))
     if (is.null(out) || !nrow(out))
         stop("No gene/cell-type stratum yielded an estimable model")
-    out$padj <- stats::p.adjust(out$pvalue, "BH")
+    out$padj_global <- stats::p.adjust(out$pvalue, "BH")
     out$method <- method_lbl
     out <- out[, c("gene", "celltype", "log2FC", "se", "statistic",
-                   "df", "pvalue", "padj", "method")]
-    out <- out[order(out$padj, out$pvalue), , drop = FALSE]
+                   "df", "pvalue", "padj_global", "method")]
+    out <- out[order(out$padj_global, out$pvalue), , drop = FALSE]
     rownames(out) <- NULL
     S4Vectors::DataFrame(out, check.names = FALSE)
-}
-
-# The model formulas use a few names for their own variables (the response,
-# the exposure term, the offset, the grouping factors). A covariate of such
-# a name silently replaced the model variable or was ignored, so these names
-# are refused.
-# @keywords internal
-# @noRd
-.check_reserved_covariates <- function(covariates, reserved) {
-    clash <- intersect(covariates, reserved)
-    if (length(clash)) {
-        clash_names <- paste0("'", clash, "'", collapse = ", ")
-        reserved_names <- paste(reserved, collapse = ", ")
-        stop("A covariate cannot be called ", clash_names, ": the model ",
-            "uses the names ", reserved_names, " for its own variables. ",
-            "Rename the variable in exposureData(x).", call. = FALSE)
-    }
-    invisible(TRUE)
 }

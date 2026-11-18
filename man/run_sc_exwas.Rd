@@ -49,7 +49,9 @@ types to test. Default: all.}
 covariates from \code{exposureData}. A covariate cannot be called
 \code{"exposure"}, the name of the model's exposure term, or be the
 exposure itself, and each name must be a syntactic R name (see
-\code{\link[base]{make.names}}) because it goes into the model formula.}
+\code{\link[base]{make.names}}) because it goes into the model formula;
+\code{.}, \code{...} and names such as \code{..1}, which R reads
+specially there, cannot be used.}
 
 \item{min_cells}{Integer. Minimum cells per donor-celltype
 stratum. Default 10.}

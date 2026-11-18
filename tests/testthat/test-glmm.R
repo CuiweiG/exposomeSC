@@ -38,7 +38,7 @@ test_that("run_sc_exwas_glmm works with lme4 backend", {
     expect_true("log2FC" %in% colnames(res))
     expect_true("se" %in% colnames(res))
     expect_true("pvalue" %in% colnames(res))
-    expect_true("padj" %in% colnames(res))
+    expect_true("padj_global" %in% colnames(res))
     expect_true("method" %in% colnames(res))
     ## gaussian path is fitted by lmerTest (Satterthwaite/Kenward-Roger df)
     expect_true(all(grepl("lmerTest", res$method)))
@@ -173,7 +173,7 @@ test_that("run_sc_exwas_pb_offset matches a direct MASS::glm.nb fit", {
         covariates = "age", target_genes = c("G1", "G2"))
     expect_s4_class(res, "DataFrame")
     expect_identical(nrow(res), 2L)
-    expect_false(is.unsorted(res$padj))
+    expect_identical(order(res$padj_global, res$pvalue), seq_len(nrow(res)))
 
     pb <- vapply(donors, function(d) {
         rowSums(counts[, cell_donor == d, drop = FALSE])
@@ -416,17 +416,27 @@ test_that("cells of a donor without an exposure value are left out", {
     }
 })
 
-test_that("padj of the mixed and offset models adjusts across all strata", {
+test_that("the mixed and offset models adjust padj_global across all strata", {
+    ## named as in run_sc_exwas(), where padj is the adjustment within a
+    ## cell type
     scee <- .reserved_names_scee()
     ## Poisson counts: glm.nb() warns while it estimates theta
     offset_fit <- suppressWarnings(run_sc_exwas_pb_offset(scee,
         exposure = "E1", target_genes = c("G1", "G2")))
     expect_setequal(offset_fit$celltype, c("Mono", "NK"))
-    expect_equal(offset_fit$padj, stats::p.adjust(offset_fit$pvalue, "BH"))
+    expect_false("padj" %in% colnames(offset_fit))
+    expect_equal(offset_fit$padj_global,
+        stats::p.adjust(offset_fit$pvalue, "BH"))
+    expect_identical(order(offset_fit$padj_global, offset_fit$pvalue),
+        seq_len(nrow(offset_fit)))
     skip_if_not_installed("lme4")
     skip_if_not_installed("lmerTest")
     mixed_fit <- suppressWarnings(suppressMessages(run_sc_exwas_glmm(scee,
         exposure = "E1", target_genes = c("G1", "G2"))))
     expect_setequal(mixed_fit$celltype, c("Mono", "NK"))
-    expect_equal(mixed_fit$padj, stats::p.adjust(mixed_fit$pvalue, "BH"))
+    expect_false("padj" %in% colnames(mixed_fit))
+    expect_equal(mixed_fit$padj_global,
+        stats::p.adjust(mixed_fit$pvalue, "BH"))
+    expect_identical(order(mixed_fit$padj_global, mixed_fit$pvalue),
+        seq_len(nrow(mixed_fit)))
 })

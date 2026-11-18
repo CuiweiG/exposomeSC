@@ -22,7 +22,10 @@ cell's donor is read from the \code{colData} column named by
 
 \item{exposures}{Character vector. Exposure variable names, distinct.
 Each name must be a syntactic R name (see
-\code{\link[base]{make.names}}) because it goes into the model formula.}
+\code{\link[base]{make.names}}) because it goes into the model formula,
+and cannot be \code{y}, the name of the response. Nor can it be
+\code{.}, \code{...} or a name such as \code{..1}, which R reads
+specially in a formula.}
 
 \item{celltype}{Character. Which cell type to analyse.}
 
@@ -35,7 +38,8 @@ test. Default: top 20 most variable genes.}
 \item{covariates}{Character vector (optional). Additional
 covariates from \code{exposureData}; a name that is not a
 column of \code{exposureData} is an error, and so is an exposure
-listed here. Names must be syntactic, as for \code{exposures}.}
+listed here. Names must be syntactic and cannot be \code{y}, \code{.},
+\code{...} or a name such as \code{..1}, as for \code{exposures}.}
 
 \item{q}{Integer. Number of quantile bins, at least 2. Default 4.
 Tied exposure values (for example at a limit of detection) can

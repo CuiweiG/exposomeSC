@@ -41,7 +41,7 @@ test_that("the run_multi_exwas pass-through list matches run_sc_exwas", {
                     setdiff(method_args, set_by_wrapper))
 })
 
-.formula_name_fixture <- function() {
+.formula_name_fixture <- function(extra = NULL) {
     set.seed(11)
     donors <- sprintf("D%02d", 1:12)
     donor <- rep(donors, each = 20)
@@ -59,6 +59,11 @@ test_that("the run_multi_exwas pass-through list matches run_sc_exwas", {
             assays = list(counts = proteins))
     exp_mat <- cbind(E1 = stats::rnorm(12), "PCB-153" = stats::rnorm(12),
         age = stats::rnorm(12, 50, 10), "age-years" = stats::rnorm(12, 50, 10))
+    if (!is.null(extra)) {
+        ## one more variable, under a name the test chooses
+        exp_mat <- cbind(exp_mat, stats::rnorm(12, 50, 10))
+        colnames(exp_mat)[ncol(exp_mat)] <- extra
+    }
     rownames(exp_mat) <- donors
     build_scee(sce, exp_mat, sample_col = "donor_id")
 }
@@ -74,6 +79,92 @@ test_that("formula names must be syntactic R names", {
             "formula: '1-OHP', 'BPA (ng/mL)'. Rename the variable(s) in",
             "exposureData(x), for example to 'X1.OHP', 'BPA..ng.mL.'."),
         fixed = TRUE)
+})
+
+test_that("names that R reads specially in a formula are refused", {
+    ## make.names() leaves these names as they are
+    special <- c(".", "...", "..1", "..2", "..10", "..01")
+    expect_identical(make.names(special), special)
+    for (name in special) {
+        expect_error(
+            exposomeSC:::.check_formula_names(c("age", name), "covariate"),
+            paste0("The covariate name(s) '", name, "' cannot be used in a ",
+                "model formula, where R reads '.', '...' and names such as ",
+                "'..1' specially. Rename the variable(s) in exposureData(x)."),
+            fixed = TRUE)
+    }
+    expect_error(
+        exposomeSC:::.check_formula_names(c(".", "age", "..1"), "moderator"),
+        "The moderator name(s) '.', '..1' cannot be used", fixed = TRUE)
+    ## the names next to them are ordinary names
+    expect_invisible(exposomeSC:::.check_formula_names(
+        c("..", "....", "...1", ".x", "..a", "..1a", "x.", "PM2.5"),
+        "covariate"))
+})
+
+test_that("the analyses refuse the names R reads specially in a formula", {
+    with_name <- .formula_name_fixture
+    refused <- function(role, name) {
+        paste0("The ", role, " name(s) '", name, "' cannot be used in a ",
+            "model formula")
+    }
+    for (name in c(".", "...", "..1")) {
+        renamed <- with_name(name)
+        expect_error(run_sc_exwas(renamed, exposure = "E1", covariates = name),
+            refused("covariate", name), fixed = TRUE)
+        expect_error(
+            run_sc_exwas_pb_offset(renamed, exposure = "E1",
+                covariates = name),
+            refused("covariate", name), fixed = TRUE)
+        expect_error(
+            run_sc_mixture(renamed, exposures = c("E1", name),
+                celltype = "Mono", min_cells = 3L),
+            refused("exposure", name), fixed = TRUE)
+        expect_error(
+            run_sc_mixture(renamed, exposures = "E1", covariates = name,
+                celltype = "Mono", min_cells = 3L),
+            refused("covariate", name), fixed = TRUE)
+    }
+    ## such a name can still be the exposure of run_sc_exwas(), which is
+    ## renamed before the model is built
+    result <- suppressWarnings(run_sc_exwas(with_name("..1"),
+        exposure = "..1"))
+    expect_gt(nrow(result), 0L)
+    expect_true(all(result$exposure == "..1"))
+
+    skip_if_not_installed("lme4")
+    skip_if_not_installed("lmerTest")
+    expect_error(
+        run_sc_exwas_glmm(with_name("."), exposure = "E1", covariates = ".",
+            target_genes = "G1"),
+        refused("covariate", "."), fixed = TRUE)
+    skip_if_not_installed("qgcomp")
+    for (bootstrap in c(FALSE, TRUE)) {
+        expect_error(
+            run_mixture_qgcomp(with_name("."), exposures = "E1",
+                covariates = ".", celltype = "Mono", min_cells = 3L,
+                bootstrap = bootstrap),
+            refused("covariate", "."), fixed = TRUE)
+    }
+    expect_error(
+        run_mixture_qgcomp(with_name("..."), exposures = c("E1", "..."),
+            celltype = "Mono", min_cells = 3L),
+        refused("exposure", "..."), fixed = TRUE)
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    for (name in c(".", "...", "..1")) {
+        expect_error(
+            run_cell_coupling(with_name(name), genes = "G1", proteins = "P1",
+                exposure = "E1", celltype = "Mono", altexp_name = "CITE",
+                min_cells = 10L, min_donors = 5L, meta_moderators = name),
+            refused("moderator", name), fixed = TRUE)
+    }
+    ## a formula can name them too; ~ . is refused as a formula
+    expect_error(
+        run_cell_coupling(with_name("..1"), genes = "G1", proteins = "P1",
+            exposure = "E1", celltype = "Mono", altexp_name = "CITE",
+            min_cells = 10L, min_donors = 5L, meta_moderators = ~ ..1),
+        refused("moderator", "..1"), fixed = TRUE)
 })
 
 test_that("covariate and exposure names a formula would misread are refused", {

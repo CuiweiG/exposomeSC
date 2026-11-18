@@ -152,3 +152,23 @@ test_that("donor_pseudobulk gives the counts that run_sc_exwas fits", {
     expect_equal(diagnostics$full_library_size,
         colSums(SummarizedExperiment::assay(pb, "counts")))
 })
+
+test_that("the scrapper version asked for has the arguments that are set", {
+    ## scrapper's NEWS dates the compute.* arguments of
+    ## aggregateAcrossCells() to version 1.6.0
+    imports <- read.dcf(system.file("DESCRIPTION", package = "exposomeSC"),
+        fields = "Imports")[1L, 1L]
+    ## an installed DESCRIPTION can break the line inside the parentheses
+    imports <- gsub("[[:space:]]+", " ", imports)
+    scrapper <- grep("^scrapper", trimws(strsplit(imports, ",")[[1L]]),
+        value = TRUE)
+    expect_match(scrapper, "^scrapper \\(>= [0-9.]+\\)$")
+    floor <- sub("^scrapper \\(>= ([0-9.]+)\\)$", "\\1", scrapper)
+    expect_true(package_version(floor) >= "1.6.0")
+    expect_true(utils::packageVersion("scrapper") >= floor)
+    expect_true(all(
+        c("compute.sum", "compute.detected", "compute.median",
+            "num.threads") %in%
+            names(formals(scrapper::aggregateAcrossCells))
+    ))
+})

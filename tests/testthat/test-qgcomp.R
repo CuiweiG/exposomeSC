@@ -89,3 +89,102 @@ test_that("the qgcomp mixture p-value uses the residual degrees of freedom", {
     expect_true(all(is.nan(c(mix5$ci_lower, mix5$ci_upper,
         mix5$mixture_pvalue))))
 })
+
+test_that("run_mixture_qgcomp refuses the names of its model's variables", {
+    skip_if_not_installed("qgcomp")
+    set.seed(42)
+    counts <- matrix(rpois(10000, 10), nrow = 100,
+        dimnames = list(paste0("G", 1:100), paste0("c", 1:100)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(
+            donor_id = rep(paste0("D", 1:10), each = 10),
+            cell_type = rep(c("Mono", "NK"), 50)))
+    ## y is the response; qgcomp adds weights and id__ to the model data
+    exp_mat <- matrix(rnorm(60), nrow = 10,
+        dimnames = list(paste0("D", 1:10),
+            c("E1", "E2", "C1", "y", "weights", "id__")))
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    mixture <- function(...) {
+        run_mixture_qgcomp(scee, celltype = "Mono", q = 2L, min_cells = 3L,
+            ...)
+    }
+    for (name in c("y", "weights", "id__")) {
+        expect_error(mixture(exposures = c("E1", name)),
+            paste0("An exposure cannot be called '", name, "': the ",
+                "analysis uses the names y, weights, id__ for variables of ",
+                "its own. Rename the variable in exposureData(x)."),
+            fixed = TRUE)
+        expect_error(mixture(exposures = c("E1", "E2"), covariates = name),
+            paste0("A covariate cannot be called '", name, "'"),
+            fixed = TRUE)
+    }
+    ## other names are used as before
+    expect_identical(nrow(mixture(exposures = c("E1", "E2"),
+        covariates = "C1")), 1L)
+
+    ## qgcomp removes "_q" from the names of the weights it returns
+    colnames(exp_mat)[4:6] <- c("air_quality", "E1_q", "pm_q")
+    renamed <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    with_q <- function(...) {
+        run_mixture_qgcomp(renamed, celltype = "Mono", q = 2L,
+            min_cells = 3L, ...)
+    }
+    expect_error(with_q(exposures = c("E1", "air_quality", "E1_q")),
+        paste0("With bootstrap = FALSE an exposure name cannot contain ",
+            "'_q' ('air_quality', 'E1_q'): qgcomp removes it from the ",
+            "names of the weights it returns. Rename the variable in ",
+            "exposureData(x)."), fixed = TRUE)
+    expect_error(with_q(exposures = c("E1", "pm_q")), "'pm_q'", fixed = TRUE)
+    ## as a covariate, and where no weights are returned, the name is free
+    adjusted <- with_q(exposures = c("E1", "E2"), covariates = "air_quality")
+    expect_setequal(c(names(metadata(adjusted)$positive_weights),
+        names(metadata(adjusted)$negative_weights)), c("E1", "E2"))
+    set.seed(1)
+    expect_identical(nrow(with_q(exposures = c("E1", "air_quality"),
+        bootstrap = TRUE, B = 5L)), 1L)
+})
+
+test_that("the bootstrap p-value is that of qgcomp.boot() or the call stops", {
+    skip_if_not_installed("qgcomp")
+    set.seed(42)
+    counts <- matrix(rpois(10000, 10), nrow = 100,
+        dimnames = list(paste0("G", 1:100), paste0("c", 1:100)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = S4Vectors::DataFrame(
+            donor_id = rep(paste0("D", 1:10), each = 10),
+            cell_type = rep(c("Mono", "NK"), 50)))
+    exp_mat <- matrix(rnorm(30), nrow = 10,
+        dimnames = list(paste0("D", 1:10), c("E1", "E2", "E3")))
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    bootstrapped <- function() {
+        set.seed(1)
+        run_mixture_qgcomp(scee, exposures = c("E1", "E2", "E3"),
+            celltype = "Mono", q = 2L, min_cells = 3L, bootstrap = TRUE,
+            B = 10L)
+    }
+    mix <- bootstrapped()
+    fit <- S4Vectors::metadata(mix)$fit
+    expect_identical(mix$method, "qgcomp.boot")
+    expect_identical(mix$mixture_pvalue,
+        unname(fit$pval[match("psi1", names(fit$coef))]))
+    expect_identical(c(mix$ci_lower, mix$ci_upper), as.numeric(fit$ci))
+    expect_null(S4Vectors::metadata(mix)$positive_weights)
+
+    ## a result without a p-value for psi1 is an error: no other p-value is
+    ## put in its place
+    boot <- qgcomp::qgcomp.boot
+    testthat::local_mocked_bindings(
+        qgcomp.boot = function(...) {
+            fit <- boot(...)
+            names(fit$coef)[names(fit$coef) == "psi1"] <- "psi"
+            fit
+        },
+        .package = "qgcomp")
+    expect_error(bootstrapped(),
+        paste0("qgcomp.boot() of qgcomp ",
+            as.character(utils::packageVersion("qgcomp")),
+            " returned no p-value for the mixture effect (psi1)."),
+        fixed = TRUE)
+})

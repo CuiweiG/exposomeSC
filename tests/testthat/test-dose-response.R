@@ -93,3 +93,13 @@ test_that("run_dose_response leaves donors without a dose out", {
         exposure = "E1", celltype = "Mono", min_cells = 3L, max_degree = 2L)),
         "Need >= 4 donors with a non-missing exposure")
 })
+
+test_that("run_dose_response returns its rows without names", {
+    scee <- .make_scee_dr()
+    dr <- run_dose_response(scee, exposure = "E1", celltype = "Mono",
+        target_genes = c("G1", "G2", "G3"), min_cells = 3L, max_degree = 2L)
+    expect_identical(dr$gene, c("G1", "G2", "G3"))
+    ## the rows were named after the linear model: linear, linear1, linear2
+    expect_null(rownames(dr))
+    expect_identical(rownames(as.data.frame(dr)), c("1", "2", "3"))
+})

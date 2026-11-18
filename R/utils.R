@@ -357,7 +357,11 @@ NULL
 
 # Exposure, covariate and moderator names are pasted into model formulas, so
 # each must be a syntactic R name: 'age-years' would be read as age minus
-# years, and a ratio such as 'MEHP/DEHP' as a nested term.
+# years, and a ratio such as 'MEHP/DEHP' as a nested term. Three kinds of
+# name that make.names() leaves as they are cannot be used either: in a
+# formula '.' stands for every column of the model data other than the
+# response, and R reads '...' and '..1', '..2' and so on as arguments passed
+# down from a calling function.
 # @keywords internal
 # @noRd
 .check_formula_names <- function(names, role) {
@@ -370,6 +374,43 @@ NULL
             "formula: ", bad_names, ". Rename the variable(s) in ",
             "exposureData(x), for example to ", suggested, ".",
             call. = FALSE)
+    }
+    special <- grep("^(\\.|\\.\\.\\.|\\.\\.[0-9]+)$", names, value = TRUE)
+    if (length(special)) {
+        stop("The ", role, " name(s) ",
+            paste0("'", special, "'", collapse = ", "), " cannot be used in ",
+            "a model formula, where R reads '.', '...' and names such as ",
+            "'..1' specially. Rename the variable(s) in exposureData(x).",
+            call. = FALSE)
+    }
+    invisible(TRUE)
+}
+
+# The analyses put the user's variables next to variables of their own (the
+# response, the exposure term, an offset, a grouping factor, the columns of a
+# meta-regression or a partial correlation), and some packages they call add
+# columns to the model data. A user's variable with one of those names
+# replaced the other variable, was replaced by it or was dropped, mostly
+# without an error that named the clash, so such names are refused. `role`
+# says what kind of variable `names` holds and `location` where it can be
+# renamed.
+# @keywords internal
+# @noRd
+.check_reserved_names <- function(names, role, reserved,
+                                  location = "exposureData(x)") {
+    clash <- intersect(names, reserved)
+    if (length(clash)) {
+        article <- if (grepl("^[aeiou]", role)) "An " else "A "
+        clash_names <- paste0("'", clash, "'", collapse = ", ")
+        used_for <- if (length(reserved) > 1L) {
+            paste("the names", paste(reserved, collapse = ", "),
+                "for variables")
+        } else {
+            paste("the name", reserved, "for a variable")
+        }
+        stop(article, role, " cannot be called ", clash_names, ": the ",
+            "analysis uses ", used_for, " of its own. Rename the variable ",
+            "in ", location, ".", call. = FALSE)
     }
     invisible(TRUE)
 }

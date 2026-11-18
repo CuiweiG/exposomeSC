@@ -35,7 +35,16 @@ utils::globalVariables(c("yi", "vi"))
 #'   categories, such as a cell-cycle phase, is an error and must be
 #'   given as 0/1 indicator columns for all its categories but one,
 #'   leaving out a category that every donor has cells of (for G1, S and
-#'   G2M, for example S and G2M when every donor has G1 cells).
+#'   G2M, for example S and G2M when every donor has G1 cells). The names
+#'   \code{gene}, \code{protein}, \code{lib_rna} and \code{lib_prot} are
+#'   used for the variables of the partial correlation and cannot be
+#'   confounder names. Nor can a confounder be a column that is not passed
+#'   on as one column under its own name: a matrix or nested table with
+#'   several columns or with a column name other than that of the
+#'   confounder, or a column with the name of an argument of
+#'   \code{\link[base]{data.frame}} (\code{row.names}, \code{check.rows},
+#'   \code{check.names}, \code{fix.empty.names} or
+#'   \code{stringsAsFactors}).
 #'   Default \code{NULL} (library sizes only).
 #' @param min_cells Integer; minimum cells per donor to include.
 #'   Default 30.
@@ -49,9 +58,13 @@ utils::globalVariables(c("yi", "vi"))
 #'   (e.g., \code{"age"}, \code{c("age", "sex")} or
 #'   \code{~ age + sex}). These must be columns in
 #'   \code{exposureData(x)} with syntactic R names (see
-#'   \code{\link[base]{make.names}}); a formula may only list such
-#'   columns, without transformations or interactions. The exposure itself
-#'   cannot be a moderator.
+#'   \code{\link[base]{make.names}}) other than \code{.}, \code{...} and
+#'   names such as \code{..1}, which R reads specially in a formula; a
+#'   formula may only list such columns, without transformations or
+#'   interactions. The exposure itself
+#'   cannot be a moderator, and the names \code{yi}, \code{vi},
+#'   \code{donor_exp}, \code{intrcpt} and \code{meta_formula}, which the
+#'   meta-regression uses for its own variables, cannot be moderator names.
 #'   Default \code{NULL} (exposure only).
 #' @param var_method Character. Method for estimating the
 #'   sampling variance of Fisher z-transformed correlations.
@@ -214,6 +227,11 @@ run_cell_coupling <- function(x,
         if (exposure %in% meta_moderators)
             stop("The exposure must not also be listed in ",
                 "'meta_moderators'.", call. = FALSE)
+        ## the meta-regression data hold yi, vi and donor_exp, metafor calls
+        ## the intercept intrcpt, and it looks meta_formula, the name its
+        ## 'mods' argument is given below, up in those data first
+        .check_reserved_names(meta_moderators, "moderator",
+            c("yi", "vi", "donor_exp", "intrcpt", "meta_formula"))
         mod_mat <- exp_data[, meta_moderators, drop = FALSE]
     }
 
@@ -243,6 +261,9 @@ run_cell_coupling <- function(x,
         if (length(missing_conf) > 0)
             stop("Confounders not in colData: ",
                  paste(missing_conf, collapse = ", "))
+        ## the columns of the partial correlation in .coupling_donor_stat()
+        .check_reserved_names(confounders, "confounder",
+            c("gene", "protein", "lib_rna", "lib_prot"), "colData(x)")
     }
 
     ## Cell type indices
@@ -261,7 +282,7 @@ run_cell_coupling <- function(x,
     conf_data <- NULL
     n_conf <- 2L  # library sizes are always included
     if (!is.null(confounders)) {
-        conf_data <- as.data.frame(cd[ct_idx, confounders, drop = FALSE])
+        conf_data <- .coupling_confounders(cd, ct_idx, confounders)
         n_conf <- n_conf + length(confounders)
         ## each confounder is ranked within a donor, so an unordered label
         ## with more than two values would be adjusted for in an arbitrary
@@ -433,6 +454,9 @@ run_cell_coupling <- function(x,
                 mean_r = mean(donor_r),
                 mean_n_cells = mean(donor_n),
                 n_confounders = n_conf,
+                ## row.names = NULL: the coefficient taken from fit$beta
+                ## would otherwise name the row "intrcpt"
+                row.names = NULL,
                 stringsAsFactors = FALSE)
         }
     }
@@ -466,6 +490,42 @@ run_cell_coupling <- function(x,
             call. = FALSE)
     }
     labels
+}
+
+# The confounder columns of the chosen cells as a data frame. The conversion
+# hands the columns of colData(x) to data.frame() by name, so a column
+# called like one of its arguments (stringsAsFactors, say) is taken for that
+# argument, and a matrix or a nested table arrives under the names of its
+# own columns. A confounder that does not arrive as one column under its own
+# name would be left out of the partial correlation or put in place of
+# another variable, so it is refused.
+.coupling_confounders <- function(cd, cells, confounders) {
+    selected <- cd[cells, confounders, drop = FALSE]
+    wanted <- colnames(selected)
+    converted <- function(k) {
+        tryCatch(as.data.frame(selected[, k, drop = FALSE]),
+            error = function(e) NULL)
+    }
+    arrives <- function(columns, names) {
+        identical(names(columns), names) &&
+            all(vapply(columns, NCOL, integer(1)) == 1L)
+    }
+    conf_data <- converted(seq_along(wanted))
+    if (!arrives(conf_data, wanted)) {
+        usable <- vapply(seq_along(wanted), function(k) {
+            arrives(converted(k), wanted[k])
+        }, logical(1))
+        unusable <- unique(wanted[!usable])
+        if (!length(unusable)) unusable <- unique(wanted)
+        stop("Confounder(s) that cannot be used: ",
+            paste0("'", unusable, "'", collapse = ", "), ". A confounder ",
+            "cannot be a matrix or nested table with several columns or ",
+            "with a column name other than that of the confounder, and ",
+            "cannot have the name of an argument of data.frame() ",
+            "(row.names, check.rows, check.names, fix.empty.names, ",
+            "stringsAsFactors).", call. = FALSE)
+    }
+    conf_data
 }
 
 # Spearman partial correlation of gene and protein given the other columns
@@ -505,7 +565,8 @@ run_cell_coupling <- function(x,
     if (n_d < min_for_pcor) return(NULL)
     if (sd(rna_d) < 1e-10 || sd(prot_d) < 1e-10) return(NULL)
 
-    ## Columns: gene, protein, lib_rna, lib_prot, [confounders]
+    ## Columns: gene, protein, lib_rna, lib_prot, [confounders];
+    ## run_cell_coupling() refuses confounders with the first four names
     dat <- data.frame(
         gene = rank(rna_d),
         protein = rank(prot_d),

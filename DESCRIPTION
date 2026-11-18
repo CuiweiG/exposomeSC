@@ -39,7 +39,7 @@ Imports:
     MASS,
     edgeR (>= 4.10.0),
     limma,
-    scrapper,
+    scrapper (>= 1.6.0),
     withr
 Suggests:
     DESeq2,
@@ -59,7 +59,7 @@ Suggests:
     ggplot2,
     metafor,
     ppcor,
-    testthat (>= 3.0.0),
+    testthat (>= 3.1.7),
     knitr,
     rmarkdown,
     BiocStyle

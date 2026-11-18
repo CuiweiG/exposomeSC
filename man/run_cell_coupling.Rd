@@ -52,7 +52,16 @@ a label with at most two values; an unordered label with more
 categories, such as a cell-cycle phase, is an error and must be
 given as 0/1 indicator columns for all its categories but one,
 leaving out a category that every donor has cells of (for G1, S and
-G2M, for example S and G2M when every donor has G1 cells).
+G2M, for example S and G2M when every donor has G1 cells). The names
+\code{gene}, \code{protein}, \code{lib_rna} and \code{lib_prot} are
+used for the variables of the partial correlation and cannot be
+confounder names. Nor can a confounder be a column that is not passed
+on as one column under its own name: a matrix or nested table with
+several columns or with a column name other than that of the
+confounder, or a column with the name of an argument of
+\code{\link[base]{data.frame}} (\code{row.names}, \code{check.rows},
+\code{check.names}, \code{fix.empty.names} or
+\code{stringsAsFactors}).
 Default \code{NULL} (library sizes only).}
 
 \item{min_cells}{Integer; minimum cells per donor to include.
@@ -69,9 +78,13 @@ additional donor-level moderators for the meta-regression
 (e.g., \code{"age"}, \code{c("age", "sex")} or
 \code{~ age + sex}). These must be columns in
 \code{exposureData(x)} with syntactic R names (see
-\code{\link[base]{make.names}}); a formula may only list such
-columns, without transformations or interactions. The exposure itself
-cannot be a moderator.
+\code{\link[base]{make.names}}) other than \code{.}, \code{...} and
+names such as \code{..1}, which R reads specially in a formula; a
+formula may only list such columns, without transformations or
+interactions. The exposure itself
+cannot be a moderator, and the names \code{yi}, \code{vi},
+\code{donor_exp}, \code{intrcpt} and \code{meta_formula}, which the
+meta-regression uses for its own variables, cannot be moderator names.
 Default \code{NULL} (exposure only).}
 
 \item{var_method}{Character. Method for estimating the

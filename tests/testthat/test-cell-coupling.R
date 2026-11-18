@@ -323,3 +323,173 @@ test_that("run_cell_coupling does not test an exposure that does not vary", {
         min_cells = 20L, min_donors = 10L, meta_moderators = "exposure"),
         "must not also be listed in 'meta_moderators'")
 })
+
+test_that("run_cell_coupling refuses names it uses for its own variables", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(1)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 60)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    ## cell scores named after the variables of the partial correlation
+    scores <- matrix(stats::runif(5 * length(donor)), ncol = 5,
+        dimnames = list(NULL, c("gene_score", "gene", "protein", "lib_rna",
+            "lib_prot")))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = gene),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T",
+            scores))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = protein))
+    ## donor variables named after those of the meta-regression
+    reserved <- c("yi", "vi", "donor_exp", "intrcpt", "meta_formula")
+    exp_mat <- cbind(exposure = seq(0, 2, length.out = 12),
+        matrix(stats::runif(6 * 12, 0.5, 3), ncol = 6,
+            dimnames = list(NULL, c("age", reserved))))
+    rownames(exp_mat) <- donors
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    couple <- function(...) {
+        suppressMessages(run_cell_coupling(scee, genes = "Gene1",
+            proteins = "Prot1", exposure = "exposure", celltype = "T",
+            min_cells = 20L, min_donors = 10L, ...))
+    }
+    for (name in reserved) {
+        expect_error(couple(meta_moderators = c("age", name)),
+            paste0("A moderator cannot be called '", name, "': the ",
+                "analysis uses the names yi, vi, donor_exp, intrcpt, ",
+                "meta_formula for variables of its own. Rename the ",
+                "variable in exposureData(x)."), fixed = TRUE)
+    }
+    expect_error(couple(meta_moderators = ~ age + vi),
+        "A moderator cannot be called 'vi'", fixed = TRUE)
+    for (name in c("gene", "protein", "lib_rna", "lib_prot")) {
+        expect_error(couple(confounders = c("gene_score", name)),
+            paste0("A confounder cannot be called '", name, "': the ",
+                "analysis uses the names gene, protein, lib_rna, lib_prot ",
+                "for variables of its own. Rename the variable in ",
+                "colData(x)."), fixed = TRUE)
+    }
+    ## other names, also those that contain a reserved one, are used as
+    ## before
+    expect_identical(nrow(couple(meta_moderators = "age",
+        confounders = "gene_score")), 1L)
+})
+
+test_that("run_cell_coupling refuses a confounder that loses its name", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(1)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 60)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    score <- stats::runif(length(donor))
+    other <- stats::runif(length(donor))
+    ## columns: the cell-level columns to put into colData(x), by name
+    couple <- function(columns, confounders) {
+        cd <- S4Vectors::DataFrame(donor_id = donor, cell_type = "T")
+        for (name in names(columns)) cd[[name]] <- columns[[name]]
+        sce <- SingleCellExperiment::SingleCellExperiment(
+            assays = list(counts = gene), colData = cd)
+        SingleCellExperiment::altExp(sce, "CITE") <-
+            SummarizedExperiment::SummarizedExperiment(
+                assays = list(counts = protein))
+        exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
+            dimnames = list(donors, "exposure"))
+        scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+        suppressMessages(run_cell_coupling(scee, genes = "Gene1",
+            proteins = "Prot1", exposure = "exposure", celltype = "T",
+            min_cells = 20L, min_donors = 10L, confounders = confounders))
+    }
+    unusable <- function(names) {
+        paste0("Confounder(s) that cannot be used: ",
+            paste0("'", names, "'", collapse = ", "), ". A confounder ",
+            "cannot be a matrix or nested table with several columns or ",
+            "with a column name other than that of the confounder, and ",
+            "cannot have the name of an argument of data.frame() ",
+            "(row.names, check.rows, check.names, fix.empty.names, ",
+            "stringsAsFactors).")
+    }
+    ## data.frame() takes a column with the name of one of its arguments for
+    ## that argument
+    for (name in c("row.names", "check.rows", "check.names",
+        "fix.empty.names", "stringsAsFactors")) {
+        columns <- stats::setNames(list(score), name)
+        expect_error(couple(columns, name), unusable(name), fixed = TRUE)
+        expect_error(
+            couple(c(list(other = other), columns), c("other", name)),
+            unusable(name), fixed = TRUE)
+    }
+    ## a matrix or a nested table arrives under the names of its own columns
+    named <- function(inner) {
+        matrix(score, ncol = 1, dimnames = list(NULL, inner))
+    }
+    expect_error(couple(list(score = named("gene")), "score"),
+        unusable("score"), fixed = TRUE)
+    expect_error(
+        couple(list(other = other, score = named("other")),
+            c("other", "score")),
+        unusable("score"), fixed = TRUE)
+    expect_error(couple(list(score = cbind(score, other)), "score"),
+        unusable("score"), fixed = TRUE)
+    expect_error(
+        couple(list(score = S4Vectors::DataFrame(gene = score)), "score"),
+        unusable("score"), fixed = TRUE)
+    expect_error(
+        couple(list(a = named("gene"), b = cbind(score, other)), c("a", "b")),
+        unusable(c("a", "b")), fixed = TRUE)
+    ## so does a matrix of several columns that I() keeps in one piece
+    expect_error(couple(list(score = I(cbind(score, other))), "score"),
+        unusable("score"), fixed = TRUE)
+    ## a one-column matrix without a column name, as scale() returns, and a
+    ## run-length encoded column are used as the vector is
+    reference <- couple(list(score = score), "score")
+    expect_identical(nrow(reference), 1L)
+    for (column in list(scale(score), S4Vectors::Rle(score))) {
+        expect_equal(couple(list(score = column), "score"), reference)
+    }
+    ## so is a column that arrives under the name of the confounder: a
+    ## one-column matrix or nested table with that column name
+    for (column in list(named("score"), S4Vectors::DataFrame(score = score),
+        I(score))) {
+        expect_equal(couple(list(score = column), "score"), reference)
+    }
+    ## the columns are taken by the argument as it is given
+    expect_identical(couple(list(score = score), factor("score")), reference)
+})
+
+test_that("run_cell_coupling returns its rows without names", {
+    skip_if_not_installed("metafor")
+    skip_if_not_installed("ppcor")
+    set.seed(7)
+    donors <- sprintf("D%02d", 1:12)
+    donor <- rep(donors, each = 40)
+    gene <- matrix(stats::rpois(2 * length(donor), 10), nrow = 2,
+        dimnames = list(c("Gene1", "Gene2"), paste0("c", seq_along(donor))))
+    protein <- matrix(stats::rpois(2 * length(donor), 5), nrow = 2,
+        dimnames = list(c("Prot1", "Prot2"), colnames(gene)))
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = gene),
+        colData = S4Vectors::DataFrame(donor_id = donor, cell_type = "T"))
+    SingleCellExperiment::altExp(sce, "CITE") <-
+        SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = protein))
+    exp_mat <- matrix(seq(0, 2, length.out = 12), ncol = 1,
+        dimnames = list(donors, "exposure"))
+    scee <- build_scee(sce, exp_mat, sample_col = "donor_id")
+    res <- suppressMessages(run_cell_coupling(scee,
+        genes = c("Gene1", "Gene2"), proteins = c("Prot1", "Prot2"),
+        exposure = "exposure", celltype = "T", min_cells = 20L,
+        min_donors = 10L))
+    expect_identical(res$gene, c("Gene1", "Gene1", "Gene2", "Gene2"))
+    expect_identical(res$protein, c("Prot1", "Prot2", "Prot1", "Prot2"))
+    ## the rows were named after a coefficient: intrcpt, intrcpt1, ...
+    expect_null(rownames(res))
+    expect_identical(rownames(as.data.frame(res)), as.character(1:4))
+})

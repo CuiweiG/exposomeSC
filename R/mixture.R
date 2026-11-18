@@ -23,7 +23,10 @@ NULL
 #'   \code{\link{sampleColumn}(x)}.
 #' @param exposures Character vector. Exposure variable names, distinct.
 #'   Each name must be a syntactic R name (see
-#'   \code{\link[base]{make.names}}) because it goes into the model formula.
+#'   \code{\link[base]{make.names}}) because it goes into the model formula,
+#'   and cannot be \code{y}, the name of the response. Nor can it be
+#'   \code{.}, \code{...} or a name such as \code{..1}, which R reads
+#'   specially in a formula.
 #' @param celltype Character. Which cell type to analyse.
 #' @param celltype_col Character. \code{colData} column with cell type
 #'   labels. Default \code{"cell_type"}.
@@ -32,7 +35,8 @@ NULL
 #' @param covariates Character vector (optional). Additional
 #'   covariates from \code{exposureData}; a name that is not a
 #'   column of \code{exposureData} is an error, and so is an exposure
-#'   listed here. Names must be syntactic, as for \code{exposures}.
+#'   listed here. Names must be syntactic and cannot be \code{y}, \code{.},
+#'   \code{...} or a name such as \code{..1}, as for \code{exposures}.
 #' @param q Integer. Number of quantile bins, at least 2. Default 4.
 #'   Tied exposure values (for example at a limit of detection) can
 #'   give fewer bins.
@@ -151,6 +155,9 @@ run_sc_mixture <- function(x, exposures, celltype,
     .check_mixture_exposures(exposures, covariates)
     .check_formula_names(exposures, "exposure")
     .check_formula_names(covariates, "covariate")
+    ## the response of each gene's model is called y
+    .check_reserved_names(exposures, "exposure", "y")
+    .check_reserved_names(covariates, "covariate", "y")
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")

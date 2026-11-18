@@ -192,6 +192,8 @@ run_dose_response <- function(x, exposure, celltype,
             nonlinear_model = nonlinear_model,
             celltype = celltype,
             n_donors = length(valid),
+            ## row.names = NULL: aics["linear"] would otherwise name the row
+            row.names = NULL,
             stringsAsFactors = FALSE)
     })
 

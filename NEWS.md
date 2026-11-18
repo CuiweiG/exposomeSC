@@ -134,6 +134,13 @@ with warnings.
   `statistic`, `pvalue` and `padj` of the other genes change; `padj_global`
   (and `padj_all` of `run_multi_exwas()`) can change in every cell type;
   `log2FC` and `logCPM` stay the same (see Bug fixes).
+* The results of `run_dose_response()` and `run_cell_coupling()` have no row
+  names. The rows of the first were named after the linear model, one of the
+  models whose AIC a row holds, and those of the second after the intercept
+  of the meta-regression, with digits added (`linear`, `linear1`, `linear2`
+  and `intrcpt`, `intrcpt1`, `intrcpt2`), which said nothing about the gene
+  or the pair of the row. The rows themselves are unchanged; code that took
+  rows by these names has to take them by the columns `gene` and `protein`.
 
 ## Interface
 
@@ -177,6 +184,12 @@ with warnings.
   `"statistic"` and `"stat"`, or `"log2FC"` and `"log2FoldChange"`.
 * `run_meta_exwas()` no longer returns `meta_z`, which duplicated
   `meta_statistic`.
+* The `padj` column of `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`
+  is renamed `padj_global`. It adjusts across all gene-by-cell-type strata,
+  as `padj_global` does in `run_sc_exwas()`, where `padj` adjusts within a
+  cell type. The rename changes neither the values nor the order of the
+  rows. Code that reads the column must use the new name: `result$padj` is
+  now `NULL`.
 * `run_exposure_network()` takes `lambda_w` and `lambda_b`, the penalties of
   the block graphical lasso (defaults 0.3 and 0.5, the values it used
   before), and records the penalties of its network in
@@ -310,6 +323,44 @@ with warnings.
   type's likelihood-ratio test without a p-value; and `logoff` turned the
   library-size offset into a free coefficient. The same rule for
   `run_sc_exwas()` is now stated in its argument documentation.
+* `run_cell_coupling()`, `run_sc_mixture()` and `run_mixture_qgcomp()`
+  refuse a variable whose name they use for a variable of their own, as the
+  mixed and offset models do: the moderators `yi`, `vi`, `donor_exp`,
+  `intrcpt` and `meta_formula` and the confounders `gene`, `protein`,
+  `lib_rna` and `lib_prot` of `run_cell_coupling()`; an exposure or
+  covariate called `y` in both mixture functions; one called `weights` or
+  `id__`, columns that qgcomp adds to the model data, in
+  `run_mixture_qgcomp()`; and, when that function does not bootstrap, an
+  exposure whose name contains `_q`. Nothing named the clash. A moderator
+  called `donor_exp` or `meta_formula` had its own slope reported as the
+  exposure effect, one called `yi` gave an exposure effect of 0 with a
+  p-value of 0, and one called `vi` supplied the sampling variances; a
+  confounder with one of the four names took the place of the gene, the
+  protein or a library size in the partial correlation. A covariate called
+  `y` replaced the response of `run_mixture_qgcomp()` and was dropped by
+  `run_sc_mixture()`, and an exposure called `y` stopped the first with a
+  qgcomp error about aliasing and got the weight 0 in the second, all with
+  only R's `model.matrix()` warnings; with `bootstrap = TRUE` the first
+  stopped for both with "subscript out of bounds". qgcomp set a variable
+  called `weights` to 1, which dropped such a covariate and stopped the fit
+  for such an exposure, and one called `id__` to the row numbers, which the
+  model then used in its place. Without bootstrapping it also removes every
+  `_q` from the names of the weights it returns, so the weight of an
+  exposure `sleep_quality` came back as `sleepuality` and that of `E1_q` as
+  a second `E1`. `intrcpt` is metafor's name for the intercept, which the
+  function now finds by name.
+* `run_cell_coupling()` refuses, and names, a confounder that would not
+  reach the partial correlation as one column under its own name: a column
+  of `colData(x)` that is a matrix or nested table with several columns or
+  with a column name other than that of the confounder, and a column with
+  the name of an argument of `data.frame()` (`row.names`, `check.rows`,
+  `check.names`, `fix.empty.names` or `stringsAsFactors`), which the
+  conversion of the columns takes for that argument. These stopped with
+  base R errors such as "replacement has 0 rows, data has 60" or "formal
+  argument "row.names" matched by multiple actual arguments"; of a matrix
+  with several columns that was protected with `I()` the first column was
+  used without a message. A one-column matrix without a column name, as
+  `scale()` returns, is used as before.
 * `run_celltype_network(precomputed_network = )` checks the labels and
   dimensions of the network it wraps: the adjacency must be square, the
   precision matrix must have the dimensions of the adjacency, the feature
@@ -362,6 +413,25 @@ with warnings.
   `"age"`, used to be computed from those columns; it is refused as well
   and must be renamed. The exposure of `run_sc_exwas()` is renamed
   internally and can still have any name.
+* The names `.`, `...` and `..1`, `..2` and so on are refused in the same
+  places. `make.names()` leaves them as they are, but R reads them
+  specially: in a formula `.` stands for every column of the model data
+  other than the response, and `...` and `..1` for arguments passed down
+  from a calling function. A covariate called `.` changed the estimates of
+  `run_sc_exwas_pb_offset()` and `run_sc_exwas_glmm()` and, with
+  `bootstrap = TRUE`, those of `run_mixture_qgcomp()`, whose fitted model
+  then also held the columns `weights` and `id__` that qgcomp adds; it left
+  the DESeq2 backend of `run_sc_exwas()` with no rows and a warning, and
+  such a moderator left `run_cell_coupling()` with no rows and no warning.
+  A variable called `...` or `..1` stopped the edgeR backend,
+  `run_sc_exwas_glmm()` and `run_mixture_qgcomp()` with errors such as
+  "'...' used in an incorrect context" and "No gene/cell-type stratum
+  yielded an estimable model"; it gave no rows from the DESeq2 and
+  voom-dream backends, with a warning, and from `run_sc_mixture()` and
+  `run_cell_coupling()`, without one, and only `NA` from
+  `run_sc_exwas_pb_offset()`. To the edgeR and voom-dream backends, to
+  `run_sc_mixture()` and to `run_mixture_qgcomp()` without bootstrapping
+  `.` was a name like any other; it is an error there as well.
 * `run_sc_exwas_glmm(family = "nbinom")` keeps the exposure slopes of cell
   types apart whose labels `make.names()` maps to one name, such as
   `"CD16+ Mono"` and `"CD16- Mono"`. Their slope columns shared that name,
@@ -514,6 +584,12 @@ with warnings.
   interval was a normal one, so it could exclude 0 while the p-value was
   above 0.05. Without covariates the p-value is unchanged, but the
   interval is wider in every call.
+* `run_mixture_qgcomp(bootstrap = TRUE)` stops when `qgcomp.boot()` returns
+  no p-value for the mixture effect. In that case it returned a two-sided
+  normal p-value computed from the estimate and its standard error as
+  `mixture_pvalue`, without a message, so that what the column held could
+  depend on the installed version of qgcomp. qgcomp 2.19.6 returns the
+  p-value, and results with it are unchanged.
 * `run_cell_coupling()` refuses a confounder that is an unordered label with
   more than two values, such as a cell-cycle phase. The partial correlation
   ranks each confounder, so such a label was adjusted for as an ordinal
@@ -575,7 +651,10 @@ with warnings.
 
 * Pseudobulk counts are summed with `scrapper::aggregateAcrossCells()`
   instead of package code; the counts are identical. scrapper is a new
-  import. (`scuttle::aggregateAcrossCells()` is deprecated in favour of the
+  import, from version 1.6.0, the first release whose
+  `aggregateAcrossCells()` has the `compute.sum`, `compute.detected` and
+  `compute.median` arguments that the package sets.
+  (`scuttle::aggregateAcrossCells()` is deprecated in favour of the
   scrapper function.)
 * The three `run_sc_exwas()` backends share their input checks and build
   their results with one internal constructor. Results are unchanged apart
@@ -594,14 +673,14 @@ with warnings.
   `?exposure_impute_lod` describes each method correctly and points to the
   LOD imputation in rexposome.
 * Requires R 4.6.0. BiocCheck and statmod are no longer suggested.
-* `?run_sc_exwas_glmm` and `?run_sc_exwas_pb_offset` state that their `padj`
-  adjusts across all gene-by-cell-type strata, the family of `padj_global`
-  in `run_sc_exwas()`, whose `padj` is within a cell type, and what they do
-  when a fit fails: the mixed model leaves out a stratum it cannot fit,
-  keeps a negative binomial stratum whose likelihood-ratio test fails with
-  an `NA` p-value, and stops when it can fit none, and the offset model
-  returns `NA` estimates for a gene it cannot fit.
-  `?run_sc_exwas_glmm` did not say which family its `padj` uses.
+* `?run_sc_exwas_glmm` and `?run_sc_exwas_pb_offset` state that their
+  adjusted p-value, now called `padj_global` (see Interface), adjusts across
+  all gene-by-cell-type strata, and what they do when a fit fails: the mixed
+  model leaves out a stratum it cannot fit, keeps a negative binomial
+  stratum whose likelihood-ratio test fails with an `NA` p-value, and stops
+  when it can fit none, and the offset model returns `NA` estimates for a
+  gene it cannot fit. `?run_sc_exwas_glmm` did not say which family its
+  adjusted p-value uses.
 * `?plot_celltype_network` says that edges are weighted by the absolute
   entries of the precision matrix; it said partial correlation strength,
   whose order can differ when the diagonal of the precision matrix varies.

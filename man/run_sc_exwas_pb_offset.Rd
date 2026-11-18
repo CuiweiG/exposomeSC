@@ -27,8 +27,9 @@ containing cell type annotations. Default \code{"cell_type"}.}
 \code{exposureData} (numeric), added as GLM main effects. The names
 \code{y}, \code{A} and \code{logoff} are used by the model and cannot
 be covariate names, and each name must be a syntactic R name (see
-\code{\link[base]{make.names}}). The exposure itself cannot be a
-covariate.}
+\code{\link[base]{make.names}}) other than \code{.}, \code{...} and
+names such as \code{..1}, which R reads specially in a formula. The
+exposure itself cannot be a covariate.}
 
 \item{target_genes}{Character; genes to test (default: all rows of
 \code{x}).}
@@ -43,12 +44,12 @@ Pass \code{NULL} to use a plain \code{lapply}.}
 A \code{DataFrame}, one row per gene x cell type:
   \code{gene}, \code{celltype}, \code{log2FC} (exposure effect on the
   \eqn{\log_2} rate scale), \code{se} (on the same scale), \code{statistic}
-  (donor-level Wald z from the NB GLM), \code{pvalue}, and BH-adjusted
-  \code{padj} across all tested gene-by-cell-type strata, the family of
-  \code{padj_global} in \code{\link{run_sc_exwas}}, whose \code{padj} is
-  within a cell type. Rows ordered by \code{padj}. A gene whose GLM
-  cannot be fitted gets \code{NA} estimates; the function stops when no
-  cell type has at least three donors with cells.
+  (donor-level Wald z from the NB GLM), \code{pvalue}, and
+  \code{padj_global} (BH across all tested gene-by-cell-type strata, as
+  in \code{\link{run_sc_exwas}}; there is no within-cell-type
+  \code{padj}). Rows ordered by \code{padj_global}, then \code{pvalue}.
+  A gene whose GLM cannot be fitted gets \code{NA} estimates; the
+  function stops when no cell type has at least three donors with cells.
 }
 \description{
 A donor-level negative-binomial alternative to \code{\link{run_sc_exwas}}.

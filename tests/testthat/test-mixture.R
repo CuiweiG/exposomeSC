@@ -176,3 +176,21 @@ test_that("run_sc_mixture gives no weight to an aliased exposure", {
     expect_true(is.na(metadata(flat)$mixture_coef))
     expect_true(all(is.na(flat$mixture_effect)))
 })
+
+test_that("run_sc_mixture refuses the name of its response", {
+    scee <- .make_scee()
+    exposures <- exposureData(scee)
+    exposureData(scee) <- cbind(exposures, y = exposures[, "E3"])
+    expect_error(run_sc_mixture(scee, exposures = c("E1", "E2", "y"),
+        celltype = "Mono", min_cells = 3L),
+        paste("An exposure cannot be called 'y': the analysis uses the name",
+            "y for a variable of its own. Rename the variable in",
+            "exposureData(x)."), fixed = TRUE)
+    expect_error(run_sc_mixture(scee, exposures = c("E1", "E2"),
+        covariates = "y", celltype = "Mono", min_cells = 3L),
+        "A covariate cannot be called 'y'", fixed = TRUE)
+    ## a column called y that is not analysed does not matter
+    mix <- run_sc_mixture(scee, exposures = c("E1", "E2"), covariates = "E3",
+        celltype = "Mono", min_cells = 3L)
+    expect_equal(sum(metadata(mix)$weights), 1)
+})

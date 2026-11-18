@@ -21,7 +21,14 @@ NULL
 #'   \code{\link{sampleColumn}(x)}.
 #' @param exposures Character vector. Exposure variable names, distinct.
 #'   Each name must be a syntactic R name (see
-#'   \code{\link[base]{make.names}}) because it goes into the model formula.
+#'   \code{\link[base]{make.names}}) because it goes into the model formula,
+#'   and cannot be \code{.}, \code{...} or a name such as \code{..1}, which
+#'   R reads specially there.
+#'   The names \code{y}, \code{weights} and \code{id__} cannot be used: the
+#'   response is called \code{y}, and \pkg{qgcomp} adds columns called
+#'   \code{weights} and \code{id__} to the model data. With
+#'   \code{bootstrap = FALSE} a name cannot contain \code{_q} either, which
+#'   \pkg{qgcomp} removes from the names of the weights it returns.
 #' @param celltype Character. Target cell type.
 #' @param celltype_col Character. \code{colData} column with cell type
 #'   labels. Default \code{"cell_type"}.
@@ -29,8 +36,9 @@ NULL
 #'   summarise. Default: top 20 most variable.
 #' @param covariates Character vector (optional). Columns of
 #'   \code{exposureData}; an unknown name is an error, and so is an
-#'   exposure listed here. Names must be syntactic, as for
-#'   \code{exposures}.
+#'   exposure listed here. Names must be syntactic and cannot be \code{y},
+#'   \code{weights}, \code{id__}, \code{.}, \code{...} or a name such as
+#'   \code{..1}, as for \code{exposures}.
 #' @param q Integer. Number of quantile bins. Default 4.
 #' @param bootstrap Logical. If \code{TRUE}, use
 #'   \code{qgcomp.boot()} for bootstrap confidence intervals.
@@ -79,7 +87,8 @@ NULL
 #' number of exposures for its p-value, which leaves the covariates out, and
 #' a normal interval; its own values are kept in
 #' \code{metadata(result)$fit}. With \code{bootstrap = TRUE} the p-value
-#' and the interval are those of \code{qgcomp.boot()}.
+#' and the interval are those of \code{qgcomp.boot()}; the call stops when
+#' \code{qgcomp.boot()} returns no p-value for \eqn{\psi}.
 #'
 #' \strong{Comparison with \code{run_sc_mixture}:}
 #' \tabular{lll}{
@@ -140,6 +149,19 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
         stop("Exposures not found: ",
              paste(missing_exp, collapse = ", "))
     .check_formula_names(exposures, "exposure")
+    ## y is the response, and qgcomp adds the columns weights and id__ to the
+    ## model data, overwriting a variable of either name
+    reserved <- c("y", "weights", "id__")
+    .check_reserved_names(exposures, "exposure", reserved)
+    ## qgcomp.noboot() removes every "_q" from the names of the weights it
+    ## returns, so such an exposure would come back under another name
+    renamed <- grep("_q", exposures, fixed = TRUE, value = TRUE)
+    if (length(renamed) && !bootstrap) {
+        stop("With bootstrap = FALSE an exposure name cannot contain '_q' (",
+            paste0("'", renamed, "'", collapse = ", "), "): qgcomp removes ",
+            "it from the names of the weights it returns. Rename the ",
+            "variable in exposureData(x).", call. = FALSE)
+    }
 
     cd <- SummarizedExperiment::colData(x)
     counts_mat <- SummarizedExperiment::assay(x, "counts")
@@ -159,6 +181,7 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
              paste(missing_cov, collapse = ", "))
     .check_mixture_exposures(exposures, covariates)
     .check_formula_names(covariates, "covariate")
+    .check_reserved_names(covariates, "covariate", reserved)
 
     valid <- pb_result$valid_donors
     valid <- valid[stats::complete.cases(
@@ -230,15 +253,17 @@ run_mixture_qgcomp <- function(x, exposures, celltype,
             mixture_ci <- c(NaN, NaN)
         }
     } else {
-        ## fit$pval follows fit$coef, whose first element is the intercept
+        ## fit$pval follows fit$coef, whose first element is the intercept.
+        ## No other p-value is put in its place when the installed qgcomp
+        ## does not return the result in this form
         psi_index <- match("psi1", names(fit$coef))
-        mixture_pval <- if (!is.na(psi_index) &&
-                            length(fit$pval) >= psi_index) {
-            fit$pval[psi_index]
-        } else {
-            2 * stats::pnorm(abs(mixture_effect / mixture_se),
-                lower.tail = FALSE)
+        if (is.na(psi_index) || length(fit$pval) < psi_index) {
+            stop("qgcomp.boot() of qgcomp ",
+                as.character(utils::packageVersion("qgcomp")),
+                " returned no p-value for the mixture effect (psi1).",
+                call. = FALSE)
         }
+        mixture_pval <- fit$pval[psi_index]
     }
 
     result <- S4Vectors::DataFrame(

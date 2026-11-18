@@ -24,7 +24,14 @@ cell's donor is read from the \code{colData} column named by
 
 \item{exposures}{Character vector. Exposure variable names, distinct.
 Each name must be a syntactic R name (see
-\code{\link[base]{make.names}}) because it goes into the model formula.}
+\code{\link[base]{make.names}}) because it goes into the model formula,
+and cannot be \code{.}, \code{...} or a name such as \code{..1}, which
+R reads specially there.
+The names \code{y}, \code{weights} and \code{id__} cannot be used: the
+response is called \code{y}, and \pkg{qgcomp} adds columns called
+\code{weights} and \code{id__} to the model data. With
+\code{bootstrap = FALSE} a name cannot contain \code{_q} either, which
+\pkg{qgcomp} removes from the names of the weights it returns.}
 
 \item{celltype}{Character. Target cell type.}
 
@@ -36,8 +43,9 @@ summarise. Default: top 20 most variable.}
 
 \item{covariates}{Character vector (optional). Columns of
 \code{exposureData}; an unknown name is an error, and so is an
-exposure listed here. Names must be syntactic, as for
-\code{exposures}.}
+exposure listed here. Names must be syntactic and cannot be \code{y},
+\code{weights}, \code{id__}, \code{.}, \code{...} or a name such as
+\code{..1}, as for \code{exposures}.}
 
 \item{q}{Integer. Number of quantile bins. Default 4.}
 
@@ -100,7 +108,8 @@ Without bootstrapping, \code{mixture_pvalue} is a two-sided t test of
 number of exposures for its p-value, which leaves the covariates out, and
 a normal interval; its own values are kept in
 \code{metadata(result)$fit}. With \code{bootstrap = TRUE} the p-value
-and the interval are those of \code{qgcomp.boot()}.
+and the interval are those of \code{qgcomp.boot()}; the call stops when
+\code{qgcomp.boot()} returns no p-value for \eqn{\psi}.
 
 \strong{Comparison with \code{run_sc_mixture}:}
 \tabular{lll}{
