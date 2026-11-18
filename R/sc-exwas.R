@@ -471,6 +471,16 @@ setMethod("run_sc_exwas",
 # Library sizes are computed from the complete pseudobulk transcriptome before
 # expression filtering. Filtering therefore changes only the tested hypothesis
 # universe, never the offset for a retained gene.
+#
+# Each cell type goes through five steps, one or two functions each:
+#   1. pseudobulk  .edger_pseudobulk()
+#   2. design      .edger_design()
+#   3. fit         .edger_filter(), .edger_fit()
+#   4. extraction  .edger_extract(), .edger_table()
+#   5. assembly    .edger_diagnostics(); once for the run, .edger_parameters()
+# A step that cannot be done for a cell type gives a warning and returns
+# NULL, and the cell type is left out. .edger_fit_celltype() runs the first
+# three steps.
 .run_sc_exwas_edger <- function(x, exposure, celltype_col, celltypes,
                                 covariates, min_cells,
                                 min_donors, min_group_donors,
@@ -497,136 +507,25 @@ setMethod("run_sc_exwas",
     design_formula <- stats::reformulate(c("exposure", covariates))
     tables <- stats::setNames(vector("list", length(celltypes)), celltypes)
     diagnostics <- list()
+    filter <- list(
+        genes = filter_genes, method = filter_method,
+        min_cpm = filter_min_cpm, min_donors = filter_min_donors,
+        min_count = filter_min_count,
+        min_total_count = filter_min_total_count
+    )
 
     for (celltype in celltypes) {
-        aggregated <- .pseudobulk_aggregate(
-            inputs$counts,
-            inputs$samples,
-            inputs$cell_types,
-            celltype,
-            min_cells = as.integer(min_cells)
+        fitted <- .edger_fit_celltype(
+            inputs, celltype, exposure, covariates, design_formula,
+            min_cells, min_donors, min_group_donors, filter, robust
         )
-        if (is.null(aggregated)) {
-            warning(
-                "Skipping ", celltype, ": no donors with >= ",
-                min_cells, " cells.",
-                call. = FALSE
-            )
+        if (is.null(fitted)) {
             next
         }
-
-        design_info <- .sc_exwas_design_data(
-            inputs$exp_data, aggregated$valid_donors, exposure, covariates
-        )
-        donors <- aggregated$valid_donors[design_info$complete]
-        design_data <- design_info$data
-        pseudobulk <- aggregated$pb_mat[, design_info$complete, drop = FALSE]
-        donor_cells <- aggregated$n_cells[design_info$complete]
-
-        if (length(donors) < min_donors) {
-            warning(
-                "Skipping ", celltype, ": only ", length(donors),
-                " complete donors with >= ", min_cells, " cells.",
-                call. = FALSE
-            )
-            next
-        }
-        group_counts <- design_info$group_counts
-        if (length(group_counts) && any(group_counts < min_group_donors)) {
-            warning(
-                "Skipping ", celltype,
-                ": binary exposure group has fewer than ",
-                min_group_donors, " complete donors.",
-                call. = FALSE
-            )
-            next
-        }
-
-        design_full <- stats::model.matrix(design_formula, data = design_data)
-        design <- .identifiable_design(design_full)
-        if (is.null(design)) {
-            warning(
-                "Skipping ", celltype,
-                ": the exposure is not identifiable.",
-                call. = FALSE
-            )
-            next
-        }
-        dropped_design <- setdiff(colnames(design_full), colnames(design))
-        if (nrow(design) <= ncol(design) + 2L) {
-            warning(
-                "Skipping ", celltype,
-                ": insufficient residual degrees of freedom.",
-                call. = FALSE
-            )
-            next
-        }
-
-        full_library_size <- colSums(pseudobulk)
-        dge <- edgeR::DGEList(
-            counts = pseudobulk,
-            lib.size = pmax(full_library_size, 1)
-        )
-        keep <- .edger_keep(
-            dge, pseudobulk, design, filter_genes, filter_method,
-            filter_min_cpm, filter_min_donors, filter_min_count,
-            filter_min_total_count
-        )
-        if (!any(keep)) {
-            warning(
-                "Skipping ", celltype, ": no gene passed expression filtering.",
-                call. = FALSE
-            )
-            next
-        }
-        dge <- dge[keep, , keep.lib.sizes = TRUE]
-        dge <- edgeR::normLibSizes(dge, method = "TMM")
-
-        fit_result <- tryCatch({
-            ## edgeR v4 quasi-likelihood: the NB dispersion is set inside
-            ## glmQLFit(), so no estimateDisp() step is needed.
-            fit <- edgeR::glmQLFit(
-                dge,
-                design,
-                robust = robust,
-                legacy = FALSE
-            )
-            test <- edgeR::glmQLFTest(fit, coef = "exposure")
-            list(
-                fit = fit,
-                table = edgeR::topTags(
-                    test,
-                    n = Inf,
-                    sort.by = "none"
-                )$table
-            )
-        }, error = function(e) {
-            warning(
-                "edgeR failed for ", celltype, ": ",
-                conditionMessage(e),
-                call. = FALSE
-            )
-            NULL
-        })
-        if (is.null(fit_result)) {
-            next
-        }
-        ## a dropped covariate matters only for a cell type that is fitted
-        if (length(dropped_design)) {
-            warning(
-                celltype, ": covariate column(s) ",
-                paste(dropped_design, collapse = ", "),
-                " dropped from the design as collinear with the other ",
-                "terms; the test is not adjusted for them.",
-                call. = FALSE
-            )
-        }
-
-        fitted_result <- fit_result$table
         if (!is.null(test_features)) {
             filtered_requested <- setdiff(
                 test_features,
-                rownames(fitted_result)
+                rownames(fitted$table)
             )
             if (length(filtered_requested)) {
                 stop(
@@ -638,79 +537,291 @@ setMethod("run_sc_exwas",
                 )
             }
         }
-        tested <- if (is.null(test_features)) {
-            rep(TRUE, nrow(fitted_result))
-        } else {
-            rownames(fitted_result) %in% test_features
-        }
-        result <- fitted_result[tested, , drop = FALSE]
-        ## glmQLFTest reports a quasi-likelihood F statistic, not a Wald
-        ## statistic, and does not provide a coefficient standard error.
-        ## Retain a signed square root only as a directional ranking statistic;
-        ## it must never be inverted to manufacture an SE or confidence
-        ## interval.
-        tables[[celltype]] <- .sc_exwas_result_frame(
-            gene = rownames(result),
-            celltype = celltype,
-            log2FC = result$logFC,
-            se = rep(NA_real_, nrow(result)),
-            statistic = sign(result$logFC) * sqrt(pmax(result$F, 0)),
-            pvalue = result$PValue,
-            logCPM = result$logCPM,
-            exposure = exposure,
-            n_donors = length(donors),
-            n_unexposed = design_info$n_unexposed,
-            n_exposed = design_info$n_exposed,
-            min_cells = min(donor_cells),
-            median_cells = stats::median(donor_cells),
-            method = if (isTRUE(robust)) "edgeR_robust_QL" else "edgeR_QL"
+        result <- .edger_extract(fitted$table, test_features)
+        tables[[celltype]] <- .edger_table(
+            result, fitted, celltype, exposure, robust
         )
-        diagnostics[[celltype]] <- list(
-            n_donors = length(donors),
-            donor_ids = donors,
-            n_genes_input = nrow(pseudobulk),
-            n_genes_fit = nrow(fitted_result),
-            n_genes_tested = nrow(result),
-            test_feature_ids = rownames(result),
-            n_test_features_requested = if (is.null(test_features)) {
-                nrow(fitted_result)
-            } else {
-                length(test_features)
-            },
-            filter_method = if (isTRUE(filter_genes)) {
-                filter_method
-            } else {
-                "nonzero"
-            },
-            filter_min_cpm = filter_min_cpm,
-            filter_min_donors = as.integer(filter_min_donors),
-            filter_min_count = filter_min_count,
-            filter_min_total_count = filter_min_total_count,
-            full_library_size = full_library_size,
-            normalisation_factors = dge$samples$norm.factors,
-            design_columns = colnames(design),
-            dropped_design_columns = dropped_design,
-            design_rank = qr(design)$rank,
-            residual_df = min(
-                if (!is.null(fit_result$fit$df.residual.adj)) {
-                    fit_result$fit$df.residual.adj
-                } else if (!is.null(fit_result$fit$df.residual.zeros)) {
-                    fit_result$fit$df.residual.zeros
-                } else {
-                    fit_result$fit$df.residual
-                },
-                na.rm = TRUE
-            ),
-            min_cells = min(donor_cells),
-            median_cells = stats::median(donor_cells)
+        diagnostics[[celltype]] <- .edger_diagnostics(
+            fitted, result, test_features, filter
         )
     }
 
-    parameters <- c(
+    parameters <- .edger_parameters(
+        exposure, covariates, min_cells, min_donors, min_group_donors,
+        filter, test_features, robust
+    )
+    .sc_exwas_finalise(tables, diagnostics, parameters)
+}
+
+# Steps 1 to 3 for one cell type. Returns the results of the three steps in
+# one list, or NULL when a step has left the cell type out.
+.edger_fit_celltype <- function(inputs, celltype, exposure, covariates,
+    design_formula, min_cells, min_donors, min_group_donors, filter,
+    robust) {
+    stratum <- .edger_pseudobulk(
+        inputs, celltype, exposure, covariates, min_cells, min_donors
+    )
+    if (is.null(stratum)) {
+        return(NULL)
+    }
+    design <- .edger_design(
+        design_formula, stratum$design_info, celltype, min_group_donors
+    )
+    if (is.null(design)) {
+        return(NULL)
+    }
+    fit <- .edger_fit(stratum$pseudobulk, design, filter, robust, celltype)
+    if (is.null(fit)) {
+        return(NULL)
+    }
+    c(stratum, design, fit)
+}
+
+# Step 1, pseudobulk: the counts of a cell type summed by donor, for the
+# donors with enough cells and complete exposure and covariate values.
+.edger_pseudobulk <- function(inputs, celltype, exposure, covariates,
+    min_cells, min_donors) {
+    aggregated <- .pseudobulk_aggregate(
+        inputs$counts,
+        inputs$samples,
+        inputs$cell_types,
+        celltype,
+        min_cells = as.integer(min_cells)
+    )
+    if (is.null(aggregated)) {
+        warning(
+            "Skipping ", celltype, ": no donors with >= ",
+            min_cells, " cells.",
+            call. = FALSE
+        )
+        return(NULL)
+    }
+
+    design_info <- .sc_exwas_design_data(
+        inputs$exp_data, aggregated$valid_donors, exposure, covariates
+    )
+    donors <- aggregated$valid_donors[design_info$complete]
+    pseudobulk <- aggregated$pb_mat[, design_info$complete, drop = FALSE]
+    donor_cells <- aggregated$n_cells[design_info$complete]
+
+    if (length(donors) < min_donors) {
+        warning(
+            "Skipping ", celltype, ": only ", length(donors),
+            " complete donors with >= ", min_cells, " cells.",
+            call. = FALSE
+        )
+        return(NULL)
+    }
+    list(
+        donors = donors, design_info = design_info,
+        pseudobulk = pseudobulk, donor_cells = donor_cells
+    )
+}
+
+# Step 2, design: the model matrix of the complete donors, without covariate
+# columns that are collinear with the other terms.
+.edger_design <- function(design_formula, design_info, celltype,
+    min_group_donors) {
+    group_counts <- design_info$group_counts
+    if (length(group_counts) && any(group_counts < min_group_donors)) {
+        warning(
+            "Skipping ", celltype,
+            ": binary exposure group has fewer than ",
+            min_group_donors, " complete donors.",
+            call. = FALSE
+        )
+        return(NULL)
+    }
+
+    design_full <- stats::model.matrix(
+        design_formula,
+        data = design_info$data
+    )
+    design <- .identifiable_design(design_full)
+    if (is.null(design)) {
+        warning(
+            "Skipping ", celltype,
+            ": the exposure is not identifiable.",
+            call. = FALSE
+        )
+        return(NULL)
+    }
+    dropped_design <- setdiff(colnames(design_full), colnames(design))
+    if (nrow(design) <= ncol(design) + 2L) {
+        warning(
+            "Skipping ", celltype,
+            ": insufficient residual degrees of freedom.",
+            call. = FALSE
+        )
+        return(NULL)
+    }
+    list(design = design, dropped_design = dropped_design)
+}
+
+# Step 3, fit, first part: library sizes from the complete transcriptome,
+# then the expression filter and TMM normalisation.
+.edger_filter <- function(pseudobulk, design, filter, celltype) {
+    full_library_size <- colSums(pseudobulk)
+    dge <- edgeR::DGEList(
+        counts = pseudobulk,
+        lib.size = pmax(full_library_size, 1)
+    )
+    keep <- .edger_keep(
+        dge, pseudobulk, design, filter$genes, filter$method,
+        filter$min_cpm, filter$min_donors, filter$min_count,
+        filter$min_total_count
+    )
+    if (!any(keep)) {
+        warning(
+            "Skipping ", celltype, ": no gene passed expression filtering.",
+            call. = FALSE
+        )
+        return(NULL)
+    }
+    dge <- dge[keep, , keep.lib.sizes = TRUE]
+    dge <- edgeR::normLibSizes(dge, method = "TMM")
+    list(dge = dge, full_library_size = full_library_size)
+}
+
+# Step 3, fit, second part: the quasi-likelihood fit and the test of the
+# exposure coefficient. `design` is the value of .edger_design().
+.edger_fit <- function(pseudobulk, design, filter, robust, celltype) {
+    filtered <- .edger_filter(pseudobulk, design$design, filter, celltype)
+    if (is.null(filtered)) {
+        return(NULL)
+    }
+    fit_result <- tryCatch({
+        ## edgeR v4 quasi-likelihood: the NB dispersion is set inside
+        ## glmQLFit(), so no estimateDisp() step is needed.
+        fit <- edgeR::glmQLFit(
+            filtered$dge,
+            design$design,
+            robust = robust,
+            legacy = FALSE
+        )
+        test <- edgeR::glmQLFTest(fit, coef = "exposure")
+        list(
+            fit = fit,
+            table = edgeR::topTags(
+                test,
+                n = Inf,
+                sort.by = "none"
+            )$table
+        )
+    }, error = function(e) {
+        warning(
+            "edgeR failed for ", celltype, ": ",
+            conditionMessage(e),
+            call. = FALSE
+        )
+        NULL
+    })
+    if (is.null(fit_result)) {
+        return(NULL)
+    }
+    ## a dropped covariate matters only for a cell type that is fitted
+    if (length(design$dropped_design)) {
+        warning(
+            celltype, ": covariate column(s) ",
+            paste(design$dropped_design, collapse = ", "),
+            " dropped from the design as collinear with the other ",
+            "terms; the test is not adjusted for them.",
+            call. = FALSE
+        )
+    }
+    c(fit_result, list(
+        full_library_size = filtered$full_library_size,
+        normalisation_factors = filtered$dge$samples$norm.factors
+    ))
+}
+
+# Step 4, extraction: the rows of the fitted genes that are tested.
+.edger_extract <- function(fitted_result, test_features) {
+    tested <- if (is.null(test_features)) {
+        rep(TRUE, nrow(fitted_result))
+    } else {
+        rownames(fitted_result) %in% test_features
+    }
+    fitted_result[tested, , drop = FALSE]
+}
+
+# Step 4, extraction: the result table of a cell type.
+# glmQLFTest reports a quasi-likelihood F statistic, not a Wald statistic, and
+# does not provide a coefficient standard error. Retain a signed square root
+# only as a directional ranking statistic; it must never be inverted to
+# manufacture an SE or confidence interval.
+.edger_table <- function(result, fitted, celltype, exposure, robust) {
+    .sc_exwas_result_frame(
+        gene = rownames(result),
+        celltype = celltype,
+        log2FC = result$logFC,
+        se = rep(NA_real_, nrow(result)),
+        statistic = sign(result$logFC) * sqrt(pmax(result$F, 0)),
+        pvalue = result$PValue,
+        logCPM = result$logCPM,
+        exposure = exposure,
+        n_donors = length(fitted$donors),
+        n_unexposed = fitted$design_info$n_unexposed,
+        n_exposed = fitted$design_info$n_exposed,
+        min_cells = min(fitted$donor_cells),
+        median_cells = stats::median(fitted$donor_cells),
+        method = if (isTRUE(robust)) "edgeR_robust_QL" else "edgeR_QL"
+    )
+}
+
+# Step 5, assembly: the diagnostics of a fitted cell type, as they are kept
+# in metadata(result)$diagnostics.
+.edger_diagnostics <- function(fitted, result, test_features, filter) {
+    list(
+        n_donors = length(fitted$donors),
+        donor_ids = fitted$donors,
+        n_genes_input = nrow(fitted$pseudobulk),
+        n_genes_fit = nrow(fitted$table),
+        n_genes_tested = nrow(result),
+        test_feature_ids = rownames(result),
+        n_test_features_requested = if (is.null(test_features)) {
+            nrow(fitted$table)
+        } else {
+            length(test_features)
+        },
+        filter_method = if (isTRUE(filter$genes)) {
+            filter$method
+        } else {
+            "nonzero"
+        },
+        filter_min_cpm = filter$min_cpm,
+        filter_min_donors = as.integer(filter$min_donors),
+        filter_min_count = filter$min_count,
+        filter_min_total_count = filter$min_total_count,
+        full_library_size = fitted$full_library_size,
+        normalisation_factors = fitted$normalisation_factors,
+        design_columns = colnames(fitted$design),
+        dropped_design_columns = fitted$dropped_design,
+        design_rank = qr(fitted$design)$rank,
+        residual_df = min(
+            if (!is.null(fitted$fit$df.residual.adj)) {
+                fitted$fit$df.residual.adj
+            } else if (!is.null(fitted$fit$df.residual.zeros)) {
+                fitted$fit$df.residual.zeros
+            } else {
+                fitted$fit$df.residual
+            },
+            na.rm = TRUE
+        ),
+        min_cells = min(fitted$donor_cells),
+        median_cells = stats::median(fitted$donor_cells)
+    )
+}
+
+# Step 5, assembly: the settings of the run, as they are kept in
+# metadata(result)$parameters.
+.edger_parameters <- function(exposure, covariates, min_cells, min_donors,
+    min_group_donors, filter, test_features, robust) {
+    c(
         .sc_exwas_common_parameters(
             method = "edgeR", exposure = exposure, covariates = covariates,
             min_cells = min_cells, min_donors = min_donors,
-            filter_genes = filter_genes,
+            filter_genes = filter$genes,
             se_method = "not_available_edgeR_QL",
             statistic_type = "signed_sqrt_qlf",
             backend_version = c(
@@ -719,11 +830,11 @@ setMethod("run_sc_exwas",
         ),
         list(
             min_group_donors = as.integer(min_group_donors),
-            filter_method = filter_method,
-            filter_min_cpm = filter_min_cpm,
-            filter_min_donors = as.integer(filter_min_donors),
-            filter_min_count = filter_min_count,
-            filter_min_total_count = filter_min_total_count,
+            filter_method = filter$method,
+            filter_min_cpm = filter$min_cpm,
+            filter_min_donors = as.integer(filter$min_donors),
+            filter_min_count = filter$min_count,
+            filter_min_total_count = filter$min_total_count,
             test_features = test_features,
             n_test_features_requested = if (is.null(test_features)) {
                 NULL
@@ -735,7 +846,6 @@ setMethod("run_sc_exwas",
             ql_legacy = FALSE
         )
     )
-    .sc_exwas_finalise(tables, diagnostics, parameters)
 }
 
 # Argument checks shared by every backend. The counts must be whole numbers,

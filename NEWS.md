@@ -659,6 +659,10 @@ with warnings.
 * The three `run_sc_exwas()` backends share their input checks and build
   their results with one internal constructor. Results are unchanged apart
   from the interface changes above.
+* The edgeR backend of `run_sc_exwas()`, one internal function of 420 lines
+  in 0.99.1, is divided along its steps: pseudobulk, design, fit, extraction
+  and assembly have functions of their own, and a driver runs them. The
+  division itself changes no result and no warning or error message.
 
 ## Documentation
 

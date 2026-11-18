@@ -462,3 +462,229 @@ test_that("the residual df diagnostic uses edgeR's adjusted residual df", {
     expect_gt(diag$residual_df, 0)
     expect_lt(diag$residual_df, nominal - 0.5)
 })
+
+## ---- the steps of the edgeR backend ------------------------------------
+
+.edger_step_fixture <- function() {
+    scee <- .make_edger_scee()
+    list(
+        scee = scee,
+        inputs = exposomeSC:::.sc_exwas_inputs(scee, "exposure", NULL,
+            "cell_type", NULL),
+        formula = stats::reformulate("exposure"),
+        filter = list(genes = TRUE, method = "fixed_support", min_cpm = 1,
+            min_donors = 5L, min_count = 10L, min_total_count = 15L)
+    )
+}
+
+.edger_step_fit <- function(fx, min_cells = 10L) {
+    exposomeSC:::.edger_fit_celltype(fx$inputs, "Mono", "exposure", NULL,
+        fx$formula, min_cells, 5L, 5L, fx$filter, TRUE)
+}
+
+test_that("the pseudobulk step returns the complete donors or warns", {
+    fx <- .edger_step_fixture()
+    step <- exposomeSC:::.edger_pseudobulk
+    stratum <- step(fx$inputs, "Mono", "exposure", NULL, 10L, 5L)
+    expect_named(stratum,
+        c("donors", "design_info", "pseudobulk", "donor_cells"))
+    expect_setequal(stratum$donors, paste0("D", seq_len(20)))
+    expect_identical(colnames(stratum$pseudobulk), stratum$donors)
+    expect_identical(dim(stratum$pseudobulk), c(80L, 20L))
+    expect_true(all(stratum$donor_cells == 20L))
+    expect_warning(
+        expect_null(step(fx$inputs, "Mono", "exposure", NULL, 50L, 5L)),
+        "Skipping Mono: no donors with >= 50 cells.", fixed = TRUE)
+    expect_warning(
+        expect_null(step(fx$inputs, "Mono", "exposure", NULL, 10L, 21L)),
+        "Skipping Mono: only 20 complete donors with >= 10 cells.",
+        fixed = TRUE)
+    ## a donor without an exposure value is left out
+    inputs <- fx$inputs
+    inputs$exp_data["D3", "exposure"] <- NA
+    fewer <- step(inputs, "Mono", "exposure", NULL, 10L, 5L)
+    expect_identical(fewer$donors, setdiff(stratum$donors, "D3"))
+    expect_identical(colnames(fewer$pseudobulk), fewer$donors)
+    expect_identical(rownames(fewer$design_info$data), fewer$donors)
+    expect_length(fewer$donor_cells, 19L)
+    expect_warning(
+        expect_null(step(inputs, "Mono", "exposure", NULL, 10L, 20L)),
+        "Skipping Mono: only 19 complete donors with >= 10 cells.",
+        fixed = TRUE)
+})
+
+test_that("the design step drops collinear covariates or warns", {
+    fx <- .edger_step_fixture()
+    step <- exposomeSC:::.edger_design
+    design_data <- exposomeSC:::.sc_exwas_design_data
+    donors <- paste0("D", seq_len(20))
+    exp_data <- cbind(fx$inputs$exp_data,
+        exposure_copy = fx$inputs$exp_data[, "exposure"])
+    info <- design_data(exp_data, donors, "exposure", NULL)
+    design <- step(fx$formula, info, "Mono", 5L)
+    expect_identical(colnames(design$design), c("(Intercept)", "exposure"))
+    expect_identical(design$dropped_design, character())
+    ## a covariate that copies the exposure is left out and named
+    covariates <- c("age_scaled", "exposure_copy")
+    adjusted <- step(stats::reformulate(c("exposure", covariates)),
+        design_data(exp_data, donors, "exposure", covariates), "Mono", 5L)
+    expect_identical(colnames(adjusted$design),
+        c("(Intercept)", "exposure", "age_scaled"))
+    expect_identical(adjusted$dropped_design, "exposure_copy")
+    expect_warning(expect_null(step(fx$formula, info, "Mono", 11L)),
+        paste("Skipping Mono: binary exposure group has fewer than 11",
+            "complete donors."), fixed = TRUE)
+    unexposed <- design_data(exp_data, donors[1:10], "exposure", NULL)
+    expect_warning(expect_null(step(fx$formula, unexposed, "NK", 5L)),
+        "Skipping NK: the exposure is not identifiable.", fixed = TRUE)
+    four <- design_data(exp_data, donors[9:12], "exposure", NULL)
+    expect_warning(expect_null(step(fx$formula, four, "NK", 2L)),
+        "Skipping NK: insufficient residual degrees of freedom.",
+        fixed = TRUE)
+})
+
+test_that("the fit step filters, normalises and fits, or warns", {
+    fx <- .edger_step_fixture()
+    stratum <- exposomeSC:::.edger_pseudobulk(fx$inputs, "Mono", "exposure",
+        NULL, 10L, 5L)
+    design <- exposomeSC:::.edger_design(fx$formula, stratum$design_info,
+        "Mono", 5L)
+    filter_step <- exposomeSC:::.edger_filter
+    filtered <- filter_step(stratum$pseudobulk, design$design, fx$filter,
+        "Mono")
+    ## library sizes come from the complete transcriptome, before the filter
+    expect_identical(filtered$full_library_size,
+        colSums(stratum$pseudobulk))
+    expect_identical(unname(filtered$dge$samples$lib.size),
+        unname(colSums(stratum$pseudobulk)))
+    expect_identical(setdiff(rownames(stratum$pseudobulk),
+        rownames(filtered$dge)), "G80")
+    strict <- fx$filter
+    strict$min_total_count <- 1e9
+    expect_warning(
+        expect_null(filter_step(stratum$pseudobulk, design$design, strict,
+            "Mono")),
+        "Skipping Mono: no gene passed expression filtering.", fixed = TRUE)
+
+    fit_step <- exposomeSC:::.edger_fit
+    fit <- fit_step(stratum$pseudobulk, design, fx$filter, TRUE, "Mono")
+    expect_named(fit,
+        c("fit", "table", "full_library_size", "normalisation_factors"))
+    expect_identical(rownames(fit$table), rownames(filtered$dge))
+    expect_identical(fit$normalisation_factors,
+        filtered$dge$samples$norm.factors)
+    ## the factors are TMM factors of the kept genes on the library sizes of
+    ## the complete transcriptome
+    kept <- stratum$pseudobulk[rownames(fit$table), , drop = FALSE]
+    expect_equal(fit$normalisation_factors,
+        unname(edgeR::normLibSizes(kept,
+            lib.size = colSums(stratum$pseudobulk), method = "TMM")))
+    ## an error inside edgeR becomes a warning: no column of this design is
+    ## called "exposure", so the test of that coefficient stops
+    renamed <- design
+    colnames(renamed$design)[2] <- "other"
+    expect_warning(
+        expect_null(fit_step(stratum$pseudobulk, renamed, fx$filter, TRUE,
+            "Mono")),
+        "edgeR failed for Mono: ", fixed = TRUE)
+    ## a dropped covariate is reported once the cell type has been fitted
+    warnings <- character()
+    collect <- function(w) {
+        warnings <<- c(warnings, conditionMessage(w))
+        invokeRestart("muffleWarning")
+    }
+    dropped <- design
+    dropped$dropped_design <- "exposure_copy"
+    refit <- withCallingHandlers(
+        fit_step(stratum$pseudobulk, dropped, fx$filter, TRUE, "Mono"),
+        warning = collect)
+    expect_identical(warnings, paste("Mono: covariate column(s)",
+        "exposure_copy dropped from the design as collinear with the other",
+        "terms; the test is not adjusted for them."))
+    expect_identical(refit$table, fit$table)
+    ## and not when no gene passes the filter or the fit fails
+    renamed$dropped_design <- "exposure_copy"
+    warnings <- character()
+    withCallingHandlers({
+        fit_step(stratum$pseudobulk, dropped, strict, TRUE, "Mono")
+        fit_step(stratum$pseudobulk, renamed, fx$filter, TRUE, "Mono")
+    }, warning = collect)
+    expect_length(warnings, 2L)
+    expect_identical(warnings[1],
+        "Skipping Mono: no gene passed expression filtering.")
+    expect_true(startsWith(warnings[2], "edgeR failed for Mono: "))
+})
+
+test_that("the extraction step keeps the tested genes in fit order", {
+    fx <- .edger_step_fixture()
+    fitted <- .edger_step_fit(fx)
+    extract <- exposomeSC:::.edger_extract
+    expect_identical(extract(fitted$table, NULL), fitted$table)
+    ## G1 goes up with the exposure; the second gene goes down, so that the
+    ## sign of the statistic is tested
+    down <- rownames(fitted$table)[fitted$table$logFC < 0][1]
+    some <- extract(fitted$table, c(down, "G1"))
+    expect_identical(rownames(some), c("G1", down))
+    as_table <- exposomeSC:::.edger_table
+    table <- as_table(some, fitted, "Mono", "exposure", TRUE)
+    expect_identical(table$gene, c("G1", down))
+    expect_identical(table$log2FC, some$logFC)
+    expect_identical(sign(table$log2FC), c(1, -1))
+    expect_identical(table$statistic, sign(some$logFC) * sqrt(some$F))
+    expect_identical(table$pvalue, some$PValue)
+    expect_identical(table$logCPM, some$logCPM)
+    expect_true(all(is.na(table$se)))
+    expect_identical(unique(table$n_donors), 20L)
+    expect_identical(unique(table$method), "edgeR_robust_QL")
+    plain <- as_table(some, fitted, "Mono", "exposure", FALSE)
+    expect_identical(unique(plain$method), "edgeR_QL")
+    ## group sizes and cells per donor that can be told apart
+    uneven <- fitted
+    uneven$design_info$n_unexposed <- 9L
+    uneven$design_info$n_exposed <- 11L
+    uneven$donor_cells <- c(12L, 30L, rep(20L, 18))
+    odd <- as_table(some, uneven, "Mono", "exposure", TRUE)
+    expect_identical(unique(odd$n_unexposed), 9L)
+    expect_identical(unique(odd$n_exposed), 11L)
+    expect_identical(unique(odd$min_cells), 12L)
+    expect_identical(unique(odd$median_cells), 20)
+})
+
+test_that("the steps give what run_sc_exwas() returns", {
+    fx <- .edger_step_fixture()
+    result <- run_sc_exwas(fx$scee, exposure = "exposure",
+        celltype_col = "cell_type", celltypes = "Mono")
+    fitted <- .edger_step_fit(fx)
+    rows <- exposomeSC:::.edger_extract(fitted$table, NULL)
+    expect_identical(S4Vectors::metadata(result)$diagnostics$Mono,
+        exposomeSC:::.edger_diagnostics(fitted, rows, NULL, fx$filter))
+    parameters <- exposomeSC:::.edger_parameters("exposure", NULL, 10L, 5L,
+        5L, fx$filter, NULL, TRUE)
+    expect_identical(S4Vectors::metadata(result)$parameters, parameters)
+    ## settings that are NULL keep their place among the parameters
+    expect_true(all(c("covariates", "test_features",
+        "n_test_features_requested") %in% names(parameters)))
+    table <- exposomeSC:::.edger_table(rows, fitted, "Mono", "exposure",
+        TRUE)
+    by_gene <- as.data.frame(result)
+    by_gene <- by_gene[match(table$gene, by_gene$gene), ]
+    expect_identical(by_gene$pvalue, table$pvalue)
+    expect_identical(by_gene$log2FC, table$log2FC)
+    ## settings other than the defaults reach the steps in their places
+    features <- c("G3", "G1")
+    focused <- run_sc_exwas(fx$scee, exposure = "exposure",
+        celltype_col = "cell_type", celltypes = "Mono", min_cells = 12L,
+        min_donors = 15L, min_group_donors = 6L, test_features = features,
+        robust = FALSE)
+    refit <- exposomeSC:::.edger_fit_celltype(fx$inputs, "Mono", "exposure",
+        NULL, fx$formula, 12L, 15L, 6L, fx$filter, FALSE)
+    some <- exposomeSC:::.edger_extract(refit$table, features)
+    expect_identical(S4Vectors::metadata(focused)$diagnostics$Mono,
+        exposomeSC:::.edger_diagnostics(refit, some, features, fx$filter))
+    expect_identical(S4Vectors::metadata(focused)$parameters,
+        exposomeSC:::.edger_parameters("exposure", NULL, 12L, 15L, 6L,
+            fx$filter, features, FALSE))
+    ## a cell type that one of the steps leaves out gives NULL
+    expect_warning(expect_null(.edger_step_fit(fx, min_cells = 50L)),
+        "Skipping Mono: no donors with >= 50 cells.", fixed = TRUE)
+})
