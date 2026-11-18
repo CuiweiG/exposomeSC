@@ -40,9 +40,8 @@ and 1 with the dimensions of \code{adjacency}; \code{NULL} (default)
 stores none.}
 
 \item{metadata}{List of further information, for example
-\code{n_donors}, a single non-negative whole number (\code{NULL} or
-\code{NA} when unknown), which \code{run_comparative_network()} checks
-and uses for its Fisher-Z mode.}
+\code{n_donors}, the number of donors as a whole number, which the
+\code{show} method and \code{\link{plot_celltype_network}} print.}
 }
 \value{
 A valid \code{CelltypeNetworkResult}.

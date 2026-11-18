@@ -106,8 +106,8 @@ not absolute tissue abundance.
 | Cross-omic networks (exploratory) | `simulate_crossomic_network()`, `run_celltype_network()`, `run_exposure_network()`, `run_comparative_network()` and their plots |
 
 The network functions return model-dependent summaries, not validated
-conditional-independence findings. `run_comparative_network()` warns once per
-session when its experimental `fisher_z` mode is used. The package estimates
+conditional-independence findings, and `run_comparative_network()` describes
+the differences between networks without testing them. The package estimates
 associations; it does not supply causal identification.
 
 ## HLCA data provenance

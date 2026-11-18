@@ -95,7 +95,7 @@ comparisonSummary(x)
   \item{\code{celltypeSpecificEdges()}}{Named list of \code{DataFrame}s,
     one per cell type with edges found only in that cell type.}
   \item{\code{comparisonSummary()}}{List with the compared cell types,
-    edge counts, pairwise Jaccard overlap and the comparison method.}
+    edge counts and pairwise Jaccard overlap.}
 }
 }
 \description{

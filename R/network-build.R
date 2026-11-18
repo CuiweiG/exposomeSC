@@ -19,7 +19,11 @@ NULL
 #' @param metabolites Numeric matrix; rows = donors,
 #'   cols = metabolites. Row names must be donor IDs. A matrix without
 #'   columns, or a missing or infinite value for an analysed donor, is an
-#'   error.
+#'   error, and so is a column with the name of another column or of a
+#'   gene that becomes a node: two nodes cannot have the same name.
+#'   The matrix is needed to estimate a network; the default,
+#'   \code{NULL}, is for a call with \code{precomputed_network}, which
+#'   does not use it.
 #' @param celltype Character; which cell type to build
 #'   the network for.
 #' @param celltype_col Character; column in \code{colData}
@@ -34,7 +38,8 @@ NULL
 #' @param method Character; \code{"coglasso"} (default) or
 #'   \code{"block_glasso"}. The coglasso method uses
 #'   collaborative graphical lasso with block-calibrated
-#'   penalties (Albanese et al. 2026).
+#'   penalties (Albanese et al. 2026) and needs the \pkg{coglasso}
+#'   package, version 1.1.0 or later.
 #' @param stability Logical; for \code{method = "coglasso"}, whether
 #'   to return the edge-level selection frequencies from XStARS in
 #'   \code{stability_scores}. The coglasso penalties are chosen by
@@ -77,10 +82,31 @@ NULL
 #'   \code{"transcript"} and \code{"metabolite"} for the summaries and
 #'   plots to recognise the layers. A logical adjacency is stored as 0/1
 #'   and its diagonal is set to zero.
-#'   When provided, \code{metabolites}, \code{method},
-#'   \code{stability}, and lambda parameters are ignored.
-#'   \code{x} must still be a
+#'   When provided, nothing is estimated, and of the other arguments only
+#'   \code{celltype} is used. \code{x} must still be a
 #'   \code{SingleCellExposomeExperiment}.
+#' @param transform Character; the transform of the pseudobulk counts.
+#'   \code{"vst"} (default) is the variance-stabilising transformation of
+#'   \code{DESeq2::vst()}, blind to the design, and needs \pkg{DESeq2} and
+#'   at least 1000 genes with a mean normalised count above 5;
+#'   \code{"log_cpm"} is the base-2 logarithm of the counts per million
+#'   plus one. The call stops when \code{"vst"} cannot be computed; it does
+#'   not switch to the other transform. One choice stays with DESeq2: when
+#'   the parametric fit of the dispersion trend fails, \code{vst()} uses a
+#'   local fit, and a message says so.
+#' @param genes Character vector or \code{NULL}; row names of \code{x}, the
+#'   genes that become the transcript nodes of the network, in the order
+#'   given. The transform is computed from all genes of \code{x} before
+#'   these are taken, so the values of a gene do not depend on which genes
+#'   are kept, as they would after subsetting \code{x}. When
+#'   \code{top_var_genes} is smaller than their number, the most variable
+#'   of these genes are kept, in the order of their variances. Networks of
+#'   several cell types built
+#'   with the same \code{genes} have the same transcripts, which
+#'   \code{\link{run_comparative_network}} needs, unless one of the genes
+#'   is constant in a cell type and is left out there (see Details). A name
+#'   that is not a row name of \code{x}, or that is the name of more than
+#'   one row, is an error. Default \code{NULL} (all genes).
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}} object.
 #'
@@ -89,26 +115,30 @@ NULL
 #' \enumerate{
 #'   \item Pseudobulk aggregation for the specified cell type,
 #'     reusing existing \pkg{exposomeSC} infrastructure.
-#'   \item Variance-stabilising transformation (DESeq2 VST)
-#'     on counts. When \pkg{DESeq2} is not installed, or VST fails (for
-#'     example with too few genes), log-CPM values are used instead and a
-#'     message says so; the transform used is recorded in
+#'   \item Transformation of the pseudobulk counts, chosen by
+#'     \code{transform}: DESeq2's variance-stabilising transformation or
+#'     log-CPM. The transform is recorded in
 #'     \code{metadata(result)$transform}.
 #'   \item Constant features: a transcript or metabolite that takes one
 #'     value in every donor (for example a gene with no counts in the
-#'     cell type) is left out, with a message, and named in
-#'     \code{metadata(result)$constant_features}; the call stops when every
-#'     transcript or every metabolite is constant. Networks of different
-#'     cell types can therefore differ in their features, which
-#'     \code{\link{run_comparative_network}} does not accept: leave the
-#'     features named there out of the data of every cell type first.
-#'   \item Residualization: if \code{exposure} or
+#'     cell type) is left out, with a message that names up to five
+#'     transcripts and five metabolites; all are recorded
+#'     in \code{metadata(result)$constant_features}; the call stops when
+#'     every transcript or every metabolite is constant. Networks of
+#'     different cell types can therefore differ in their features, which
+#'     \code{\link{run_comparative_network}} does not accept. For a
+#'     comparison, name the genes with \code{genes} and leave a gene that
+#'     is constant in one of the cell types out of \code{genes} for all of
+#'     them. \code{top_var_genes} on its own selects different genes in
+#'     different cell types.
+#'   \item Adjustment: if \code{exposure} or
 #'     \code{covariates} are specified, regresses them out
 #'     from both transcriptomic and metabolomic matrices.
 #'     The resulting network captures the exposure-adjusted
 #'     conditional dependency structure.
-#'   \item Column-binding: \code{[VST residuals |
-#'     metabolite residuals]}.
+#'   \item Column-binding of the transcript values and the metabolite
+#'     values (the residuals of both, where something was regressed out),
+#'     each column scaled to unit variance.
 #'   \item Block-calibrated graphical lasso estimation.
 #'     With \code{coglasso}: collaborative graphical lasso
 #'     with separate within/between-omic penalties and
@@ -174,7 +204,8 @@ NULL
 #'         method = "block_glasso",
 #'         stability = FALSE,
 #'         min_cells = 5L,
-#'         top_var_genes = 3L
+#'         top_var_genes = 3L,
+#'         transform = "log_cpm"
 #'     )
 #'     network
 #' }
@@ -193,19 +224,27 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
                                   top_var_genes = NULL,
                                   lambda_w = 0.3,
                                   lambda_b = 0.5,
-                                  precomputed_network = NULL) {
+                                  precomputed_network = NULL,
+                                  transform = c("vst", "log_cpm"),
+                                  genes = NULL) {
 
     stopifnot(is(x, "SingleCellExposomeExperiment"))
     celltype <- .single_name(celltype, "celltype")
-    if (!is.null(exposure)) exposure <- .single_name(exposure, "exposure")
 
     ## --- Handle precomputed network (named list) ---
     if (!is.null(precomputed_network)) {
         return(.wrap_precomputed(precomputed_network, celltype))
     }
 
+    if (!is.null(exposure)) exposure <- .single_name(exposure, "exposure")
+    if (!is.null(covariates)) covariates <- as.character(covariates)
     method <- match.arg(method)
-    stopifnot(is.matrix(metabolites))
+    transform <- match.arg(transform)
+    if (!is.matrix(metabolites)) {
+        stop("'metabolites' must be a matrix with one row for each donor. ",
+            "It can be left out only when 'precomputed_network' is given.",
+            call. = FALSE)
+    }
     if (method == "coglasso") {
         if (!is.numeric(subsample_ratio) || length(subsample_ratio) != 1L ||
             is.na(subsample_ratio) || subsample_ratio <= 0 ||
@@ -215,6 +254,8 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
         if (!is.numeric(rep_num) || length(rep_num) != 1L ||
             is.na(rep_num) || rep_num < 2 || rep_num != round(rep_num))
             stop("'rep_num' must be a single whole number of at least 2.")
+        ## asked for before the pseudobulk and the transform are computed
+        .require_coglasso("method")
     }
 
     ## --- Assemble cross-omic data ---
@@ -224,7 +265,9 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
         exposure     = exposure,
         covariates   = covariates,
         min_cells    = min_cells,
-        top_var_genes = top_var_genes)
+        top_var_genes = top_var_genes,
+        transform    = transform,
+        genes        = genes)
 
     X <- assembled$data_matrix
     n <- nrow(X)
@@ -244,10 +287,6 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 
     ## --- Estimate network ---
     if (method == "coglasso") {
-        if (!requireNamespace("coglasso", quietly = TRUE))
-            stop("Package 'coglasso' required for method='coglasso'. ",
-                 "Install with: install.packages('coglasso')")
-
         ## Build the penalty path once. coglasso::bs() would also run its
         ## own selection (xestars by default), which the XStARS step below
         ## would then repeat and overwrite.
@@ -343,29 +382,40 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 }
 
 
-#' Exposure-driven network: exposure-associated features only
+#' Network among exposure-associated features
 #'
-#' Pre-selects features associated with exposure by stability
-#' selection or univariate testing, then builds a
-#' cross-omic network on the selected features only. This
-#' mirrors the two-stage approach in Cheng et al. (2024).
+#' Pre-selects the transcripts and metabolites associated with an exposure,
+#' by stability selection or univariate testing, and estimates a cross-omic
+#' network among the selected features only. Cheng et al. (2024) analysed
+#' transcriptomic and metabolomic signatures of air pollution in two such
+#' stages: features associated with the exposures were identified first,
+#' and conditional multi-omic networks estimated afterwards.
 #'
 #' @param x \code{\linkS4class{SingleCellExposomeExperiment}}. Each
 #'   cell's donor is read from the \code{colData} column named by
 #'   \code{\link{sampleColumn}(x)}.
-#' @param metabolites Numeric matrix; rows = donors,
-#'   cols = metabolites. A matrix without columns, or a missing or
-#'   infinite value for an analysed donor, is an error.
+#' @param metabolites Numeric matrix, or a data frame of numeric columns;
+#'   rows = donors, cols = metabolites. Row names must be donor IDs. A
+#'   matrix without columns, or a missing or infinite value for an analysed
+#'   donor, is an error, and so is a column with the name of another
+#'   column or of a candidate gene: two nodes cannot have the same name.
+#'   Leave the exposure itself out of the columns: a column that holds the
+#'   values of the exposure, or a monotone transform of them, has a rank
+#'   correlation of 1 or -1 with it, is always selected and becomes a node.
 #' @param celltype Character; cell type to analyse.
 #' @param exposure Character; exposure variable name, a column of
 #'   \code{exposureData(x)}; another name is an error.
 #' @param celltype_col Character; cell type column.
 #'   Default \code{"cell_type"}.
 #' @param covariates Character vector or NULL; columns of
-#'   \code{exposureData(x)}, regressed out of the transcript and
-#'   metabolite values before the selection (the exposure is used as
-#'   given); another name is an error. Donors with a missing covariate
-#'   value are left out, with a message.
+#'   \code{exposureData(x)}. The selection is made given the covariates
+#'   (see Details), and they are regressed out of the transcript and
+#'   metabolite values before the network is estimated; another name is an
+#'   error, and so is the exposure itself. Donors with a missing covariate
+#'   value are left out, with a message. A covariate enters the selection
+#'   by its ranks and the adjustment of the values as the number it is, so
+#'   either way it is taken as ordered; give a covariate with more than two
+#'   unordered categories as one 0/1 column for each category but one.
 #' @param selection_method Character; \code{"stability"}
 #'   (default) or \code{"univariate"}.
 #' @param fdr_threshold Numeric; FDR threshold for univariate
@@ -379,16 +429,19 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #'   uses \eqn{\max(1, \lfloor\sqrt{(2\pi_{thr} - 1)p}\rfloor)}, the
 #'   largest value for which the Meinshausen-Buhlmann bound on the
 #'   expected number of falsely selected features is at most 1 (when
-#'   \eqn{(2\pi_{thr} - 1)p \ge 1}).
+#'   \eqn{(2\pi_{thr} - 1)p \ge 1}). Here \eqn{p} is the number of
+#'   candidate features that vary across the donors with a value of the
+#'   exposure.
 #' @param min_cells Integer; minimum cells per pseudobulk.
 #' @param network_method Character; \code{"coglasso"} (default) or
 #'   \code{"block_glasso"}, the estimator for the network on the
 #'   selected features. \code{"coglasso"} needs at least one selected
 #'   transcript and metabolite; when only one omic layer is selected the
 #'   block graphical lasso is used instead, with a warning. Otherwise it
-#'   requires the \pkg{coglasso} package (an error when it is not
-#'   installed). The estimator used is recorded in
-#'   \code{metadata(result)$network_method}.
+#'   requires the \pkg{coglasso} package, version 1.1.0 or later (an error
+#'   when it is not installed), and chooses the penalties from a 10 by 10
+#'   grid with the defaults of \code{coglasso::xstars()}. The estimator used
+#'   is recorded in \code{metadata(result)$network_method}.
 #' @param lambda_w Numeric; graphical-lasso penalty for pairs of
 #'   features in the same omic layer, on the correlation scale, for the
 #'   block graphical lasso (\code{network_method = "block_glasso"}, or the
@@ -396,26 +449,57 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #' @param lambda_b Numeric; graphical-lasso penalty for pairs of
 #'   features in different omic layers, on the correlation scale, for the
 #'   block graphical lasso. Default 0.5.
+#' @param transform Character; the transform of the pseudobulk counts,
+#'   \code{"vst"} (default) or \code{"log_cpm"}, as in
+#'   \code{\link{run_celltype_network}}. The call stops when \code{"vst"}
+#'   cannot be computed; it does not switch to the other transform.
+#' @param genes Character vector or \code{NULL}; row names of \code{x}, the
+#'   genes that are candidates for the selection, taken after the transform
+#'   as in \code{\link{run_celltype_network}}. Fewer candidates leave fewer
+#'   tests to adjust for and a smaller \code{stability_q}. A name that is
+#'   not a row name of \code{x}, or that is the name of more than one row,
+#'   is an error. Default \code{NULL} (all genes).
 #'
 #' @return A \code{\linkS4class{CelltypeNetworkResult}}
 #'   restricted to exposure-associated features. Its metadata record
-#'   the expression transform, the selection settings, for stability
-#'   selection \code{pfer_bound}, and in \code{selection} the penalties of
-#'   the network: \code{lambda_w} and \code{lambda_b} for the block
-#'   graphical lasso, or the \code{selected_lambda_w},
+#'   the expression transform, the covariates, the donors of the network
+#'   (\code{donors}) and the number of them with a value of the exposure
+#'   (\code{n_donors_exposure}), on whom the selection was made, the
+#'   selection settings, for stability selection \code{pfer_bound}, in
+#'   \code{constant_features} the candidates that are constant across the
+#'   donors with a value of the exposure and so could not be selected, and
+#'   in \code{selection} the penalties of the network:
+#'   \code{lambda_w} and \code{lambda_b} for the block graphical lasso, or
+#'   the size of the grid and the \code{selected_lambda_w},
 #'   \code{selected_lambda_b} and \code{selected_c} that coglasso
 #'   selected, with \code{stars_variability}.
 #'
 #' @details
-#' Stage 1: Feature selection. For each transcript and
-#' metabolite, tests association with exposure.
-#' \code{"univariate"} uses Spearman correlation tests (asymptotic
-#' \emph{t} approximation) with BH correction; features without
-#' variation across donors are not selected.
+#' Stage 1: Feature selection, among the donors with a value of the
+#' exposure. Each transcript and metabolite is screened by its Spearman
+#' correlation with the exposure. With \code{covariates} it is the partial
+#' rank correlation: the ranks of the covariates are regressed out of the
+#' ranks of the feature and of the exposure, and the residuals are
+#' correlated.
+#' A feature without variation across these donors, such as a gene without
+#' a count in the cell type, is neither tested nor ranked by either method,
+#' and \eqn{p} below counts the features that vary.
+#' \code{"univariate"} tests the correlation (asymptotic \emph{t}
+#' approximation, with one degree of freedom fewer for each covariate that
+#' is not constant or a combination of the others among these donors) with
+#' BH correction over these features.
+#' The approximation is poor when both the exposure and a feature take one
+#' value in all but a few donors, as an exposure that only a few donors
+#' have, or that is above its limit of detection in a few, and a gene with
+#' a count in one or two donors: the p-value of such a gene is far too
+#' small whenever its donors are among those few, and with many such genes
+#' among the candidates some pass the BH correction together. For an
+#' exposure of this kind, name the candidate genes with \code{genes} and
+#' leave out those with a count in few donors.
 #' \code{"stability"} applies stability selection (Meinshausen and
 #' Buhlmann 2010) to a marginal screen: in each of 100 random
 #' subsamples of half the donors with an observed exposure, the
-#' \code{stability_q} features with the largest absolute Spearman
+#' \code{stability_q} features with the largest absolute
 #' correlation with the exposure are selected, and features selected
 #' in a proportion of at least \code{pi_threshold} of subsamples are
 #' retained. The screen remains defined when features outnumber
@@ -423,6 +507,10 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #' assumptions of Meinshausen and Buhlmann, the expected number of
 #' falsely selected features is at most
 #' \eqn{q^2 / ((2\pi_{thr} - 1)p)}, reported as \code{pfer_bound}.
+#' Candidates with a count in very few donors are hardly ever among the
+#' \code{stability_q} highest of a subsample, which the exchangeability
+#' assumption does not allow for; with many of them among the candidates
+#' the bound is too small. \code{genes} can leave them out.
 #' At least three features must be selected.
 #'
 #' Transcript values are log-CPM or VST values and therefore relative
@@ -431,11 +519,14 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #' shift in the opposite direction and can pass the screen; with few
 #' measured genes this can dominate the univariate screen.
 #'
-#' Stage 2: Network estimation on selected features only,
-#' without residualising the exposure (to capture
-#' exposure-driven rewiring), with collaborative graphical lasso
-#' model selection by XStARS (\code{"coglasso"}) or the block
-#' graphical lasso (\code{"block_glasso"}).
+#' Stage 2: Network estimation on the selected features only, with
+#' collaborative graphical lasso model selection by XStARS
+#' (\code{"coglasso"}) or the block graphical lasso
+#' (\code{"block_glasso"}). It is one network for all the donors analysed.
+#' The exposure is not regressed out of the features and is not a node, so
+#' an edge can reflect the association that two features share with the
+#' exposure, and the network does not estimate how the dependence between
+#' features changes with the exposure.
 #'
 #' @references
 #' Cheng SL et al. (2024). Multiomic signatures of traffic-related
@@ -471,7 +562,8 @@ run_celltype_network <- function(x, metabolites = NULL, celltype,
 #'     net <- run_exposure_network(scee, metabolites, celltype = "Mono",
 #'         exposure = "PM2.5",
 #'         selection_method = "univariate",
-#'         network_method = "block_glasso")
+#'         network_method = "block_glasso",
+#'         transform = "log_cpm")
 #'     net
 #' }
 run_exposure_network <- function(x, metabolites, celltype,
@@ -488,48 +580,95 @@ run_exposure_network <- function(x, metabolites, celltype,
                                   network_method = c("coglasso",
                                                      "block_glasso"),
                                   lambda_w = 0.3,
-                                  lambda_b = 0.5) {
+                                  lambda_b = 0.5,
+                                  transform = c("vst", "log_cpm"),
+                                  genes = NULL) {
 
     stopifnot(is(x, "SingleCellExposomeExperiment"))
     celltype <- .single_name(celltype, "celltype")
     exposure <- .single_name(exposure, "exposure")
     selection_method <- match.arg(selection_method)
     network_method <- match.arg(network_method)
+    transform <- match.arg(transform)
+    if (!is.null(covariates)) covariates <- as.character(covariates)
     .check_adjustment_names(x, c(exposure, covariates))
+    ## nothing of the exposure is left to test once it is adjusted for
+    if (exposure %in% covariates) {
+        stop("The exposure must not also be listed as a covariate.",
+            call. = FALSE)
+    }
 
-    ## Assemble data WITHOUT residualization (we want exposure signal)
+    ## The covariates are regressed out of the features for the network of
+    ## stage 2; the exposure is not (we want its signal)
     assembled <- .assemble_crossomic(
         x, metabolites, celltype,
         celltype_col = celltype_col,
-        exposure     = NULL,  # No residualization
+        exposure     = NULL,
         covariates   = covariates,
         min_cells    = min_cells,
+        transform    = transform,
         ## constant features stay in the matrix as constant columns, which
-        ## the selection stage skips and the PFER bound counts
-        drop_constant = FALSE)
+        ## the selection stage skips
+        drop_constant = FALSE,
+        genes        = genes,
+        keep_unadjusted = TRUE)
 
     X <- assembled$data_matrix
     donors <- assembled$donors
 
-    ## Get exposure values for shared donors
-    exp_data <- exposureData(x)
-    y <- exp_data[donors, exposure]
-
     ## --- Stage 1: Feature selection ---
+    ## among the donors with a value of the exposure, on the ranks of the
+    ## values as they are before the adjustment: the covariates enter as
+    ## ranks too (.partial_rank_correlation())
+    exp_data <- exposureData(x)
+    observed <- which(is.finite(exp_data[donors, exposure]))
+    y <- exp_data[donors[observed], exposure]
+    values <- assembled$unadjusted[observed, , drop = FALSE]
+    adjustment <- if (length(covariates)) {
+        as.matrix(exp_data[donors[observed], covariates, drop = FALSE])
+    }
+    n_covariates <- length(covariates)
+    ## Nothing is left to select by when the exposure takes one value in
+    ## these donors, or when the ranks of the covariates give its ranks
+    if (length(y) > 1L) {
+        exposure_ranks <- cbind(rank(y))
+        if (n_covariates > 0L) {
+            exposure_ranks <- .rank_residuals(exposure_ranks,
+                apply(adjustment, 2L, rank))
+        }
+        if (!isTRUE(stats::sd(exposure_ranks[, 1L]) > 0)) {
+            stop("The exposure does not vary across the donors with a ",
+                "value of it", if (n_covariates > 0L)
+                    " once the covariates are adjusted for",
+                ", so nothing can be selected by it.", call. = FALSE)
+        }
+    }
     p <- ncol(X)
     selected <- rep(FALSE, p)
 
     pfer_bound <- NA_real_
-    varies <- apply(X, 2L, function(v) isTRUE(stats::sd(v) > 0))
+    ## A feature that is constant across these donors, such as a gene
+    ## without a count in the cell type, is neither tested nor ranked. It
+    ## cannot be selected, so it does not count among the candidates of the
+    ## bound of stability selection or of the default stability_q.
+    varies <- apply(values, 2L, function(v) isTRUE(stats::sd(v) > 0))
+    p_varying <- sum(varies)
+    if (p_varying < 1L) {
+        stop("No candidate feature varies across the donors with a value ",
+            "of the exposure.", call. = FALSE)
+    }
 
     if (selection_method == "univariate") {
-        ## Univariate Spearman test per feature; constant features are
-        ## not tested and not selected
+        ## Spearman test per feature, given the covariates; constant
+        ## features are not tested and not selected
+        if (length(observed) < n_covariates + 4L) {
+            stop("The test of the selection needs at least ",
+                n_covariates + 4L, " donors with a value of the exposure; ",
+                length(observed), " have one.", call. = FALSE)
+        }
         pvals <- rep(NA_real_, p)
-        pvals[varies] <- vapply(which(varies), function(j) {
-            cor.test(X[, j], y, method = "spearman",
-                     exact = FALSE)$p.value
-        }, numeric(1))
+        pvals[varies] <- .partial_rank_correlation(
+            values[, varies, drop = FALSE], y, adjustment)$p_value
         padj <- p.adjust(pvals, method = "BH")
         selected <- !is.na(padj) & padj < fdr_threshold
 
@@ -540,32 +679,35 @@ run_exposure_network <- function(x, metabolites, celltype,
             is.na(pi_threshold) || pi_threshold <= 0.5 ||
             pi_threshold > 1)
             stop("pi_threshold must be a single number in (0.5, 1].")
-        observed <- which(is.finite(y))
         n_half <- floor(length(observed) / 2)
-        if (n_half < 5L)
-            stop("Stability selection needs at least 10 donors with an ",
+        if (n_half < max(5L, n_covariates + 4L))
+            stop("Stability selection needs at least ",
+                 2L * max(5L, n_covariates + 4L), " donors with an ",
                  "observed exposure; use selection_method = ",
                  "'univariate'.")
         if (is.null(stability_q))
-            stability_q <- max(1, floor(sqrt((2 * pi_threshold - 1) * p)))
+            stability_q <- max(1,
+                floor(sqrt((2 * pi_threshold - 1) * p_varying)))
         if (!is.numeric(stability_q) || length(stability_q) != 1L ||
-            is.na(stability_q) || stability_q < 1 || stability_q > p ||
-            stability_q != round(stability_q))
+            is.na(stability_q) || stability_q < 1 ||
+            stability_q > p_varying || stability_q != round(stability_q))
             stop("stability_q must be a single integer between 1 and ",
-                 "the number of features (", p, ").")
+                 "the number of features that vary across the donors (",
+                 p_varying, ").")
         stability_q <- as.integer(stability_q)
 
         n_subsamples <- 100L
         sel_freq <- numeric(p)
         for (b in seq_len(n_subsamples)) {
-            idx <- sample(observed, n_half)
+            idx <- sample.int(length(observed), n_half)
             sel_freq <- sel_freq + .top_marginal_features(
-                X[idx, , drop = FALSE], y[idx], stability_q)
+                values[idx, , drop = FALSE], y[idx], stability_q,
+                adjustment[idx, , drop = FALSE])
         }
 
         sel_prob <- sel_freq / n_subsamples
         selected <- sel_prob >= pi_threshold
-        pfer_bound <- stability_q^2 / ((2 * pi_threshold - 1) * p)
+        pfer_bound <- stability_q^2 / ((2 * pi_threshold - 1) * p_varying)
     }
 
     n_selected <- sum(selected)
@@ -602,12 +744,7 @@ run_exposure_network <- function(x, metabolites, celltype,
 
     use_coglasso <- network_method == "coglasso" &&
         n_tx_sel > 0 && n_met_sel > 0
-    if (use_coglasso && !requireNamespace("coglasso", quietly = TRUE)) {
-        stop("Package 'coglasso' is required for ",
-             "network_method = 'coglasso'. Install it with ",
-             "install.packages('coglasso'), or use ",
-             "network_method = 'block_glasso'.")
-    }
+    if (use_coglasso) .require_coglasso("network_method")
     if (network_method == "coglasso" && !use_coglasso) {
         warning(
             "Only one omic layer was selected for cell type '", celltype,
@@ -628,7 +765,8 @@ run_exposure_network <- function(x, metabolites, celltype,
         adjacency <- as.matrix(cg_stars$sel_adj)
         diag(adjacency) <- 0L
         stab_mat <- matrix(nrow = 0, ncol = 0)
-        selection <- list(selected_lambda_w = cg_stars$sel_lambda_w,
+        selection <- list(nlambda_w = 10L, nlambda_b = 10L,
+            selected_lambda_w = cg_stars$sel_lambda_w,
             selected_lambda_b = cg_stars$sel_lambda_b,
             selected_c = cg_stars$sel_c,
             stars_variability = cg_stars$sel_variability)
@@ -653,13 +791,16 @@ run_exposure_network <- function(x, metabolites, celltype,
         stability_scores = stab_mat,
         node_info        = sel_node_info,
         celltype         = celltype,
-        method           = "exposure_driven",
+        method           = "exposure_restricted",
         metadata         = list(
             n_donors          = length(donors),
+            n_donors_exposure = length(observed),
+            donors            = donors,
             n_features        = n_selected,
             n_transcripts     = n_tx_sel,
             n_metabolites     = n_met_sel,
             exposure          = exposure,
+            covariates        = covariates,
             selection_method  = selection_method,
             fdr_threshold     = if (selection_method == "univariate")
                 fdr_threshold else NA_real_,
@@ -673,9 +814,22 @@ run_exposure_network <- function(x, metabolites, celltype,
             selection         = selection,
             transform         = assembled$transform,
             n_total_features  = p,
+            constant_features = assembled$node_info$feature[!varies],
             edge_counts       = edge_counts
         )
     )
+}
+
+# coglasso from version 1.1.0: xstars() and the argument 'p' of coglasso()
+# are new in that version
+.require_coglasso <- function(argument) {
+    if (!.is_installed("coglasso") ||
+            .installed_version("coglasso") < "1.1.0") {
+        stop("Package 'coglasso' (>= 1.1.0) is required for ", argument,
+            " = \"coglasso\". Install it with install.packages('coglasso'), ",
+            "or use ", argument, " = \"block_glasso\".", call. = FALSE)
+    }
+    invisible(TRUE)
 }
 
 # ============================================================

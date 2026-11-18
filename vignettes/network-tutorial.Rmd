@@ -108,6 +108,12 @@ metabolites <- matrix(stats::rnorm(length(donors) * 4), ncol = 4,
 metabolites[, "M1"] <- metabolites[, "M1"] + 1.2 * pm25
 ```
 
+The network functions transform the pseudobulk counts with DESeq2's
+variance-stabilising transformation by default. `DESeq2::vst()` needs at least
+1000 genes with a mean normalised count above 5, which these 12 genes are not,
+so the calls below ask for log-CPM values with `transform = "log_cpm"`. A call
+never switches from one transform to the other.
+
 ```{r build-network, eval=has_coglasso}
 mono_net <- run_celltype_network(
     scee,
@@ -118,7 +124,8 @@ mono_net <- run_celltype_network(
     stability = TRUE,
     nlambda_w = 3L,
     nlambda_b = 3L,
-    rep_num = 5L
+    rep_num = 5L,
+    transform = "log_cpm"
 )
 ```
 
@@ -172,24 +179,19 @@ bcell_net <- run_celltype_network(
     stability = TRUE,
     nlambda_w = 3L,
     nlambda_b = 3L,
-    rep_num = 5L
+    rep_num = 5L,
+    transform = "log_cpm"
 )
 
-comparison <- run_comparative_network(
-    mono_net,
-    bcell_net,
-    method = "descriptive"
-)
+comparison <- run_comparative_network(mono_net, bcell_net)
 comparison
 
 plot_network_comparison(comparison)
 ```
 
-This comparison is descriptive and reports no p-values. The Fisher-Z mode is
-experimental: networks estimated from the same donors are not independent
-samples, and penalised partial correlations do not follow the distribution the
-test assumes. Edge-presence or weight differences are not evidence of
-differential conditional association.
+This comparison is descriptive: it tests no edge and reports no p-values.
+Edge-presence or weight differences are not evidence of differential
+conditional association.
 
 # Exposure-restricted networks
 
@@ -207,7 +209,8 @@ exposure_net <- run_exposure_network(
     covariates = c("age", "sex"),
     selection_method = "univariate",
     fdr_threshold = 0.05,
-    network_method = "block_glasso"
+    network_method = "block_glasso",
+    transform = "log_cpm"
 )
 exposure_net
 networkNodes(exposure_net)

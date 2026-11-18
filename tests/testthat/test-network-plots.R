@@ -5,9 +5,7 @@
         node_i = character(),
         node_j = character(),
         category = character(),
-        max_diff = numeric(),
-        p_value = numeric(),
-        p_adjusted = numeric()
+        max_diff = numeric()
     )
     make_edges <- function(selected) {
         if (!length(selected)) {
@@ -17,9 +15,7 @@
             node_i = paste0("G", seq_along(selected)),
             node_j = rep("M1", length(selected)),
             category = selected,
-            max_diff = rep(0.2, length(selected)),
-            p_value = rep(0.1, length(selected)),
-            p_adjusted = rep(0.1, length(selected))
+            max_diff = rep(0.2, length(selected))
         )
     }
 

@@ -182,42 +182,18 @@ test_that("NetworkComparison() and its validity", {
         "list of DataFrames")
 })
 
-test_that("run_comparative_network accepts n_donors stored as a double", {
+test_that("run_comparative_network does not read the donor counts", {
     a <- .toy_network("Mono", -0.4)
     b <- .toy_network("NK", 0)
-    a@metadata$n_donors <- 20
-    b@metadata$n_donors <- 20
-    exposomeSC:::.reset_experimental_warnings()
-    expect_warning(
-        comp <- run_comparative_network(a, b, method = "fisher_z"),
-        "experimental")
-    expect_s4_class(comp, "NetworkComparison")
-    expect_identical(nrow(diffEdges(comp)), 1L)
-    expect_true(all(is.finite(diffEdges(comp)$p_value)))
-})
-
-test_that("run_comparative_network checks the donor counts", {
-    a <- .toy_network("Mono", -0.4)
-    b <- .toy_network("NK", 0)
-    a@metadata$n_donors <- NA
-    unknown <- suppressWarnings(
-        run_comparative_network(a, b, method = "fisher_z"))
-    expect_identical(nrow(diffEdges(unknown)), 1L)
-    expect_true(all(is.na(diffEdges(unknown)$p_value)))
-    for (count in list("20", Inf, 20.5, -5, c(20, 30))) {
+    reference <- run_comparative_network(a, b)
+    expect_identical(nrow(diffEdges(reference)), 1L)
+    ## a count stored as a double stopped the comparison in 0.99.1
+    for (count in list(20, NA, 20.5, "20", c(20, 30))) {
         a@metadata$n_donors <- count
-        expect_error(
-            suppressWarnings(
-                run_comparative_network(a, b, method = "fisher_z")),
-            "network for 'Mono' must be a single non-negative whole number")
+        expect_identical(run_comparative_network(a, b), reference)
     }
-    ## the same partial correlation in every network: p = 1, also for three
-    two <- suppressWarnings(run_comparative_network(.toy_network("A"),
-        .toy_network("B"), method = "fisher_z"))
-    three <- suppressWarnings(run_comparative_network(.toy_network("A"),
-        .toy_network("B"), .toy_network("C"), method = "fisher_z"))
-    expect_equal(sharedEdges(two)$p_value, 1)
-    expect_equal(sharedEdges(three)$p_value, 1)
+    a@metadata$n_donors <- NULL
+    expect_identical(run_comparative_network(a, b), reference)
 })
 
 test_that("validity checks the matrix types, the diagonal and the layers", {
@@ -252,4 +228,30 @@ test_that("validity checks the matrix types, the diagonal and the layers", {
     expect_identical(storage.mode(networkAdjacency(from_logical)), "integer")
     expect_identical(unname(networkAdjacency(from_logical)),
         unname(adjacency))
+})
+
+test_that("the show methods read the objects through their accessors", {
+    for (class in c("CelltypeNetworkResult", "NetworkComparison")) {
+        method <- methods::getMethod("show", class)
+        expect_false(any(c("@", "slot") %in% all.names(body(method))))
+    }
+    ## every line of a network with stability scores, whose precision
+    ## matrix has an entry that is not an edge
+    mono <- .toy_network("Mono", -0.4)
+    precision <- networkPrecision(mono)
+    precision["G1", "G2"] <- precision["G2", "G1"] <- 0.05
+    scored <- CelltypeNetworkResult(precision, networkAdjacency(mono),
+        node_info = networkNodes(mono), celltype = "Mono",
+        stability = networkAdjacency(mono) * 0.9,
+        metadata = list(n_donors = 20L))
+    expect_identical(utils::capture.output(show(scored)),
+        c("CelltypeNetworkResult for 'Mono'", "  Method: precomputed",
+            "  Nodes: 3 (2 transcripts, 1 metabolites)",
+            "  Edges: 1 (1 cross-omic)", "  Stability selection: yes",
+            "  Donors: 20"))
+    comparison <- run_comparative_network(mono, .toy_network("NK", 0))
+    expect_identical(utils::capture.output(show(comparison)),
+        c("NetworkComparison", "  Cell types compared: Mono, NK",
+            "  Shared edges: 0", "  Differential edges: 1",
+            "  Unique to Mono: 1"))
 })

@@ -111,7 +111,8 @@ A \code{DataFrame} with one row per gene-protein pair
       with enough cells, a partial correlation and values of the
       exposure and of every moderator.}
     \item{beta0, se0, pval0}{Intercept (baseline coupling).}
-    \item{beta1, se1, pval1}{Exposure coefficient (rewiring).}
+    \item{beta1, se1, pval1}{Exposure coefficient: the slope, across
+      donors, of the Fisher z of the coupling on the exposure.}
     \item{tau2}{Between-donor heterogeneity variance (REML).}
     \item{I2}{Heterogeneity percentage.}
     \item{mean_r}{Mean partial correlation across donors.}

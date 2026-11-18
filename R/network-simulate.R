@@ -262,58 +262,21 @@ simulate_crossomic_network <- function(
     n_cross <- max(0L, floor(n_edges * cross_frac))
     n_within <- n_edges - n_cross
 
-    ## Within-omic edges (transcript-transcript + metabolite-metabolite)
-    if (n_within > 0) {
-        within_pairs <- list()
-        idx <- 0L
-        ## Transcript-transcript
-        for (i in seq_len(max(n_tx - 1L, 0L))) {
-            for (j in (i + 1L):n_tx) {
-                idx <- idx + 1L
-                within_pairs[[idx]] <- c(i, j)
-            }
-        }
-        ## Metabolite-metabolite
-        if (n_met >= 2L) {
-            for (i in (n_tx + 1L):(p - 1L)) {
-                for (j in (i + 1L):p) {
-                    idx <- idx + 1L
-                    within_pairs[[idx]] <- c(i, j)
-                }
-            }
-        }
-        if (length(within_pairs) > 0) {
-            sel <- sample(length(within_pairs),
-                           min(n_within, length(within_pairs)))
-            for (s in sel) {
-                pair <- within_pairs[[s]]
-                val <- runif(1, 0.2, 0.5) *
-                    sample(c(-1, 1), 1)
-                prec[pair[1], pair[2]] <- val
-                prec[pair[2], pair[1]] <- val
-            }
-        }
+    ## Within-omic edges: the pairs of transcripts, then of metabolites
+    within_pairs <- rbind(.node_pairs(n_tx), .node_pairs(n_met) + n_tx)
+    if (n_within > 0 && nrow(within_pairs) > 0) {
+        sel <- sample(nrow(within_pairs), min(n_within, nrow(within_pairs)))
+        prec <- .set_edges(prec, within_pairs[sel, , drop = FALSE],
+            .draw_edge_values(length(sel), 0.2, 0.5))
     }
 
-    ## Cross-omic edges
+    ## Cross-omic edges: each transcript with each metabolite
     if (n_cross > 0 && n_tx > 0 && n_met > 0) {
-        cross_pairs <- list()
-        idx <- 0L
-        for (i in seq_len(n_tx)) {
-            for (j in (n_tx + 1L):p) {
-                idx <- idx + 1L
-                cross_pairs[[idx]] <- c(i, j)
-            }
-        }
-        sel <- sample(length(cross_pairs),
-                       min(n_cross, length(cross_pairs)))
-        for (s in sel) {
-            pair <- cross_pairs[[s]]
-            val <- runif(1, 0.15, 0.4) *
-                sample(c(-1, 1), 1)
-            prec[pair[1], pair[2]] <- val
-            prec[pair[2], pair[1]] <- val
-        }
+        cross_pairs <- cbind(rep(seq_len(n_tx), each = n_met),
+            n_tx + rep(seq_len(n_met), times = n_tx))
+        sel <- sample(nrow(cross_pairs), min(n_cross, nrow(cross_pairs)))
+        prec <- .set_edges(prec, cross_pairs[sel, , drop = FALSE],
+            .draw_edge_values(length(sel), 0.15, 0.4))
     }
 
     ## Ensure positive definiteness by adding to diagonal
@@ -322,6 +285,38 @@ simulate_crossomic_network <- function(
         prec <- prec + diag(abs(min(eig$values)) + 0.1, p)
     }
 
+    prec
+}
+
+#' The pairs (i, j) with i < j of n nodes, one per row, ordered by i and
+#' then by j
+#'
+#' @keywords internal
+#' @noRd
+.node_pairs <- function(n) {
+    if (n < 2L) return(matrix(0L, 0L, 2L))
+    t(utils::combn(seq_len(n), 2L))
+}
+
+#' Values for n edges: a uniform draw and then a sign for each edge in
+#' turn, which is the order in which a seed has to be used up to give the
+#' matrices of earlier versions
+#'
+#' @keywords internal
+#' @noRd
+.draw_edge_values <- function(n, low, high) {
+    vapply(seq_len(n), function(k) {
+        runif(1, low, high) * sample(c(-1, 1), 1)
+    }, numeric(1))
+}
+
+#' Set the entries of a symmetric matrix for pairs of nodes
+#'
+#' @keywords internal
+#' @noRd
+.set_edges <- function(prec, pairs, values) {
+    prec[pairs] <- values
+    prec[pairs[, 2:1, drop = FALSE]] <- values
     prec
 }
 
@@ -347,26 +342,15 @@ simulate_crossomic_network <- function(
     if (nrow(edges) > 0 && n_change > 0) {
         to_remove <- sample(nrow(edges),
                              min(n_change, nrow(edges)))
-        for (r in to_remove) {
-            i <- edges[r, 1]
-            j <- edges[r, 2]
-            prec[i, j] <- 0
-            prec[j, i] <- 0
-        }
+        prec <- .set_edges(prec, edges[to_remove, , drop = FALSE], 0)
     }
 
     ## Add some new edges
     if (nrow(non_edges) > 0 && n_change > 0) {
         to_add <- sample(nrow(non_edges),
                           min(n_change, nrow(non_edges)))
-        for (a in to_add) {
-            i <- non_edges[a, 1]
-            j <- non_edges[a, 2]
-            val <- runif(1, 0.15, 0.4) *
-                sample(c(-1, 1), 1)
-            prec[i, j] <- val
-            prec[j, i] <- val
-        }
+        prec <- .set_edges(prec, non_edges[to_add, , drop = FALSE],
+            .draw_edge_values(length(to_add), 0.15, 0.4))
     }
 
     ## Re-ensure positive definiteness

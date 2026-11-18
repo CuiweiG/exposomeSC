@@ -222,7 +222,7 @@ setClass("CelltypeNetwork", contains = "VIRTUAL")
 #'   represents.
 #' @slot method Character. Estimation method: \code{"coglasso"} or
 #'   \code{"block_glasso"} from \code{run_celltype_network()},
-#'   \code{"exposure_driven"} from \code{run_exposure_network()}, or
+#'   \code{"exposure_restricted"} from \code{run_exposure_network()}, or
 #'   \code{"precomputed"} for a network supplied by the user.
 #' @slot metadata List. Additional parameters: n_donors,
 #'   n_features, lambda values, exposure, covariates.
@@ -349,8 +349,7 @@ setValidity("CelltypeNetworkResult", function(object) {
 #'
 #' @slot diff_edges \code{DataFrame}. Edges present in some but not all
 #'   of the compared networks (including edges unique to one cell type),
-#'   with the range of their partial correlations and, for
-#'   \code{method = "fisher_z"}, p-values and adjusted p-values.
+#'   with the range of their partial correlations.
 #' @slot shared_edges \code{DataFrame}. Edges present in all
 #'   compared cell types.
 #' @slot celltype_specific Named list of \code{DataFrame}s. Edges
@@ -430,35 +429,30 @@ setValidity("NetworkComparison", function(object) {
 #' @param object A \code{CelltypeNetworkResult} object.
 #' @export
 setMethod("show", "CelltypeNetworkResult", function(object) {
-    p <- nrow(object@precision_matrix)
-    n_edges <- sum(object@adjacency_matrix[
-        upper.tri(object@adjacency_matrix)] != 0)
-    ni <- object@node_info
+    adjacency <- networkAdjacency(object)
+    p <- nrow(networkPrecision(object))
+    n_edges <- sum(adjacency[upper.tri(adjacency)] != 0)
+    ni <- networkNodes(object)
     n_tx <- if (nrow(ni) > 0 && "omic_layer" %in% colnames(ni))
         sum(ni$omic_layer == "transcript") else 0L
     n_met <- if (nrow(ni) > 0 && "omic_layer" %in% colnames(ni))
         sum(ni$omic_layer == "metabolite") else 0L
     n_cross <- 0L
     if (n_tx > 0 && n_met > 0 && p > 0) {
-        am <- object@adjacency_matrix
+        ij <- .upper_edges(adjacency)
         layers <- ni$omic_layer
-        for (i in seq_len(p - 1L)) {
-            for (j in (i + 1L):p) {
-                if (am[i, j] != 0 && layers[i] != layers[j])
-                    n_cross <- n_cross + 1L
-            }
-        }
+        n_cross <- sum(layers[ij[, 1L]] != layers[ij[, 2L]])
     }
     cat(sprintf(
-        "CelltypeNetworkResult for '%s'\n", object@celltype))
-    cat(sprintf("  Method: %s\n", object@method))
+        "CelltypeNetworkResult for '%s'\n", networkCelltype(object)))
+    cat(sprintf("  Method: %s\n", networkMethod(object)))
     cat(sprintf("  Nodes: %d (%d transcripts, %d metabolites)\n",
         p, n_tx, n_met))
     cat(sprintf("  Edges: %d (%d cross-omic)\n",
         n_edges, n_cross))
-    if (nrow(object@stability_scores) > 0)
+    if (nrow(networkStability(object)) > 0)
         cat("  Stability selection: yes\n")
-    md <- object@metadata
+    md <- metadata(object)
     if (!is.null(md$n_donors))
         cat(sprintf("  Donors: %d\n", md$n_donors))
 })
@@ -470,13 +464,14 @@ setMethod("show", "CelltypeNetworkResult", function(object) {
 setMethod("show", "NetworkComparison", function(object) {
     cat("NetworkComparison\n")
     cat(sprintf("  Cell types compared: %s\n",
-        paste(object@summary$celltypes, collapse = ", ")))
+        paste(comparisonSummary(object)$celltypes, collapse = ", ")))
     cat(sprintf("  Shared edges: %d\n",
-        nrow(object@shared_edges)))
+        nrow(sharedEdges(object))))
     cat(sprintf("  Differential edges: %d\n",
-        nrow(object@diff_edges)))
-    for (ct in names(object@celltype_specific)) {
+        nrow(diffEdges(object))))
+    specific <- celltypeSpecificEdges(object)
+    for (ct in names(specific)) {
         cat(sprintf("  Unique to %s: %d\n",
-            ct, nrow(object@celltype_specific[[ct]])))
+            ct, nrow(specific[[ct]])))
     }
 })

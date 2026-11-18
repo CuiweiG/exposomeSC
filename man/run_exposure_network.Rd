@@ -2,7 +2,7 @@
 % Please edit documentation in R/network-build.R
 \name{run_exposure_network}
 \alias{run_exposure_network}
-\title{Exposure-driven network: exposure-associated features only}
+\title{Network among exposure-associated features}
 \usage{
 run_exposure_network(
   x,
@@ -18,7 +18,9 @@ run_exposure_network(
   min_cells = 10L,
   network_method = c("coglasso", "block_glasso"),
   lambda_w = 0.3,
-  lambda_b = 0.5
+  lambda_b = 0.5,
+  transform = c("vst", "log_cpm"),
+  genes = NULL
 )
 }
 \arguments{
@@ -26,9 +28,14 @@ run_exposure_network(
 cell's donor is read from the \code{colData} column named by
 \code{\link{sampleColumn}(x)}.}
 
-\item{metabolites}{Numeric matrix; rows = donors,
-cols = metabolites. A matrix without columns, or a missing or
-infinite value for an analysed donor, is an error.}
+\item{metabolites}{Numeric matrix, or a data frame of numeric columns;
+rows = donors, cols = metabolites. Row names must be donor IDs. A
+matrix without columns, or a missing or infinite value for an analysed
+donor, is an error, and so is a column with the name of another
+column or of a candidate gene: two nodes cannot have the same name.
+Leave the exposure itself out of the columns: a column that holds the
+values of the exposure, or a monotone transform of them, has a rank
+correlation of 1 or -1 with it, is always selected and becomes a node.}
 
 \item{celltype}{Character; cell type to analyse.}
 
@@ -39,10 +46,14 @@ infinite value for an analysed donor, is an error.}
 Default \code{"cell_type"}.}
 
 \item{covariates}{Character vector or NULL; columns of
-\code{exposureData(x)}, regressed out of the transcript and
-metabolite values before the selection (the exposure is used as
-given); another name is an error. Donors with a missing covariate
-value are left out, with a message.}
+\code{exposureData(x)}. The selection is made given the covariates
+(see Details), and they are regressed out of the transcript and
+metabolite values before the network is estimated; another name is an
+error, and so is the exposure itself. Donors with a missing covariate
+value are left out, with a message. A covariate enters the selection
+by its ranks and the adjustment of the values as the number it is, so
+either way it is taken as ordered; give a covariate with more than two
+unordered categories as one 0/1 column for each category but one.}
 
 \item{selection_method}{Character; \code{"stability"}
 (default) or \code{"univariate"}.}
@@ -60,7 +71,9 @@ selected in each subsample under
 uses \eqn{\max(1, \lfloor\sqrt{(2\pi_{thr} - 1)p}\rfloor)}, the
 largest value for which the Meinshausen-Buhlmann bound on the
 expected number of falsely selected features is at most 1 (when
-\eqn{(2\pi_{thr} - 1)p \ge 1}).}
+\eqn{(2\pi_{thr} - 1)p \ge 1}). Here \eqn{p} is the number of
+candidate features that vary across the donors with a value of the
+exposure.}
 
 \item{min_cells}{Integer; minimum cells per pseudobulk.}
 
@@ -69,9 +82,10 @@ expected number of falsely selected features is at most 1 (when
 selected features. \code{"coglasso"} needs at least one selected
 transcript and metabolite; when only one omic layer is selected the
 block graphical lasso is used instead, with a warning. Otherwise it
-requires the \pkg{coglasso} package (an error when it is not
-installed). The estimator used is recorded in
-\code{metadata(result)$network_method}.}
+requires the \pkg{coglasso} package, version 1.1.0 or later (an error
+when it is not installed), and chooses the penalties from a 10 by 10
+grid with the defaults of \code{coglasso::xstars()}. The estimator used
+is recorded in \code{metadata(result)$network_method}.}
 
 \item{lambda_w}{Numeric; graphical-lasso penalty for pairs of
 features in the same omic layer, on the correlation scale, for the
@@ -81,33 +95,68 @@ fallback when only one omic layer is selected). Default 0.3.}
 \item{lambda_b}{Numeric; graphical-lasso penalty for pairs of
 features in different omic layers, on the correlation scale, for the
 block graphical lasso. Default 0.5.}
+
+\item{transform}{Character; the transform of the pseudobulk counts,
+\code{"vst"} (default) or \code{"log_cpm"}, as in
+\code{\link{run_celltype_network}}. The call stops when \code{"vst"}
+cannot be computed; it does not switch to the other transform.}
+
+\item{genes}{Character vector or \code{NULL}; row names of \code{x}, the
+genes that are candidates for the selection, taken after the transform
+as in \code{\link{run_celltype_network}}. Fewer candidates leave fewer
+tests to adjust for and a smaller \code{stability_q}. A name that is
+not a row name of \code{x}, or that is the name of more than one row,
+is an error. Default \code{NULL} (all genes).}
 }
 \value{
 A \code{\linkS4class{CelltypeNetworkResult}}
   restricted to exposure-associated features. Its metadata record
-  the expression transform, the selection settings, for stability
-  selection \code{pfer_bound}, and in \code{selection} the penalties of
-  the network: \code{lambda_w} and \code{lambda_b} for the block
-  graphical lasso, or the \code{selected_lambda_w},
+  the expression transform, the covariates, the donors of the network
+  (\code{donors}) and the number of them with a value of the exposure
+  (\code{n_donors_exposure}), on whom the selection was made, the
+  selection settings, for stability selection \code{pfer_bound}, in
+  \code{constant_features} the candidates that are constant across the
+  donors with a value of the exposure and so could not be selected, and
+  in \code{selection} the penalties of the network:
+  \code{lambda_w} and \code{lambda_b} for the block graphical lasso, or
+  the size of the grid and the \code{selected_lambda_w},
   \code{selected_lambda_b} and \code{selected_c} that coglasso
   selected, with \code{stars_variability}.
 }
 \description{
-Pre-selects features associated with exposure by stability
-selection or univariate testing, then builds a
-cross-omic network on the selected features only. This
-mirrors the two-stage approach in Cheng et al. (2024).
+Pre-selects the transcripts and metabolites associated with an exposure,
+by stability selection or univariate testing, and estimates a cross-omic
+network among the selected features only. Cheng et al. (2024) analysed
+transcriptomic and metabolomic signatures of air pollution in two such
+stages: features associated with the exposures were identified first,
+and conditional multi-omic networks estimated afterwards.
 }
 \details{
-Stage 1: Feature selection. For each transcript and
-metabolite, tests association with exposure.
-\code{"univariate"} uses Spearman correlation tests (asymptotic
-\emph{t} approximation) with BH correction; features without
-variation across donors are not selected.
+Stage 1: Feature selection, among the donors with a value of the
+exposure. Each transcript and metabolite is screened by its Spearman
+correlation with the exposure. With \code{covariates} it is the partial
+rank correlation: the ranks of the covariates are regressed out of the
+ranks of the feature and of the exposure, and the residuals are
+correlated.
+A feature without variation across these donors, such as a gene without
+a count in the cell type, is neither tested nor ranked by either method,
+and \eqn{p} below counts the features that vary.
+\code{"univariate"} tests the correlation (asymptotic \emph{t}
+approximation, with one degree of freedom fewer for each covariate that
+is not constant or a combination of the others among these donors) with
+BH correction over these features.
+The approximation is poor when both the exposure and a feature take one
+value in all but a few donors, as an exposure that only a few donors
+have, or that is above its limit of detection in a few, and a gene with
+a count in one or two donors: the p-value of such a gene is far too
+small whenever its donors are among those few, and with many such genes
+among the candidates some pass the BH correction together. For an
+exposure of this kind, name the candidate genes with \code{genes} and
+leave out those with a count in few donors.
 \code{"stability"} applies stability selection (Meinshausen and
 Buhlmann 2010) to a marginal screen: in each of 100 random
 subsamples of half the donors with an observed exposure, the
-\code{stability_q} features with the largest absolute Spearman
+\code{stability_q} features with the largest absolute
 correlation with the exposure are selected, and features selected
 in a proportion of at least \code{pi_threshold} of subsamples are
 retained. The screen remains defined when features outnumber
@@ -115,6 +164,10 @@ donors. Under the exchangeability and better-than-random-guessing
 assumptions of Meinshausen and Buhlmann, the expected number of
 falsely selected features is at most
 \eqn{q^2 / ((2\pi_{thr} - 1)p)}, reported as \code{pfer_bound}.
+Candidates with a count in very few donors are hardly ever among the
+\code{stability_q} highest of a subsample, which the exchangeability
+assumption does not allow for; with many of them among the candidates
+the bound is too small. \code{genes} can leave them out.
 At least three features must be selected.
 
 Transcript values are log-CPM or VST values and therefore relative
@@ -123,11 +176,14 @@ genes that carry a large share of the counts, the remaining genes
 shift in the opposite direction and can pass the screen; with few
 measured genes this can dominate the univariate screen.
 
-Stage 2: Network estimation on selected features only,
-without residualising the exposure (to capture
-exposure-driven rewiring), with collaborative graphical lasso
-model selection by XStARS (\code{"coglasso"}) or the block
-graphical lasso (\code{"block_glasso"}).
+Stage 2: Network estimation on the selected features only, with
+collaborative graphical lasso model selection by XStARS
+(\code{"coglasso"}) or the block graphical lasso
+(\code{"block_glasso"}). It is one network for all the donors analysed.
+The exposure is not regressed out of the features and is not a node, so
+an edge can reflect the association that two features share with the
+exposure, and the network does not estimate how the dependence between
+features changes with the exposure.
 }
 \examples{
 set.seed(3)
@@ -153,7 +209,8 @@ if (requireNamespace("glasso", quietly = TRUE)) {
     net <- run_exposure_network(scee, metabolites, celltype = "Mono",
         exposure = "PM2.5",
         selection_method = "univariate",
-        network_method = "block_glasso")
+        network_method = "block_glasso",
+        transform = "log_cpm")
     net
 }
 }

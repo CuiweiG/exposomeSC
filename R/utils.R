@@ -48,6 +48,20 @@ NULL
     )
 }
 
+# Whether a suggested package is installed; a function of its own so that a
+# test can stand in for a machine without the package
+# @keywords internal
+# @noRd
+.is_installed <- function(package) {
+    requireNamespace(package, quietly = TRUE)
+}
+
+# The version of an installed package; a function of its own so that a test
+# can stand in for another version
+.installed_version <- function(package) {
+    utils::packageVersion(package)
+}
+
 # Log-CPM transformation (internal, not exported)
 # @keywords internal
 # @noRd
@@ -274,24 +288,6 @@ NULL
         }
     }, envir = envir)
     withr::local_seed(seed, .local_envir = envir, .rng_kind = kind)
-    invisible(NULL)
-}
-
-# Experimental interfaces warn once per session. Tests reset the record with
-# .reset_experimental_warnings() before asserting the warning.
-.experimental_warnings <- new.env(parent = emptyenv())
-
-.warn_experimental <- function(key, message) {
-    if (!isTRUE(.experimental_warnings[[key]])) {
-        assign(key, TRUE, envir = .experimental_warnings)
-        warning(message, call. = FALSE)
-    }
-    invisible(NULL)
-}
-
-.reset_experimental_warnings <- function() {
-    rm(list = ls(.experimental_warnings, all.names = TRUE),
-       envir = .experimental_warnings)
     invisible(NULL)
 }
 

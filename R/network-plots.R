@@ -282,11 +282,11 @@ plot_celltype_network <- function(network,
 #' @examples
 #' shared_edge <- S4Vectors::DataFrame(
 #'     node_i = "G1", node_j = "M1", category = "shared",
-#'     max_diff = 0.1, p_value = 0.4, p_adjusted = 0.4
+#'     max_diff = 0.1
 #' )
 #' differential_edge <- S4Vectors::DataFrame(
 #'     node_i = "G2", node_j = "M1", category = "differential",
-#'     max_diff = 0.5, p_value = 0.01, p_adjusted = 0.02
+#'     max_diff = 0.5
 #' )
 #' comparison <- NetworkComparison(
 #'     diff_edges = differential_edge,

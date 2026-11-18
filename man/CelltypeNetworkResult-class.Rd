@@ -50,7 +50,7 @@ represents.}
 
 \item{\code{method}}{Character. Estimation method: \code{"coglasso"} or
 \code{"block_glasso"} from \code{run_celltype_network()},
-\code{"exposure_driven"} from \code{run_exposure_network()}, or
+\code{"exposure_restricted"} from \code{run_exposure_network()}, or
 \code{"precomputed"} for a network supplied by the user.}
 
 \item{\code{metadata}}{List. Additional parameters: n_donors,

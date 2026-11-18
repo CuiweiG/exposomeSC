@@ -25,8 +25,7 @@ accessors in \code{\link{network-accessors}} to extract them.
 \describe{
 \item{\code{diff_edges}}{\code{DataFrame}. Edges present in some but not all
 of the compared networks (including edges unique to one cell type),
-with the range of their partial correlations and, for
-\code{method = "fisher_z"}, p-values and adjusted p-values.}
+with the range of their partial correlations.}
 
 \item{\code{shared_edges}}{\code{DataFrame}. Edges present in all
 compared cell types.}

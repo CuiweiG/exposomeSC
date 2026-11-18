@@ -4,7 +4,6 @@
 #' @include AllClasses.R
 #' @include network-utils.R
 #' @importFrom S4Vectors DataFrame
-#' @importFrom stats p.adjust pnorm
 NULL
 
 #' Compare networks across cell types
@@ -12,43 +11,20 @@ NULL
 #' Classifies the union of edges from two or more cell-type-specific
 #' networks estimated on the same features as shared, unique to one
 #' cell type or differential, and reports pairwise Jaccard overlap.
-#' The default \code{method = "descriptive"} reports no p-values.
-#'
-#' \code{method = "fisher_z"} also compares the partial correlations
-#' of each edge with Fisher's Z test. This mode is experimental and
-#' warns once per session: networks estimated from the same donors are
-#' not independent samples, and penalised partial correlations do not
-#' follow the sampling distribution the test assumes, so its p-values
-#' are not validated.
+#' The comparison is descriptive: no edge is tested and no p-value is
+#' reported.
 #'
 #' @param ... Two or more \code{\linkS4class{CelltypeNetworkResult}}
 #'   objects. All must share the same feature set (same genes
 #'   and metabolites).
-#' @param method Character; \code{"descriptive"} (default) or
-#'   \code{"fisher_z"}.
-#' @param adjust Character; p-value adjustment method used with
-#'   \code{method = "fisher_z"}. Default \code{"BH"}.
 #'
 #' @return A \code{\linkS4class{NetworkComparison}} object. Its edge
 #'   tables contain \code{max_diff}, the range of the edge's partial
-#'   correlation across networks, and \code{p_value} and
-#'   \code{p_adjusted}, which are \code{NA} for
-#'   \code{method = "descriptive"}.
+#'   correlation across networks.
 #'
 #' @details
 #' Partial correlations are computed from each precision matrix
 #' \eqn{\Theta} as \eqn{-\Theta_{ij} / \sqrt{\Theta_{ii}\Theta_{jj}}}.
-#' For two networks, Fisher's Z statistic is
-#' \code{(atanh(r1) - atanh(r2)) / sqrt(1/(n1 - 3) + 1/(n2 - 3))},
-#' where \code{n1} and \code{n2} are the donor counts recorded in the
-#' networks' metadata; with more than two networks the largest pairwise
-#' statistic is used.
-#'
-#' The donor counts are read from \code{metadata(network)$n_donors}, which
-#' must be a single non-negative whole number in every network, whatever
-#' the method; \code{NULL} or \code{NA} mean that the count is unknown. A
-#' pair of networks with an unknown count, or a count of 3 or less, is not
-#' tested, and an edge with no tested pair gets an \code{NA} p-value.
 #'
 #' This is the single-cell analogue of the temporal edge comparison in
 #' Cheng et al. (ES&T 2024).
@@ -83,21 +59,23 @@ NULL
 #' b_cell_network <- make_network("B cell", -0.15)
 #' comparison <- run_comparative_network(monocyte_network, b_cell_network)
 #' comparison
-run_comparative_network <- function(...,
-                                     method = c("descriptive",
-                                                "fisher_z"),
-                                     adjust = "BH") {
-    method <- match.arg(method)
+run_comparative_network <- function(...) {
     nets <- list(...)
 
     if (length(nets) < 2L)
         stop("At least 2 CelltypeNetworkResult objects required")
 
-    ## Validate all are CelltypeNetworkResult
+    ## Validate all are CelltypeNetworkResult; an argument given by name is
+    ## named in the message, as every argument is taken to be a network
+    arg_names <- names(nets)
     for (i in seq_along(nets)) {
-        if (!is(nets[[i]], "CelltypeNetworkResult"))
-            stop("Argument ", i,
+        if (!is(nets[[i]], "CelltypeNetworkResult")) {
+            given_as <- if (!is.null(arg_names) && nzchar(arg_names[[i]])) {
+                paste0(" ('", arg_names[[i]], "')")
+            }
+            stop("Argument ", i, given_as,
                  " is not a CelltypeNetworkResult")
+        }
     }
 
     ## Get cell type names
@@ -114,21 +92,22 @@ run_comparative_network <- function(...,
 
     for (i in seq_along(nets)[-1]) {
         fi <- networkNodes(nets[[i]])$feature
-        if (length(fi) != p || !all(fi == ref_features))
+        if (length(fi) != p || !all(fi == ref_features)) {
+            only_first <- setdiff(ref_features, fi)
+            only_this <- setdiff(fi, ref_features)
+            detail <- c(
+                if (length(only_first)) paste0(" Only in '", ct_names[1],
+                    "': ", .some_names(only_first), "."),
+                if (length(only_this)) paste0(" Only in '", ct_names[i],
+                    "': ", .some_names(only_this), "."),
+                if (!length(only_first) && !length(only_this) &&
+                    length(fi) == p)
+                    " The features are the same, in another order.")
             stop("All networks must have identical features. ",
                  "Network for '", ct_names[i],
                  "' has different features from '",
-                 ct_names[1], "'.")
-    }
-
-    if (method == "fisher_z") {
-        .warn_experimental("run_comparative_network_fisher_z", paste0(
-            "run_comparative_network(method = \"fisher_z\") is ",
-            "experimental: networks from the same donors are not ",
-            "independent samples and penalised partial correlations do ",
-            "not follow the distribution Fisher's Z test assumes, so its ",
-            "p-values are not validated. This warning is shown once per ",
-            "session."))
+                 ct_names[1], "'.", detail)
+        }
     }
 
     ## --- Partial correlations from the precision matrices ---
@@ -140,119 +119,21 @@ run_comparative_network <- function(...,
         partial
     })
     adjacencies <- lapply(nets, networkAdjacency)
-    n_donors <- vapply(nets, function(n) {
-        count <- metadata(n)$n_donors
-        if (is.null(count) || (length(count) == 1L && is.na(count))) {
-            return(NA_real_)
-        }
-        if (!is.numeric(count) || length(count) != 1L ||
-                !is.finite(count) || count < 0 || count != round(count)) {
-            stop("metadata()$n_donors of the network for '",
-                networkCelltype(n),
-                "' must be a single non-negative whole number.",
-                call. = FALSE)
-        }
-        as.numeric(count)
-    }, numeric(1))
 
     ## --- Identify all edges across networks ---
     union_adj <- Reduce(`+`, adjacencies)
     union_adj <- (union_adj > 0) * 1L
 
-    ## --- For each edge, test differential ---
-    edge_list <- list()
-    idx <- 0L
+    ## --- Classify each edge ---
+    ij <- .upper_edges(union_adj)
+    n_union <- nrow(ij)
 
-    for (i in seq_len(p - 1L)) {
-        for (j in (i + 1L):p) {
-            if (union_adj[i, j] == 0) next
-
-            idx <- idx + 1L
-            pcor_vals <- vapply(precisions, function(pm) {
-                pm[i, j]
-            }, numeric(1))
-            names(pcor_vals) <- ct_names
-
-            present_in <- vapply(adjacencies, function(am) {
-                am[i, j] != 0
-            }, logical(1))
-
-            ## Determine edge category
-            if (all(present_in)) {
-                category <- "shared"
-            } else if (sum(present_in) == 1L) {
-                category <- paste0("unique_",
-                    ct_names[which(present_in)])
-            } else {
-                category <- "differential"
-            }
-
-            ## Statistical test
-            pval <- NA_real_
-            if (method == "fisher_z" && length(nets) == 2L &&
-                all(is.finite(pcor_vals))) {
-                r1 <- pcor_vals[1]
-                r2 <- pcor_vals[2]
-                n1 <- n_donors[1]
-                n2 <- n_donors[2]
-                if (!is.na(n1) && !is.na(n2) &&
-                    n1 > 3 && n2 > 3) {
-                    z1 <- atanh(min(max(r1, -0.999), 0.999))
-                    z2 <- atanh(min(max(r2, -0.999), 0.999))
-                    se <- sqrt(1 / (n1 - 3) + 1 / (n2 - 3))
-                    z_stat <- abs(z1 - z2) / se
-                    pval <- 2 * pnorm(-z_stat)
-                }
-            } else if (method == "fisher_z" &&
-                       length(nets) > 2L && all(is.finite(pcor_vals))) {
-                ## Multi-group: pairwise max test
-                z_max <- 0
-                tested <- FALSE
-                for (a in seq_along(nets)[-length(nets)]) {
-                    for (b in (a + 1L):length(nets)) {
-                        r_a <- pcor_vals[a]
-                        r_b <- pcor_vals[b]
-                        n_a <- n_donors[a]
-                        n_b <- n_donors[b]
-                        if (is.na(n_a) || is.na(n_b) ||
-                            n_a <= 3 || n_b <= 3) next
-                        z_a <- atanh(min(max(r_a, -0.999),
-                                         0.999))
-                        z_b <- atanh(min(max(r_b, -0.999),
-                                         0.999))
-                        se <- sqrt(1/(n_a - 3) + 1/(n_b - 3))
-                        z_max <- max(z_max,
-                            abs(z_a - z_b) / se)
-                        tested <- TRUE
-                    }
-                }
-                ## p = 1 when every tested pair has the same partial
-                ## correlation, as with two networks
-                if (tested) pval <- 2 * pnorm(-z_max)
-            }
-
-            edge_list[[idx]] <- data.frame(
-                node_i     = ref_features[i],
-                node_j     = ref_features[j],
-                layer_i    = ref_nodes$omic_layer[i],
-                layer_j    = ref_nodes$omic_layer[j],
-                cross_omic = ref_nodes$omic_layer[i] !=
-                    ref_nodes$omic_layer[j],
-                category   = category,
-                max_diff   = max(pcor_vals) - min(pcor_vals),
-                p_value    = pval,
-                stringsAsFactors = FALSE
-            )
-        }
-    }
-
-    if (length(edge_list) == 0) {
+    if (n_union == 0) {
         all_edges <- S4Vectors::DataFrame(
             node_i = character(), node_j = character(),
             layer_i = character(), layer_j = character(),
             cross_omic = logical(), category = character(),
-            max_diff = numeric(), p_value = numeric(),
-            p_adjusted = numeric())
+            max_diff = numeric())
 
         return(new("NetworkComparison",
             diff_edges        = all_edges,
@@ -261,13 +142,44 @@ run_comparative_network <- function(...,
             summary = list(
                 celltypes = ct_names,
                 n_edges = integer(0),
-                jaccard = 0,
-                method = method)))
+                jaccard = 0)))
     }
 
-    all_df <- do.call(rbind, edge_list)
-    all_df$p_adjusted <- p.adjust(all_df$p_value,
-                                   method = adjust)
+    ## One row per edge and one column per network: the partial correlation
+    ## of the edge and whether the network has it
+    pcor <- matrix(
+        vapply(precisions, function(pm) pm[ij], numeric(n_union)),
+        nrow = n_union
+    )
+    present <- matrix(
+        vapply(adjacencies, function(am) am[ij] != 0, logical(n_union)),
+        nrow = n_union
+    )
+    n_present <- rowSums(present)
+    category <- rep("differential", n_union)
+    category[n_present == length(nets)] <- "shared"
+    ## for an edge found in one network, the sum of the positions of the
+    ## networks that have it is the position of that network
+    in_one <- n_present == 1L
+    category[in_one] <- paste0(
+        "unique_",
+        ct_names[drop(present %*% seq_along(nets))[in_one]]
+    )
+
+    ## row.names = NULL: data.frame() would otherwise take the row names
+    ## from names that a column of the node table may carry
+    layers <- ref_nodes$omic_layer
+    all_df <- data.frame(
+        node_i     = ref_features[ij[, 1L]],
+        node_j     = ref_features[ij[, 2L]],
+        layer_i    = layers[ij[, 1L]],
+        layer_j    = layers[ij[, 2L]],
+        cross_omic = layers[ij[, 1L]] != layers[ij[, 2L]],
+        category   = category,
+        max_diff   = apply(pcor, 1L, max) - apply(pcor, 1L, min),
+        row.names = NULL,
+        stringsAsFactors = FALSE
+    )
     all_edges <- S4Vectors::DataFrame(all_df)
 
     ## Partition edges
@@ -310,7 +222,6 @@ run_comparative_network <- function(...,
             celltypes     = ct_names,
             n_edges       = n_edges_per,
             jaccard       = jaccard_pairs,
-            method        = method,
             n_total_edges = nrow(all_edges),
             n_shared      = nrow(shared),
             n_differential = nrow(diff)

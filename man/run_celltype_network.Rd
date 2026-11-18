@@ -21,7 +21,9 @@ run_celltype_network(
   top_var_genes = NULL,
   lambda_w = 0.3,
   lambda_b = 0.5,
-  precomputed_network = NULL
+  precomputed_network = NULL,
+  transform = c("vst", "log_cpm"),
+  genes = NULL
 )
 }
 \arguments{
@@ -32,7 +34,11 @@ cell's donor is read from the \code{colData} column named by
 \item{metabolites}{Numeric matrix; rows = donors,
 cols = metabolites. Row names must be donor IDs. A matrix without
 columns, or a missing or infinite value for an analysed donor, is an
-error.}
+error, and so is a column with the name of another column or of a
+gene that becomes a node: two nodes cannot have the same name.
+The matrix is needed to estimate a network; the default,
+\code{NULL}, is for a call with \code{precomputed_network}, which
+does not use it.}
 
 \item{celltype}{Character; which cell type to build
 the network for.}
@@ -52,7 +58,8 @@ covariate are left out, with a message. Default NULL.}
 \item{method}{Character; \code{"coglasso"} (default) or
 \code{"block_glasso"}. The coglasso method uses
 collaborative graphical lasso with block-calibrated
-penalties (Albanese et al. 2026).}
+penalties (Albanese et al. 2026) and needs the \pkg{coglasso}
+package, version 1.1.0 or later.}
 
 \item{stability}{Logical; for \code{method = "coglasso"}, whether
 to return the edge-level selection frequencies from XStARS in
@@ -105,10 +112,33 @@ each feature), both optional. The block labels become the
 \code{"transcript"} and \code{"metabolite"} for the summaries and
 plots to recognise the layers. A logical adjacency is stored as 0/1
 and its diagonal is set to zero.
-When provided, \code{metabolites}, \code{method},
-\code{stability}, and lambda parameters are ignored.
-\code{x} must still be a
+When provided, nothing is estimated, and of the other arguments only
+\code{celltype} is used. \code{x} must still be a
 \code{SingleCellExposomeExperiment}.}
+
+\item{transform}{Character; the transform of the pseudobulk counts.
+\code{"vst"} (default) is the variance-stabilising transformation of
+\code{DESeq2::vst()}, blind to the design, and needs \pkg{DESeq2} and
+at least 1000 genes with a mean normalised count above 5;
+\code{"log_cpm"} is the base-2 logarithm of the counts per million
+plus one. The call stops when \code{"vst"} cannot be computed; it does
+not switch to the other transform. One choice stays with DESeq2: when
+the parametric fit of the dispersion trend fails, \code{vst()} uses a
+local fit, and a message says so.}
+
+\item{genes}{Character vector or \code{NULL}; row names of \code{x}, the
+genes that become the transcript nodes of the network, in the order
+given. The transform is computed from all genes of \code{x} before
+these are taken, so the values of a gene do not depend on which genes
+are kept, as they would after subsetting \code{x}. When
+\code{top_var_genes} is smaller than their number, the most variable
+of these genes are kept, in the order of their variances. Networks of
+several cell types built
+with the same \code{genes} have the same transcripts, which
+\code{\link{run_comparative_network}} needs, unless one of the genes
+is constant in a cell type and is left out there (see Details). A name
+that is not a row name of \code{x}, or that is the name of more than
+one row, is an error. Default \code{NULL} (all genes).}
 }
 \value{
 A \code{\linkS4class{CelltypeNetworkResult}} object.
@@ -123,26 +153,30 @@ The workflow proceeds as follows:
 \enumerate{
   \item Pseudobulk aggregation for the specified cell type,
     reusing existing \pkg{exposomeSC} infrastructure.
-  \item Variance-stabilising transformation (DESeq2 VST)
-    on counts. When \pkg{DESeq2} is not installed, or VST fails (for
-    example with too few genes), log-CPM values are used instead and a
-    message says so; the transform used is recorded in
+  \item Transformation of the pseudobulk counts, chosen by
+    \code{transform}: DESeq2's variance-stabilising transformation or
+    log-CPM. The transform is recorded in
     \code{metadata(result)$transform}.
   \item Constant features: a transcript or metabolite that takes one
     value in every donor (for example a gene with no counts in the
-    cell type) is left out, with a message, and named in
-    \code{metadata(result)$constant_features}; the call stops when every
-    transcript or every metabolite is constant. Networks of different
-    cell types can therefore differ in their features, which
-    \code{\link{run_comparative_network}} does not accept: leave the
-    features named there out of the data of every cell type first.
-  \item Residualization: if \code{exposure} or
+    cell type) is left out, with a message that names up to five
+    transcripts and five metabolites; all are recorded
+    in \code{metadata(result)$constant_features}; the call stops when
+    every transcript or every metabolite is constant. Networks of
+    different cell types can therefore differ in their features, which
+    \code{\link{run_comparative_network}} does not accept. For a
+    comparison, name the genes with \code{genes} and leave a gene that
+    is constant in one of the cell types out of \code{genes} for all of
+    them. \code{top_var_genes} on its own selects different genes in
+    different cell types.
+  \item Adjustment: if \code{exposure} or
     \code{covariates} are specified, regresses them out
     from both transcriptomic and metabolomic matrices.
     The resulting network captures the exposure-adjusted
     conditional dependency structure.
-  \item Column-binding: \code{[VST residuals |
-    metabolite residuals]}.
+  \item Column-binding of the transcript values and the metabolite
+    values (the residuals of both, where something was regressed out),
+    each column scaled to unit variance.
   \item Block-calibrated graphical lasso estimation.
     With \code{coglasso}: collaborative graphical lasso
     with separate within/between-omic penalties and
@@ -191,7 +225,8 @@ if (requireNamespace("glasso", quietly = TRUE)) {
         method = "block_glasso",
         stability = FALSE,
         min_cells = 5L,
-        top_var_genes = 3L
+        top_var_genes = 3L,
+        transform = "log_cpm"
     )
     network
 }

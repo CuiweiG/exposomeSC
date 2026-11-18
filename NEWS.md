@@ -19,6 +19,16 @@ with warnings.
   median and ignored covariates, and `run_temporal_network()`, whose only
   tests were argument checks, with `plot_temporal_dynamics()` and the
   `TemporalNetwork` class.
+* The experimental `method = "fisher_z"` of `run_comparative_network()`:
+  networks estimated from the same donors are not independent samples, and
+  penalised partial correlations do not follow the distribution that
+  Fisher's Z test assumes. The comparison is descriptive only, so the
+  arguments `method` and `adjust`, the columns `p_value` and `p_adjusted` of
+  the edge tables and the `method` element of `comparisonSummary()` are
+  removed with it. Call the function with the networks only: every argument
+  is now taken to be a network, so a call that still passes `method` or
+  `adjust`, `method = "descriptive"` included, stops with an error that
+  names the argument.
 * The unexported developmental function `run_erd_interventional()`.
 * mediation and SpatialExperiment are no longer suggested.
 
@@ -31,10 +41,15 @@ with warnings.
   edgeR 4.10.0 is now required, and the edgeR version is recorded in
   `metadata(result)$parameters`.
 * `method = "block_glasso"` in `run_celltype_network()` and
-  `run_exposure_network()` is now the graphical lasso (`glasso::glasso()`)
-  on the correlation matrix, with separate within- and between-layer
-  penalties. It used to threshold a ridge-regularised inverse, which is not
-  the graphical lasso. It needs the glasso package.
+  `network_method = "block_glasso"` in `run_exposure_network()` are now the
+  graphical lasso (`glasso::glasso()`) on the correlation matrix, with
+  separate within- and between-layer penalties. They used to threshold a
+  ridge-regularised inverse, which is not the graphical lasso. They need the
+  glasso package.
+* `method = "coglasso"` and `network_method = "coglasso"` need coglasso 1.1.0
+  or later: they call `coglasso::xstars()` and the argument `p` of
+  `coglasso::coglasso()`, both new in that version. With an older coglasso
+  installed the functions stop and name the version they need.
 * `exposure_impute_lod()` treats `NA` as missing, not as below the LOD;
   values reported as below the LOD are marked with the new `censored`
   argument (or, without it, are the values at or below the LOD). Missing
@@ -67,6 +82,53 @@ with warnings.
 * `run_exposure_network(network_method = "coglasso")` stops with an
   installation hint when coglasso is not installed, instead of switching to
   the block graphical lasso.
+* `run_celltype_network()` and `run_exposure_network()` no longer replace
+  DESeq2's variance-stabilising transformation of the pseudobulk counts by
+  log-CPM values when DESeq2 is not installed or `DESeq2::vst()` fails,
+  which it does for fewer than 1000 genes with a mean normalised count
+  above 5. The replacement was made without a message, so one call could
+  give different networks on different machines. The transform is now the
+  argument `transform`, `"vst"` (the default) or `"log_cpm"`, and a call
+  that asks for `"vst"` and cannot have it stops with an error that names
+  the other. `transform = "log_cpm"` gives the transcript values that the
+  replacement used. Inside `DESeq2::vst()` one switch remains that the
+  package leaves to DESeq2: when the parametric fit of the dispersion
+  trend fails, DESeq2 uses a local fit in its place. Its note to that effect
+  used to be hidden with the other messages of DESeq2 and is now passed on.
+* `run_exposure_network()` with `covariates` selects by the partial rank
+  correlation of a feature with the exposure: the ranks of the covariates
+  are regressed out of the ranks of the feature and of the exposure. It used
+  to regress the covariates out of the values of the feature and to
+  rank-correlate what was left with the exposure. Values that were tied,
+  such as the zeros of a gene with few counts, were then put in the order of
+  the covariates, and the feature took over the rank correlation of the
+  covariates with the exposure. For the monocytes of the INCOV data, with
+  the plasma level of paraxanthine as the exposure and smoking as the
+  covariate (Spearman correlation 0.51), the univariate selection passed
+  3,226 of the 15,588 candidates at a false discovery rate of 0.05; it
+  passes none now, and none without the covariate. The selection for age
+  given sex in the network vignette keeps its seven features. The test has
+  one degree of freedom fewer for each covariate; a call without covariates
+  tests as before. The covariates are still regressed out of the
+  values before the network is estimated.
+* `run_exposure_network(selection_method = "stability")` counts the
+  candidates that vary across the donors with a value of the exposure, not
+  all candidates, in the default of `stability_q` and in `pfer_bound`. A
+  candidate that is constant, such as a gene without a count in the cell
+  type, is never ranked, so counting it made the default `stability_q` too
+  large and the reported bound too small: with all genes of the INCOV data
+  as candidates for monocytes, 1,670 of 15,588 candidates are constant, the
+  default was 55 and the bound reported for it 0.97, where the bound over
+  the candidates that vary is 1.09; the default is now 52. `stability_q` may
+  be at most the number of candidates that vary. The bound still assumes
+  that the candidates without an association are exchangeable, which
+  candidates with a count in very few donors are not (see
+  `?run_exposure_network`).
+* `run_exposure_composition()` with `n_permutations` above 0 and no `seed`
+  no longer gives the same permutation p-value at every call. The default of
+  `seed` was 1 and is `NULL` now, which draws from the caller's stream (see
+  Interface); pass an integer `seed`, or call `set.seed()` first, for a
+  p-value that can be repeated.
 * The `residual_df` diagnostic of the edgeR backend of `run_sc_exwas()`
   gives the adjusted residual degrees of freedom of the quasi-likelihood fit
   instead of the nominal ones (see Bug fixes).
@@ -78,10 +140,6 @@ with warnings.
   or `covariates`, a feature with the same non-zero value in every donor
   could instead stay in as rounding noise scaled to unit variance (see Bug
   fixes).
-* `run_comparative_network(method = "fisher_z")` with more than two networks
-  gives the p-value 1 instead of `NA` to an edge whose tested pairs all have
-  the same partial correlation; such an edge now counts in `p_adjusted`,
-  whose values for the other edges can therefore be larger (see Bug fixes).
 * The permutation p-value of `run_exposure_composition()` can change when a
   stratum of `permutation_strata` holds a single donor in a model row other
   than the first (see Bug fixes).
@@ -134,6 +192,11 @@ with warnings.
   `statistic`, `pvalue` and `padj` of the other genes change; `padj_global`
   (and `padj_all` of `run_multi_exwas()`) can change in every cell type;
   `log2FC` and `logCPM` stay the same (see Bug fixes).
+* The edge tables of a `run_comparative_network()` result have no row names.
+  They had none before either, unless a column of the node table carried
+  names, as after `omic_layer = layer_of[features]`: the rows were then
+  named after their first node, with digits added to tell the names apart
+  (`g1`, `g11`, `g12`). The rows themselves are unchanged.
 * The results of `run_dose_response()` and `run_cell_coupling()` have no row
   names. The rows of the first were named after the linear model, one of the
   models whose AIC a row holds, and those of the second after the intercept
@@ -176,6 +239,17 @@ with warnings.
   for DESeq2 is removed.
 * `plot_stability_surface()` is renamed `plot_edge_stability()`. The fixed
   dashed line at 0.6 is gone; pass `threshold` to draw one.
+* A network from `run_exposure_network()` records its method as
+  `"exposure_restricted"`, formerly `"exposure_driven"`. The function
+  estimates one network among the features that pass a screen against the
+  exposure. The exposure is neither regressed out nor a node, and nothing is
+  compared between levels of exposure, so the network does not show how the
+  dependence between features changes with the exposure (see
+  Documentation).
+* The result of `run_exposure_network()` records its donors
+  (`metadata(result)$donors`) and how many of them have a value of the
+  exposure (`n_donors_exposure`); the selection is made on those, the
+  network on all.
 * `run_exposure_composition()` defaults to `seed = NULL` and then draws from
   the caller's random-number stream, so `set.seed()` before the call works
   as expected. An integer seed still works as before.
@@ -193,7 +267,30 @@ with warnings.
 * `run_exposure_network()` takes `lambda_w` and `lambda_b`, the penalties of
   the block graphical lasso (defaults 0.3 and 0.5, the values it used
   before), and records the penalties of its network in
-  `metadata(result)$selection` (see Bug fixes).
+  `metadata(result)$selection` (see Bug fixes). With coglasso it chooses
+  them from a 10 by 10 grid, which the help page now says and the result
+  records. `metadata(result)` also holds the `covariates` that were
+  regressed out and, in `constant_features`, the candidates that are
+  constant across the donors with a value of the exposure and could not be
+  selected.
+* `run_celltype_network()` and `run_exposure_network()` take `transform`,
+  the transform of the pseudobulk counts: `"vst"` (the default) or
+  `"log_cpm"` (see Changes that can alter results).
+* `run_celltype_network()` and `run_exposure_network()` take `genes`, the
+  row names of the genes to use: the transcript nodes of a cell-type
+  network, or the candidates of the selection. The transform is computed
+  from all genes before these are taken, so their values are not those of
+  an object cut down to them. `run_comparative_network()` needs networks
+  with the same features, and `top_var_genes` selects different genes in
+  different cell types; with the same `genes` the networks of two cell
+  types can be compared, provided that each of the genes varies across the
+  donors of each cell type. A gene that is constant in a cell type, such as
+  one without a count there, is left out of that network, with a message
+  that names up to five transcripts and five metabolites (see Bug fixes), and
+  the error of `run_comparative_network()` names up to five of the features
+  that its networks do not share. A name that is on more than one row of
+  the object is an error. The default, `NULL`, uses all genes as
+  before.
 * A SingleCellExposomeExperiment no longer keeps a second copy of the
   cell-to-donor mapping in a `sampleMap` slot. It stores the name of the
   donor column of `colData`, returned by the new `sampleColumn()`, and
@@ -256,14 +353,10 @@ with warnings.
 * `plot_celltype_network(edge_alpha_by = "stability")` stops when the
   network has no stability scores, as `color_by = "stability"` already did;
   it used to fall back to the edge weights without saying so.
-* `run_comparative_network()` accepts `metadata(network)$n_donors` stored
-  as a double, which is how a number is normally typed; it used to fail
-  with "values must be type 'integer'". A count that is not a single
-  non-negative whole number is an error that names the network; `NULL` or
-  `NA` mean that the count is unknown. With more than two networks, an
-  edge whose tested pairs all have the same partial correlation gets the
-  p-value 1, as with two networks, instead of `NA`; it now counts in
-  `p_adjusted`, whose values for the other edges can therefore be larger.
+* `run_comparative_network()` no longer fails with "values must be type
+  'integer'" when `metadata(network)$n_donors` is stored as a double, which
+  is how a number is normally typed. It does not read the donor counts any
+  more: only the removed Fisher's Z test used them.
 * A CelltypeNetworkResult also checks that its precision matrix is
   numeric, that the adjacency matrix is numeric with a zero diagonal, that
   stability scores lie between 0 and 1, and that the node table has the
@@ -372,6 +465,42 @@ with warnings.
   label was accepted silently. A 0 x 0 adjacency without feature names,
   which failed with "length of 'dimnames' [1] not equal to array extent", is
   now wrapped into an empty network.
+* `run_celltype_network()` accepts an exposure or a covariate called `...`
+  or `..1`, and `run_exposure_network()` a covariate of such a name. The
+  adjustment of the transcript and metabolite values evaluated the names of
+  the variables it regresses out in a formula, so such a name stopped both
+  functions with "'...' used in an incorrect context". A covariate called
+  `Y` or `j`, the names of two variables of that code, stopped them as well
+  ("incorrect number of dimensions", "subscript out of bounds"). The adjusted
+  values are unchanged.
+* `run_exposure_network()` refuses its exposure among its `covariates`, as
+  the association analyses of this release do: nothing of the exposure is
+  left to select by once it is adjusted for. The call used to run and, with
+  the selection described under Changes that can alter results, to pass
+  thousands of genes with few counts. For the same reason the function
+  stops, with an error that says so, when the exposure takes one value
+  among the donors with a value of it or when the ranks of the covariates
+  give its ranks, as they do for the same variable on another scale.
+* `run_exposure_network(selection_method = "univariate")` no longer warns
+  that "the standard deviation is zero" once for every candidate that is
+  constant among the donors with a value of the exposure and varies only
+  through the others. Such a candidate is not tested and is listed in
+  `metadata(result)$constant_features`.
+* `run_celltype_network()` and `run_exposure_network()` stop when two nodes
+  would have the same name: two rows of the object, two columns of
+  `metabolites`, or one of each. They used to return a network with two
+  nodes of one name, which no table of the result can tell apart.
+  Both take `covariates` given as a factor, which used to stop them with a
+  message about a column called "1".
+* `run_celltype_network()` says that `metabolites` must be a matrix with one
+  row for each donor when a network is to be estimated and the argument is
+  left out or is something else; the error was "is.matrix(metabolites) is
+  not TRUE". The default of the argument, `NULL`, is for a call with
+  `precomputed_network`, which the help page now says.
+* `run_comparative_network()` returns an empty comparison for networks
+  without nodes, and `plot_celltype_network()` the plot it draws for a
+  network without edges. Both stopped with "argument must be coercible to
+  non-negative integer".
 * `plot_celltype_network(edge_alpha_by = "stability")` maps the edge
   opacity to the stability scores also when `highlight_cross_omic = FALSE`;
   without the highlighting the opacity followed the edge weights whatever
@@ -643,9 +772,6 @@ with warnings.
   the empirical-Bayes prior of limma, so the standard errors, moderated
   t statistics and p-values of the other genes of the cell type depended
   on it as well.
-* When DESeq2 is not installed, or its variance-stabilising transformation
-  fails, the network functions say so before using log-CPM values; the
-  transform used was already recorded in the result's metadata.
 
 ## Internal changes
 
@@ -663,6 +789,17 @@ with warnings.
   in 0.99.1, is divided along its steps: pseudobulk, design, fit, extraction
   and assembly have functions of their own, and a driver runs them. The
   division itself changes no result and no warning or error message.
+* The network summaries no longer loop over every pair of nodes. The edge
+  counts and edge tables of a network, the edge table of
+  `run_comparative_network()` and the cross-omic count that `show()` prints
+  find the edges in one vectorised step and list them in the order of the
+  loops, by row and then by column, so every table is unchanged row for row.
+* `simulate_crossomic_network()` fills its precision matrices without loops
+  over pairs of nodes as well. It lists the pairs and draws the random
+  numbers in the order of the loops, so a seed gives the data it gave before.
+* The `show()` methods of CelltypeNetworkResult and NetworkComparison read
+  the objects through their accessors. The slots of the two classes are now
+  read only by the accessor methods and the validity methods.
 
 ## Documentation
 
@@ -688,6 +825,12 @@ with warnings.
 * `?plot_celltype_network` says that edges are weighted by the absolute
   entries of the precision matrix; it said partial correlation strength,
   whose order can differ when the diagonal of the precision matrix varies.
+* `?run_exposure_network` and `?run_cell_coupling` no longer speak of
+  exposure-driven rewiring. The first describes its result as one network
+  among exposure-associated features, in which an edge can reflect the
+  association that two features share with the exposure; the second
+  describes its exposure coefficient as the slope, across donors, of the
+  Fisher z of the gene-protein coupling on the exposure.
 
 # exposomeSC 0.99.1
 

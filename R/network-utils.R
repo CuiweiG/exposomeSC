@@ -28,10 +28,15 @@ NULL
 #' @param min_cells integer; minimum cells per pseudobulk
 #' @param top_var_genes integer or NULL; pre-select top
 #'   variable genes to reduce dimensionality
-#' @param vst logical; use DESeq2 VST (TRUE) or log-CPM (FALSE)
+#' @param transform character; "vst" (DESeq2) or "log_cpm", the transform
+#'   of the pseudobulk counts
 #' @param drop_constant logical; leave features that are constant across
 #'   the donors out of the matrix (TRUE), or keep them as constant columns
 #'   (FALSE)
+#' @param genes character or NULL; row names of x, the genes to keep after
+#'   the transform, which uses all genes
+#' @param keep_unadjusted logical; also return the values before the
+#'   exposure and the covariates are regressed out
 #'
 #' @return list with:
 #'   - data_matrix: donors x features numeric matrix
@@ -40,6 +45,8 @@ NULL
 #'   - n_transcripts: integer
 #'   - n_metabolites: integer
 #'   - constant_features: character; features left out as constant
+#'   - unadjusted: the values of the features before the adjustment and the
+#'     scaling, or NULL
 #'
 #' @keywords internal
 #' @noRd
@@ -49,9 +56,11 @@ NULL
                                  covariates = NULL,
                                  min_cells = 10L,
                                  top_var_genes = NULL,
-                                 vst = TRUE, drop_constant = TRUE) {
+                                 transform = "vst", drop_constant = TRUE,
+                                 genes = NULL, keep_unadjusted = FALSE) {
     ## --- Adjustment variables, checked before any computation ---
     .check_adjustment_names(x, c(exposure, covariates))
+    .check_network_genes(genes, rownames(x))
 
     ## --- Get cell type annotations ---
     cd <- colData(x)
@@ -73,38 +82,16 @@ NULL
         stop("No valid pseudobulk samples for cell type '",
              celltype, "' (min_cells=", min_cells, ")")
 
-    ## --- VST or log-CPM transform ---
-    tx_mat <- NULL
-    if (vst && requireNamespace("DESeq2", quietly = TRUE)) {
-        tx_mat <- tryCatch({
-            suppressMessages({
-                dds <- DESeq2::DESeqDataSetFromMatrix(
-                    countData = pb$pb_mat,
-                    colData = data.frame(
-                        donor = pb$valid_donors),
-                    design = ~ 1)
-                vsd <- DESeq2::vst(dds, blind = TRUE)
-                t(SummarizedExperiment::assay(vsd))
-            })
-        }, error = function(e) NULL)
+    ## --- VST or log-CPM transform; tx_mat: donors x genes ---
+    tx_mat <- .network_transform(pb$pb_mat, pb$valid_donors, transform,
+        celltype)
+
+    ## --- Optional: the genes asked for, in the order given ---
+    ## The transform above has used every gene, so the values of a gene do
+    ## not depend on which genes are kept
+    if (!is.null(genes)) {
+        tx_mat <- tx_mat[, as.character(genes), drop = FALSE]
     }
-    ## log-CPM when VST is not requested, DESeq2 is absent or VST fails
-    ## (for example with fewer genes than its subsampling needs). The switch
-    ## is announced and recorded in the result's metadata.
-    transform <- if (is.null(tx_mat)) "log_cpm" else "vst"
-    if (is.null(tx_mat)) {
-        if (vst) {
-            message("[exposomeSC] DESeq2 VST ",
-                    if (requireNamespace("DESeq2", quietly = TRUE)) {
-                        "failed"
-                    } else {
-                        "is unavailable (DESeq2 is not installed)"
-                    },
-                    "; using log-CPM values for '", celltype, "'.")
-        }
-        tx_mat <- t(.log_cpm(pb$pb_mat))
-    }
-    ## tx_mat: donors x genes
 
     ## --- Optional: select top variable genes ---
     if (!is.null(top_var_genes) && ncol(tx_mat) > top_var_genes) {
@@ -151,14 +138,29 @@ NULL
     }
 
     tx_mat <- tx_mat[shared_donors, , drop = FALSE]
-    met_mat <- metabolites[shared_donors, , drop = FALSE]
+    ## a data frame is taken as the matrix of its columns, so that every
+    ## later step, the adjustment by lm.fit() included, gets a matrix
+    met_mat <- as.matrix(metabolites[shared_donors, , drop = FALSE])
     if (ncol(met_mat) == 0L)
         stop("'metabolites' has no columns.", call. = FALSE)
+    if (!is.numeric(met_mat))
+        stop("'metabolites' must hold numbers only.", call. = FALSE)
 
     ## Unnamed columns are named before any is left out, so that the names
     ## in constant_features and in the node table agree
     colnames(tx_mat) <- .column_labels(tx_mat, "gene_")
     colnames(met_mat) <- .column_labels(met_mat, "metab_")
+
+    ## Two nodes of one name could not be told apart in any table of the
+    ## result: two rows of x, two columns of the metabolites, or one of each
+    node_names <- c(colnames(tx_mat), colnames(met_mat))
+    repeated <- unique(node_names[duplicated(node_names)])
+    if (length(repeated)) {
+        stop("Two nodes of a network cannot have the same name: ",
+            .some_names(repeated), ". Give the rows of 'x' and the columns ",
+            "of 'metabolites' distinct names, or name the genes to use with ",
+            "'genes'.", call. = FALSE)
+    }
 
     ## --- Missing metabolite values ---
     ## The graphical lasso needs a finite value of every feature for every
@@ -166,8 +168,7 @@ NULL
     ## metabolite with a missing value for a constant one and skip it, and
     ## stability selection would rank it only in the half-samples that leave
     ## out the donors whose value is missing
-    met_values <- as.matrix(met_mat)
-    incomplete <- colSums(is.na(met_values) | is.infinite(met_values)) > 0L
+    incomplete <- colSums(is.na(met_mat) | is.infinite(met_mat)) > 0L
     if (any(incomplete)) {
         stop("'metabolites' has missing or infinite values for the ",
             "analysed donors in: ",
@@ -192,10 +193,15 @@ NULL
         if (any(tx_constant) || any(met_constant)) {
             constant_features <- c(colnames(tx_mat)[tx_constant],
                 colnames(met_mat)[met_constant])
-            message("[exposomeSC] Leaving ", sum(tx_constant),
-                    " constant transcript(s) and ", sum(met_constant),
-                    " constant metabolite(s) out of the network for '",
-                    celltype, "'.")
+            counted <- function(constant, values, what) {
+                paste0(sum(constant), " constant ", what, "(s)",
+                    if (any(constant)) paste0(" (",
+                        .some_names(colnames(values)[constant]), ")"))
+            }
+            message("[exposomeSC] Leaving ",
+                    counted(tx_constant, tx_mat, "transcript"), " and ",
+                    counted(met_constant, met_mat, "metabolite"),
+                    " out of the network for '", celltype, "'.")
             tx_mat <- tx_mat[, !tx_constant, drop = FALSE]
             met_mat <- met_mat[, !met_constant, drop = FALSE]
             tx_constant <- logical(ncol(tx_mat))
@@ -206,6 +212,10 @@ NULL
                 "the donors of cell type '", celltype, "'.", call. = FALSE)
         }
     }
+
+    ## The selection stage of run_exposure_network() ranks the values as they
+    ## are before the adjustment
+    unadjusted <- if (keep_unadjusted) cbind(tx_mat, met_mat) else NULL
 
     ## --- Residualization (optional) ---
     if (!is.null(exposure) || !is.null(covariates)) {
@@ -254,8 +264,90 @@ NULL
         transform      = transform,
         n_transcripts  = length(tx_names),
         n_metabolites  = length(met_names),
-        constant_features = constant_features
+        constant_features = constant_features,
+        unadjusted     = unadjusted
     )
+}
+
+# 'genes' of the network functions: NULL, or distinct row names of x, each
+# of which names one row.
+.check_network_genes <- function(genes, feature_ids) {
+    if (is.null(genes)) return(invisible(NULL))
+    if (!(is.character(genes) || is.factor(genes)) || !length(genes) ||
+        anyNA(genes) || anyDuplicated(as.character(genes))) {
+        stop("'genes' must be NULL or a vector of distinct row names of 'x'.",
+            call. = FALSE)
+    }
+    genes <- as.character(genes)
+    unknown <- setdiff(genes, feature_ids)
+    if (length(unknown)) {
+        stop("'genes' not found in rownames(x): ", .some_names(unknown),
+            call. = FALSE)
+    }
+    repeated <- intersect(genes, feature_ids[duplicated(feature_ids)])
+    if (length(repeated)) {
+        stop("'genes' that are the name of more than one row of 'x': ",
+            .some_names(repeated), call. = FALSE)
+    }
+    invisible(NULL)
+}
+
+# The first names of a vector and the number of the others, for a message
+.some_names <- function(names, n = 5L) {
+    paste0(paste(utils::head(names, n), collapse = ", "),
+        if (length(names) > n) paste0(" and ", length(names) - n, " more"))
+}
+
+# The transcript values of the network functions, donors x genes, from the
+# genes x donors pseudobulk counts: DESeq2's variance-stabilising
+# transformation, blind to the design ("vst"), or log2 counts per million
+# ("log_cpm"). The transform is the one asked for or the call stops: the
+# values are not switched when DESeq2 is missing or vst() fails, which it
+# does for fewer than 1000 genes with a mean normalised count above 5.
+.network_transform <- function(pb_mat, donors, transform, celltype) {
+    if (transform == "log_cpm") {
+        return(t(.log_cpm(pb_mat)))
+    }
+    if (!.is_installed("DESeq2")) {
+        stop("Package 'DESeq2' is required for transform = \"vst\". ",
+            "Install it with BiocManager::install('DESeq2'), or use ",
+            "transform = \"log_cpm\".", call. = FALSE)
+    }
+    tryCatch({
+        .relay_vst_notes({
+            dds <- DESeq2::DESeqDataSetFromMatrix(
+                countData = pb_mat,
+                colData = data.frame(donor = donors),
+                design = ~ 1)
+            vsd <- DESeq2::vst(dds, blind = TRUE)
+            t(SummarizedExperiment::assay(vsd))
+        }, celltype)
+    }, error = function(e) {
+        reason <- conditionMessage(e)
+        ## DESeq2 goes on to recommend a function that is not offered here
+        if (grepl("less than 'nsub' rows", reason, fixed = TRUE)) {
+            reason <- paste("fewer than 1000 genes have a mean normalised",
+                "count above 5")
+        }
+        stop("DESeq2::vst() failed for '", celltype, "': ", reason,
+            ". Use transform = \"log_cpm\" for counts that vst() cannot ",
+            "transform.", call. = FALSE)
+    })
+}
+
+# Evaluates 'expr' without the routine messages of DESeq2, except one: when
+# the parametric fit of the dispersion trend fails, DESeq2 uses a local fit
+# in its place and says so in a note. The values are then those of another
+# transformation, so the user is told.
+.relay_vst_notes <- function(expr, celltype) {
+    withCallingHandlers(expr, message = function(m) {
+        if (grepl("fitType", conditionMessage(m), fixed = TRUE)) {
+            message("[exposomeSC] DESeq2::vst() for '", celltype, "': the ",
+                "parametric fit of the dispersion trend failed, and DESeq2 ",
+                "used a local fit in its place.")
+        }
+        tryInvokeRestart("muffleMessage")
+    })
 }
 
 # Columns of a numeric matrix that take one value in every row; columns
@@ -297,8 +389,11 @@ NULL
 
 #' Residualize a matrix against adjustment variables
 #'
-#' For each column in \code{Y}, fits a linear model
-#' \code{Y[,j] ~ adj} and returns residuals.
+#' For each column in \code{Y}, fits the linear model of the column on an
+#' intercept and the columns of \code{adj} and returns the residuals. The
+#' model is given to \code{lm.fit()} as a design matrix: no formula is
+#' built, so the names of the adjustment variables are never evaluated and
+#' can be any names.
 #'
 #' @param Y numeric matrix (n x p)
 #' @param adj numeric matrix (n x q) of adjustment variables
@@ -307,11 +402,10 @@ NULL
 #' @keywords internal
 #' @noRd
 .residualize_matrix <- function(Y, adj) {
-    adj_df <- as.data.frame(adj)
-    result <- vapply(seq_len(ncol(Y)), function(j) {
-        fit <- lm(Y[, j] ~ ., data = adj_df)
-        residuals(fit)
-    }, numeric(nrow(Y)))
+    design <- cbind(1, as.matrix(adj))
+    result <- stats::lm.fit(design, Y)$residuals
+    ## lm.fit() returns a vector for a response of one column
+    dim(result) <- dim(Y)
     dimnames(result) <- dimnames(Y)
     result
 }
@@ -352,6 +446,31 @@ NULL
 }
 
 # -------------------------------------------------------
+# Edges of an adjacency matrix
+# -------------------------------------------------------
+
+#' Positions of the edges of an adjacency matrix
+#'
+#' The edges are the non-zero entries above the diagonal. They are returned
+#' by row and, within a row, by column, the order in which a loop over
+#' i < j meets them; \code{which(arr.ind = TRUE)} alone gives them by column.
+#'
+#' @param adjacency square matrix; entries on and below the diagonal are
+#'   not read
+#' @return integer matrix with one row per edge and the columns i and j
+#'
+#' @keywords internal
+#' @noRd
+.upper_edges <- function(adjacency) {
+    is_edge <- upper.tri(adjacency) & adjacency != 0
+    if (anyNA(is_edge)) {
+        stop("The adjacency matrix has a missing value above its diagonal.")
+    }
+    ij <- which(is_edge, arr.ind = TRUE, useNames = FALSE)
+    ij[order(ij[, 1L], ij[, 2L]), , drop = FALSE]
+}
+
+# -------------------------------------------------------
 # Count cross-omic edges
 # -------------------------------------------------------
 
@@ -359,36 +478,26 @@ NULL
 #'
 #' @param adjacency binary matrix
 #' @param node_info DataFrame with omic_layer column
-#' @return list with total_edges, within_transcript,
+#' @return list with total, within_transcript,
 #'   within_metabolite, cross_omic counts
 #'
 #' @keywords internal
 #' @noRd
 .count_edge_types <- function(adjacency, node_info) {
     layers <- node_info$omic_layer
-    p <- nrow(adjacency)
-    total <- within_tx <- within_met <- cross <- 0L
-
-    for (i in seq_len(p - 1L)) {
-        for (j in (i + 1L):p) {
-            if (adjacency[i, j] != 0) {
-                total <- total + 1L
-                if (layers[i] == layers[j]) {
-                    if (layers[i] == "transcript")
-                        within_tx <- within_tx + 1L
-                    else
-                        within_met <- within_met + 1L
-                } else {
-                    cross <- cross + 1L
-                }
-            }
-        }
+    ij <- .upper_edges(adjacency)
+    layer_i <- layers[ij[, 1L]]
+    same_layer <- layer_i == layers[ij[, 2L]]
+    if (is.null(layers) || anyNA(same_layer)) {
+        stop("A node with an edge has no omic layer.")
     }
 
-    list(total = total,
-         within_transcript  = within_tx,
-         within_metabolite  = within_met,
-         cross_omic         = cross)
+    list(
+        total = nrow(ij),
+        within_transcript = sum(same_layer & layer_i == "transcript"),
+        within_metabolite = sum(same_layer & layer_i != "transcript"),
+        cross_omic = sum(!same_layer)
+    )
 }
 
 # -------------------------------------------------------
@@ -402,38 +511,17 @@ NULL
 #' @param precision optional precision matrix for weights
 #' @param stability optional stability matrix
 #' @return DataFrame with node_i, node_j, weight, stability,
-#'   layer_i, layer_j, cross_omic columns
+#'   layer_i, layer_j, cross_omic columns, one row per edge in the order
+#'   of .upper_edges()
 #'
 #' @keywords internal
 #' @noRd
 .extract_edges <- function(adjacency, node_info,
                             precision = NULL,
                             stability = NULL) {
-    p <- nrow(adjacency)
-    edges <- list()
-    idx <- 0L
+    ij <- .upper_edges(adjacency)
 
-    for (i in seq_len(p - 1L)) {
-        for (j in (i + 1L):p) {
-            if (adjacency[i, j] != 0) {
-                idx <- idx + 1L
-                edges[[idx]] <- list(
-                    node_i     = node_info$feature[i],
-                    node_j     = node_info$feature[j],
-                    weight     = if (!is.null(precision))
-                        precision[i, j] else NA_real_,
-                    stability  = if (!is.null(stability))
-                        stability[i, j] else NA_real_,
-                    layer_i    = node_info$omic_layer[i],
-                    layer_j    = node_info$omic_layer[j],
-                    cross_omic = node_info$omic_layer[i] !=
-                        node_info$omic_layer[j]
-                )
-            }
-        }
-    }
-
-    if (length(edges) == 0) {
+    if (nrow(ij) == 0) {
         return(S4Vectors::DataFrame(
             node_i     = character(),
             node_j     = character(),
@@ -445,9 +533,22 @@ NULL
         ))
     }
 
-    S4Vectors::DataFrame(do.call(rbind.data.frame,
-        lapply(edges, as.data.frame,
-               stringsAsFactors = FALSE)))
+    i <- ij[, 1L]
+    j <- ij[, 2L]
+    unknown <- rep(NA_real_, nrow(ij))
+    ## row.names = NULL: data.frame() would otherwise take the row names
+    ## from names that a column of the node table may carry
+    S4Vectors::DataFrame(data.frame(
+        node_i     = node_info$feature[i],
+        node_j     = node_info$feature[j],
+        weight     = if (!is.null(precision)) precision[ij] else unknown,
+        stability  = if (!is.null(stability)) stability[ij] else unknown,
+        layer_i    = node_info$omic_layer[i],
+        layer_j    = node_info$omic_layer[j],
+        cross_omic = node_info$omic_layer[i] != node_info$omic_layer[j],
+        row.names = NULL,
+        stringsAsFactors = FALSE
+    ))
 }
 
 # -------------------------------------------------------
@@ -514,18 +615,71 @@ NULL
 }
 
 # -------------------------------------------------------
+# Rank correlation with the exposure, given the covariates
+# -------------------------------------------------------
+
+# Residuals of the columns of 'ranks' on the columns of 'adjustment_ranks'.
+# A column that is constant, or that the adjustment reproduces, is returned
+# as zeros, not as the rounding noise of its residuals.
+.rank_residuals <- function(ranks, adjustment_ranks) {
+    total <- colSums(sweep(ranks, 2L, colMeans(ranks))^2)
+    residuals <- .residualize_matrix(ranks, adjustment_ranks)
+    reproduced <- total == 0 | colSums(residuals^2) <= 1e-10 * total
+    residuals[, reproduced] <- 0
+    residuals
+}
+
+# Spearman correlation of each column of 'values' with 'response', and its
+# two-sided p-value. With 'adjustment', a matrix of covariates, it is the
+# partial rank correlation: the ranks of the covariates are regressed out of
+# the ranks of the values and of the response, and the residuals are
+# correlated. Regressing the covariates out of the values themselves and
+# ranking the residuals would not do: values that are tied, as the zeros of
+# a gene with few counts, would be ranked by the covariates. The test is the
+# t test with n - 2 - k degrees of freedom for k covariates, which without
+# covariates is that of cor.test(method = "spearman", exact = FALSE). A
+# column or a response without variation after the adjustment gives NA.
+.partial_rank_correlation <- function(values, response, adjustment = NULL) {
+    k <- if (is.null(adjustment)) 0L else ncol(adjustment)
+    feature_ranks <- apply(values, 2L, rank)
+    response_ranks <- rank(response)
+    if (k > 0L) {
+        adjustment_ranks <- apply(adjustment, 2L, rank)
+        ## covariates that repeat each other, or that are constant here,
+        ## take no degree of freedom of their own
+        k <- qr(cbind(1, adjustment_ranks))$rank - 1L
+        feature_ranks <- .rank_residuals(feature_ranks, adjustment_ranks)
+        response_ranks <- .rank_residuals(cbind(response_ranks),
+            adjustment_ranks)[, 1L]
+    }
+    varying <- function(v) isTRUE(stats::sd(v) > 0)
+    usable <- apply(feature_ranks, 2L, varying)
+    rho <- rep(NA_real_, ncol(values))
+    if (varying(response_ranks) && any(usable)) {
+        rho[usable] <- stats::cor(feature_ranks[, usable, drop = FALSE],
+            response_ranks)[, 1L]
+    }
+    rho <- pmax(pmin(rho, 1), -1)
+    df <- nrow(values) - 2L - k
+    statistic <- rho * sqrt(df / (1 - rho^2))
+    list(rho = rho, p_value = 2 * stats::pt(-abs(statistic), df))
+}
+
+# -------------------------------------------------------
 # Base selector for stability selection: 0/1 indicator of the q
-# features with the largest absolute Spearman correlation with y.
-# Constant features are never selected.
+# features with the largest absolute Spearman correlation with y, given the
+# covariates in 'adjustment'. Constant features are never selected.
 # -------------------------------------------------------
 #' @keywords internal
-.top_marginal_features <- function(x, y, q) {
+.top_marginal_features <- function(x, y, q, adjustment = NULL) {
     chosen <- numeric(ncol(x))
     if (!isTRUE(stats::sd(y) > 0)) return(chosen)
     varies <- which(apply(x, 2L, function(v) isTRUE(stats::sd(v) > 0)))
     if (length(varies) == 0L) return(chosen)
-    rho <- abs(stats::cor(x[, varies, drop = FALSE], y,
-                          method = "spearman"))[, 1]
+    rho <- abs(.partial_rank_correlation(x[, varies, drop = FALSE], y,
+        adjustment)$rho)
+    varies <- varies[!is.na(rho)]
+    rho <- rho[!is.na(rho)]
     ranked <- varies[order(-rho, varies)]
     chosen[ranked[seq_len(min(q, length(varies)))]] <- 1
     chosen

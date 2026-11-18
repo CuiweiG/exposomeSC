@@ -4,58 +4,28 @@
 \alias{run_comparative_network}
 \title{Compare networks across cell types}
 \usage{
-run_comparative_network(
-  ...,
-  method = c("descriptive", "fisher_z"),
-  adjust = "BH"
-)
+run_comparative_network(...)
 }
 \arguments{
 \item{...}{Two or more \code{\linkS4class{CelltypeNetworkResult}}
 objects. All must share the same feature set (same genes
 and metabolites).}
-
-\item{method}{Character; \code{"descriptive"} (default) or
-\code{"fisher_z"}.}
-
-\item{adjust}{Character; p-value adjustment method used with
-\code{method = "fisher_z"}. Default \code{"BH"}.}
 }
 \value{
 A \code{\linkS4class{NetworkComparison}} object. Its edge
   tables contain \code{max_diff}, the range of the edge's partial
-  correlation across networks, and \code{p_value} and
-  \code{p_adjusted}, which are \code{NA} for
-  \code{method = "descriptive"}.
+  correlation across networks.
 }
 \description{
 Classifies the union of edges from two or more cell-type-specific
 networks estimated on the same features as shared, unique to one
 cell type or differential, and reports pairwise Jaccard overlap.
-The default \code{method = "descriptive"} reports no p-values.
+The comparison is descriptive: no edge is tested and no p-value is
+reported.
 }
 \details{
-\code{method = "fisher_z"} also compares the partial correlations
-of each edge with Fisher's Z test. This mode is experimental and
-warns once per session: networks estimated from the same donors are
-not independent samples, and penalised partial correlations do not
-follow the sampling distribution the test assumes, so its p-values
-are not validated.
-
-
 Partial correlations are computed from each precision matrix
 \eqn{\Theta} as \eqn{-\Theta_{ij} / \sqrt{\Theta_{ii}\Theta_{jj}}}.
-For two networks, Fisher's Z statistic is
-\code{(atanh(r1) - atanh(r2)) / sqrt(1/(n1 - 3) + 1/(n2 - 3))},
-where \code{n1} and \code{n2} are the donor counts recorded in the
-networks' metadata; with more than two networks the largest pairwise
-statistic is used.
-
-The donor counts are read from \code{metadata(network)$n_donors}, which
-must be a single non-negative whole number in every network, whatever
-the method; \code{NULL} or \code{NA} mean that the count is unknown. A
-pair of networks with an unknown count, or a count of 3 or less, is not
-tested, and an edge with no tested pair gets an \code{NA} p-value.
 
 This is the single-cell analogue of the temporal edge comparison in
 Cheng et al. (ES&T 2024).
