@@ -1,76 +1,72 @@
 url: https://cuiweig.github.io/exposomeSC/
 template:
   bootstrap: 5
-  
+
 reference:
-  - title: "Data Classes"
-    desc: "S4 classes for single-cell exposome data"
+  - title: "Container"
+    desc: "The class, its construction and its accessors"
     contents:
       - SingleCellExposomeExperiment-class
-      - CelltypeNetwork-class
-      - CelltypeNetworkResult-class
-      - NetworkComparison-class
-
-  - title: "Data Construction"
-    desc: "Build and convert exposome objects"
-    contents:
       - build_scee
       - as_scee
       - seurat_to_exposure
-
-  - title: "Accessors"
-    contents:
+      # the help page of exposureData() documents all the accessors
       - exposureData
-      - "exposureData<-"
-      - exposureInfo
-      - "exposureInfo<-"
-      - exposureNames
-      - sampleMap
+      - donor_pseudobulk
 
-  - title: "Single-Cell ExWAS"
-    desc: "Exposure-wide association studies at single-cell resolution"
+  - title: "Example data"
+    contents:
+      - hlca_airway_subset
+      - incov_pbmc_subset
+
+  - title: "Association of an exposure with expression"
+    desc: "Donor-pseudobulk models within cell types, and the models and analyses built on them"
     contents:
       - run_sc_exwas
-      - run_sc_exwas_glmm
       - run_multi_exwas
-      - run_meta_exwas
-
-  - title: "Mixtures and Interactions"
-    contents:
-      - run_sc_mixture
-      - run_mixture_qgcomp
       - run_interaction_test
-      - run_exposure_composition
+      - run_sc_exwas_pb_offset
+      - run_sc_exwas_glmm
+      - run_meta_exwas
+      - run_gsea
 
-  - title: "Dose-Response"
+  - title: "Dose and response"
     contents:
       - run_dose_response
       - run_dose_response_gam
 
-  - title: "Enrichment"
+  - title: "Mixtures of exposures"
     contents:
-      - run_gsea
+      - run_sc_mixture
+      - run_mixture_qgcomp
 
-  - title: "Network Analysis"
-    desc: "Exposure and cell-type networks"
+  - title: "Cell composition and gene-protein coupling"
     contents:
-      - run_exposure_network
-      - run_celltype_network
+      - run_exposure_composition
       - run_cell_coupling
+
+  - title: "Exposure measurements and study planning"
+    contents:
+      - exposure_impute_lod
+      - estimate_power
+
+  - title: "Exploratory cross-omic networks"
+    desc: "Estimation, comparison, simulation, classes, accessors and plots"
+    contents:
+      - run_celltype_network
+      - run_exposure_network
       - run_comparative_network
       - simulate_crossomic_network
-
-  - title: "Visualization"
-    contents:
+      - CelltypeNetwork-class
+      - CelltypeNetworkResult-class
+      - NetworkComparison-class
+      - CelltypeNetworkResult
+      - NetworkComparison
+      - network-accessors
       - plot_celltype_network
       - plot_network_comparison
       - plot_edge_stability
 
-  - title: "Sensitivity and Power"
+  - title: "Package"
     contents:
-      - estimate_power
-      - exposure_impute_lod
-
-  - title: "Other"
-    contents:
-      - matches(".")
+      - exposomeSC-package

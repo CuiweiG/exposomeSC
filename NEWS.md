@@ -63,7 +63,10 @@ with warnings.
   `method = "ros"`: it was always regression on order statistics, not the
   reverse Kaplan-Meier estimator. Where the censored values were coded as
   `NA` and nothing else was missing, passing `censored = is.na(x)` gives
-  the values of the earlier version.
+  the values of the earlier version, unless the detected values are all
+  equal: the earlier version then spread the imputed values below the LOD
+  (0.875 to 0.995 for four detected values of 1.01, four censored values and
+  an LOD of 1), where they are now all just below the LOD (0.999).
 * `exposure_impute_lod(method = "multiple")` now follows Lubin et al.
   (2004): for each imputation it resamples the data, fits a log-normal
   distribution by censored maximum likelihood and draws the censored values
@@ -83,7 +86,9 @@ with warnings.
   ones, they can lie orders of magnitude below the LOD: for detected values
   of 40, 50, 60 and 70 and 100 censored values below an LOD of 1, their
   median is of the order of 1e-7, where the earlier version imputed
-  LOD/sqrt(2).
+  LOD/sqrt(2). With fewer than three detected values the method cannot be
+  used: the censored values are set to LOD/sqrt(2), with a warning, where
+  0.99.1 drew them uniformly between 0 and the LOD without a message.
 * `run_exposure_network(network_method = "coglasso")` stops with an
   installation hint when coglasso is not installed, instead of switching to
   the block graphical lasso.
@@ -212,6 +217,7 @@ with warnings.
 
 ## Interface
 
+* The package requires R 4.6.0 or later.
 * `exposureData<-` can add, drop or reorder exposures: `exposureInfo` now
   follows the new column names, keeping the rows of retained exposures and
   adding rows of missing metadata for new ones. The two setters
@@ -261,6 +267,8 @@ with warnings.
 * `run_gsea()` ranks by the column named in `rank_by` and stops if that
   column is missing or not numeric. It no longer falls back between
   `"statistic"` and `"stat"`, or `"log2FC"` and `"log2FoldChange"`.
+* `estimate_power()` returns the `exposure_sd` it was given as a column of
+  its table, beside `effect_size`.
 * `run_meta_exwas()` no longer returns `meta_z`, which duplicated
   `meta_statistic`.
 * The `padj` column of `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`
@@ -836,6 +844,38 @@ with warnings.
   clinical tables are redistributed under CC BY 4.0. For the single-cell
   files of ArrayExpress E-MTAB-9357 the authors state no licence; the terms
   of use of EMBL-EBI apply, and the help page says so.
+* One vignette, `exposomeSC`, replaces `exposomeSC-quickstart` and
+  `introduction`, which built the same simulated object and made almost the
+  same call. It uses BiocStyle, runs on the two real data sets and on nothing
+  simulated, and has an evaluated section for the container and for these
+  analysis functions: `run_sc_exwas()` with the edgeR and voom-dream
+  backends, `run_sc_exwas_pb_offset()`, `run_sc_exwas_glmm()`,
+  `run_multi_exwas()`, `run_interaction_test()`, `run_gsea()`,
+  `run_meta_exwas()`, `run_exposure_composition()`, `exposure_impute_lod()`,
+  `run_dose_response()`, `run_dose_response_gam()`, `run_sc_mixture()`,
+  `run_mixture_qgcomp()` and `run_cell_coupling()`. With the two vignettes
+  below, every exported analysis function is run in a vignette; the DESeq2
+  backend and `as_scee()` are described and not run. It sets the package
+  beside related Bioconductor packages and installs with BiocManager only.
+* The network vignette, `network-tutorial`, uses BiocStyle and runs on the
+  INCOV data: networks of monocytes and T cells with plasma metabolites,
+  from `run_celltype_network()` with both estimators, the accessors and the
+  three plots, `run_comparative_network()` and `run_exposure_network()`.
+  Every chunk that needs a suggested package is guarded, the one for the
+  graphical lasso included, and no chunk hides the messages or warnings of
+  an analysis. It no longer refers to an HLCA model that the package does not
+  hold or asks for a tuning grid that the result does not keep.
+  `simulate_crossomic_network()` is documented in its help page; no vignette
+  uses simulated data.
+* The vignette `simulation-benchmark` is replaced by
+  `permutation-and-power`, in BiocStyle and on the airway data. Where the
+  old one simulated counts under a null, the new one permutes the smoking
+  status among the donors and shows what the check can and cannot tell,
+  compares the edgeR and voom-dream backends on the same data, sets `padj`
+  beside `padj_global`, and runs `estimate_power()`. The description of a
+  benchmark protocol that the package does not carry out is removed, and
+  with it the statement that an unsupported entry of `test_features` is
+  reported as not estimable: `run_sc_exwas()` stops.
 * The scripts that prepare the full HLCA analysis object are shipped in
   `inst/scripts/`: `fetch_hlca.R`, `extract_hlca_design_metadata.R`,
   `extract_hlca_feature_metadata.R` and `create_hlca_input_manifest.R`. They
@@ -854,7 +894,16 @@ with warnings.
   the method with propeller, crumblr, sccomp and voomCLR, with references.
   `?exposure_impute_lod` describes each method correctly and points to the
   LOD imputation in rexposome.
-* Requires R 4.6.0. BiocCheck and statmod are no longer suggested.
+* `?run_sc_exwas_pb_offset` says that the function has no threshold on the
+  number of cells: every donor with a cell of the cell type enters the
+  model. `?estimate_power` says what `exposure_sd` is for a binary exposure,
+  and `?run_gsea` that the genes of a gene set are given by the identifiers
+  of the result.
+* `?run_exposure_network` says where its selection cannot be relied on. The
+  approximate test of the univariate method is far too generous when the
+  exposure takes one value in all but a few donors and a gene has a count
+  in one or two of them; a covariate is taken as ordered; and a column of
+  `metabolites` that holds the exposure itself is always selected.
 * `?run_sc_exwas_glmm` and `?run_sc_exwas_pb_offset` state that their
   adjusted p-value, now called `padj_global` (see Interface), adjusts across
   all gene-by-cell-type strata, and what they do when a fit fails: the mixed

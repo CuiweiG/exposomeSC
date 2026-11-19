@@ -1,0 +1,630 @@
+---
+title: "Exposure associations in single-cell data with exposomeSC"
+author: "Cuiwei Gao"
+date: "`r BiocStyle::doc_date()`"
+package: exposomeSC
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: exposomeSC.bib
+link-citations: true
+abstract: >
+  exposomeSC relates exposures measured on donors to gene expression within
+  the annotated cell types of single-cell RNA-seq data. This vignette goes
+  through the package on two small real data sets: airway epithelial cells of
+  smokers and never smokers from the Human Lung Cell Atlas, and blood cells
+  of patients whose plasma was measured for compounds of exogenous origin.
+  It covers the container, the donor-pseudobulk association model and its
+  companions, and the analyses built around it.
+vignette: >
+  %\VignetteIndexEntry{Exposure associations in single-cell data with exposomeSC}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+has <- function(...) {
+    all(vapply(c(...), requireNamespace, logical(1), quietly = TRUE))
+}
+```
+
+# Introduction
+
+`r Biocpkg("exposomeSC")` relates exposures measured on donors to gene
+expression within the annotated cell types of single-cell RNA-seq data. Its
+container, the `SingleCellExposomeExperiment`, keeps a donor-level exposure
+table next to the cells of a `SingleCellExperiment` and checks that the two
+agree. Its main analysis, `run_sc_exwas()`, sums the raw counts of each cell
+type within each donor and fits a model in which the donors, not the cells, are
+the replicates.
+
+Cells of one donor share that donor's exposure, so they are not independent
+observations of it; a test that treats them as such is too confident
+[@squair2021]. The quantity that `run_sc_exwas()` estimates is the log2 fold
+change of a gene's expression rate within a cell type per unit of the exposure.
+A change in the number of cells of a type is a different quantity and has a
+function of its own (Section \@ref(composition)).
+
+The package works with the classes of Bioconductor. The container extends
+`SingleCellExperiment`, the pseudobulk counts are `SummarizedExperiment`
+objects, and the results are `DataFrame`s; those of `run_sc_exwas()` carry the
+settings of the run in their `metadata()`. The models are fitted by
+`r Biocpkg("edgeR")`,
+`r Biocpkg("DESeq2")` and `r Biocpkg("limma")`. In a workflow the package comes
+after quality control and the annotation of cell types, which it takes as
+given: its input is a `SingleCellExperiment` with raw counts, a column that
+names the donor of each cell and a column with the cell type.
+
+Every association the package estimates is observational. Exposures such as
+smoking are not assigned at random, and nothing in the package identifies a
+causal effect.
+
+The vignette uses the two data sets that the package ships. Both are real and
+both are small on purpose: they show what the functions take and what they
+return, and they are far too small to support conclusions. The first, 352
+airway epithelial cells of 12 donors, serves Sections \@ref(data) to
+\@ref(composition). The second, 1,032 blood cells of 43 patients with measured
+plasma compounds and surface proteins, serves Section \@ref(incov).
+
+Some sections use packages that exposomeSC only suggests:
+`r CRANpkg("lme4")`, `r CRANpkg("lmerTest")` and `r CRANpkg("pbkrtest")`,
+`r CRANpkg("mgcv")`,
+`r CRANpkg("qgcomp")`, `r CRANpkg("metafor")`, `r CRANpkg("ppcor")`,
+`r Biocpkg("variancePartition")` and `r Biocpkg("fgsea")`. A chunk that needs
+one of them is run when it is installed. Two further vignettes cover the
+cross-omic networks and checks of a result by permutation.
+
+# Installation
+
+```{r install, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+}
+BiocManager::install("exposomeSC")
+```
+
+# The airway data {#data}
+
+```{r load, message=FALSE}
+library(exposomeSC)
+library(SingleCellExperiment)
+x <- readRDS(system.file("extdata", "hlca_airway_subset.rds",
+    package = "exposomeSC"))
+x
+```
+
+The object holds the raw counts of 352 tracheal epithelial cells of the Human
+Lung Cell Atlas core [@sikkema2023], from its study of smokers and never
+smokers [@goldfarbmuren2020]: six heavy smokers, with at least 15 pack-years,
+and six never smokers, with up to 10 basal, 10 secretory and 10
+multiciliated-lineage cells per donor. `?hlca_airway_subset` describes the
+selection, and the script that made the file from the public H5AD is installed
+with the package (`system.file("scripts", package = "exposomeSC")`). The atlas
+is distributed under the CC BY 4.0 licence, and the object carries its
+provenance:
+
+```{r provenance}
+metadata(x)$source[c("data", "dataset_version", "licence", "references")]
+table(x$donor_id, x$cell_type)
+```
+
+The donor-level variables are the exposure data of the object, one row per
+donor, with a description of each variable. `sampleColumn()` names the column
+of `colData()` that assigns the cells to the donors.
+
+```{r accessors}
+exposureData(x)
+exposureInfo(x)
+exposureVariables(x)
+sampleColumn(x)
+head(cellSampleMap(x), 3)
+```
+
+`build_scee()` makes such an object from a `SingleCellExperiment` and a numeric
+matrix with one row per donor. It stops when a donor of the cells has no row in
+the matrix or a row has no cells. Here the object is taken apart and built
+again:
+
+```{r build}
+sce <- SingleCellExperiment(
+    assays = list(counts = counts(x)),
+    colData = colData(x),
+    rowData = rowData(x)
+)
+rebuilt <- build_scee(sce, exposureData(x), sample_col = "donor_id",
+    exposure_info = exposureInfo(x))
+identical(exposureData(rebuilt), exposureData(x))
+```
+
+Donor variables often arrive as columns of the cell annotations, with the value
+of a donor repeated for each of its cells, as in the metadata of a Seurat
+object. `seurat_to_exposure()` reduces such columns to the matrix that
+`build_scee()` takes:
+
+```{r cell-table}
+cell_table <- data.frame(donor_id = x$donor_id,
+    exposureData(x)[x$donor_id, ], row.names = colnames(x))
+head(cell_table, 3)
+donor_table <- seurat_to_exposure(cell_table, sample_col = "donor_id",
+    exposure_cols = exposureVariables(x))
+identical(donor_table, exposureData(x))
+```
+
+`donor_pseudobulk()` returns the counts that `run_sc_exwas()` fits its models
+to: one `SummarizedExperiment` per cell type, with one column per donor and the
+exposure data as column data. Looking at them is the first check of any result.
+The counts of *CYP1B1* in basal cells, a gene that returns below, are:
+
+```{r pseudobulk}
+pseudobulk <- donor_pseudobulk(x)
+pseudobulk
+basal <- pseudobulk[["Basal"]]
+cyp1b1 <- rownames(x)[rowData(x)$symbol == "CYP1B1"]
+data.frame(
+    smoking = basal$smoking,
+    CYP1B1 = assay(basal, "counts")[cyp1b1, ],
+    all_genes = colSums(assay(basal, "counts"))
+)
+```
+
+# The association model {#exwas}
+
+`run_sc_exwas()` fits, for each cell type, a donor-level model of the
+pseudobulk counts on the exposure and the covariates. The default backend is
+the quasi-likelihood model of `r Biocpkg("edgeR")` [@chen2025]. Here the
+exposure is smoking, adjusted for the 10x chemistry, which differs between
+donors:
+
+```{r exwas}
+fit <- run_sc_exwas(x, exposure = "smoking", covariates = "chemistry_v3")
+dim(fit)
+top <- head(fit, 8)
+top$symbol <- rowData(x)[top$gene, "symbol"]
+top[, c("symbol", "celltype", "log2FC", "statistic", "pvalue", "padj",
+    "padj_global", "n_donors")]
+```
+
+The result has one row per tested gene and cell type, ordered by `padj_global`.
+`padj` is the Benjamini-Hochberg adjustment within a cell type and
+`padj_global` the adjustment across all tested gene-by-cell-type pairs. For the
+edgeR backend `se` is `NA`: the quasi-likelihood F test gives no standard error
+of the coefficient, and `statistic` is the square root of the F statistic with
+the sign of the log fold change. The settings and what was done in each cell
+type are kept with the result:
+
+```{r exwas-metadata}
+parameters <- metadata(fit)$parameters
+parameters[c("method", "se_method", "statistic_type")]
+diagnostics <- metadata(fit)$diagnostics
+vapply(diagnostics, function(d) d$n_donors, numeric(1))
+vapply(diagnostics, function(d) d$n_genes_tested, numeric(1))
+```
+
+One donor has only two multiciliated-lineage cells, fewer than `min_cells`, so
+that cell type is fitted with 11 donors.
+
+These numbers must not be read as findings. With six donors per group and at
+most ten cells per donor and cell type, a few counts decide a result: the table
+of Section \@ref(data) shows that *CYP1B1* has no count in the basal cells of
+the never smokers and between 1 and 18 in those of a smoker, and the size of
+such an estimate depends on little. The same model on larger sets of cells of
+the same donors, which were analysed when the data set was made, gave other
+lists of genes below a threshold.
+
+# Other models for the same question
+
+## Other backends
+
+`method = "voom_dream"` fits the voom model of `r Biocpkg("limma")` through
+`r Biocpkg("variancePartition")` [@hoffman2021], and `method = "DESeq2"` a Wald
+test of `r Biocpkg("DESeq2")`. Both return a standard error of the
+coefficient. The columns are the same for every backend.
+
+```{r voom, eval=has("variancePartition")}
+fit_voom <- run_sc_exwas(x, exposure = "smoking",
+    covariates = "chemistry_v3", method = "voom_dream", celltypes = "Basal")
+fit_voom$symbol <- rowData(x)[fit_voom$gene, "symbol"]
+head(fit_voom[, c("symbol", "log2FC", "se", "statistic", "pvalue")], 3)
+```
+
+## A negative binomial model with an offset
+
+`run_sc_exwas_pb_offset()` fits a negative binomial model of each pseudobulk
+count with the logarithm of the donor's total count as offset [@lee2024], for
+the genes named in `target_genes`, here three. Its p-values are Wald tests and
+can be too small with few donors. It has no `padj` within a cell type;
+`padj_global` is adjusted across the tests that were made. It also has no
+`min_cells`: every donor with a cell of the type enters the model, the donor
+with two multiciliated-lineage cells included.
+
+```{r offset}
+genes <- rownames(x)[match(c("ALDH3A1", "NQO1", "GPX2"), rowData(x)$symbol)]
+offset_fit <- run_sc_exwas_pb_offset(x, exposure = "smoking",
+    covariates = "chemistry_v3", target_genes = genes)
+offset_fit$symbol <- rowData(x)[offset_fit$gene, "symbol"]
+offset_fit[, c("symbol", "celltype", "log2FC", "se", "statistic", "pvalue",
+    "padj_global")]
+```
+
+## A mixed model of the cells
+
+`run_sc_exwas_glmm()` keeps the cells as observations. For each gene it fits a
+linear mixed model of the log-normalised expression of the cells, with random
+intercepts for the donor and for the donor within a cell type, and tests the
+effect of the exposure in each cell type with denominator degrees of freedom
+by the method of Satterthwaite, the default, or of Kenward and Roger, which
+its help page advises for fewer than about 30 donors and which is used here.
+It is much slower than the pseudobulk models, so it is meant for a few genes.
+
+```{r glmm, eval=has("lme4", "lmerTest", "pbkrtest")}
+mixed_fit <- run_sc_exwas_glmm(x, exposure = "smoking",
+    covariates = "chemistry_v3", target_genes = genes,
+    ddf = "Kenward-Roger")
+mixed_fit$symbol <- rowData(x)[mixed_fit$gene, "symbol"]
+mixed_fit[, c("symbol", "celltype", "log2FC", "se", "df", "pvalue",
+    "padj_global")]
+```
+
+The response is log2(counts per 10,000 + 1) of each cell, so the coefficient,
+although the column is called `log2FC`, is not on the scale of the pseudobulk
+estimates. `family = "nbinom"` fits a negative binomial mixed model with a
+likelihood-ratio test for each gene and cell type instead; that takes minutes
+for a few genes even on these data and is not run here.
+
+# More than one exposure, and differences between cell types
+
+`run_multi_exwas()` runs the model for several exposures and adds `padj_all`,
+the adjustment across all exposures and cell types. Age is used here as a
+second donor variable; `celltypes` restricts the run to basal cells.
+
+```{r multi}
+both <- run_multi_exwas(x, exposures = c("smoking", "age"),
+    covariates = "chemistry_v3", celltypes = "Basal")
+table(both$exposure)
+both$symbol <- rowData(x)[both$gene, "symbol"]
+head(both[, c("symbol", "exposure", "log2FC", "pvalue", "padj_global",
+    "padj_all")], 3)
+```
+
+A small p-value in one cell type and a large one in another do not show that
+the effect differs between the two [@gelman2006]. `run_interaction_test()`
+tests the difference itself, for the genes in `target_genes` or, by default,
+for the 50 most variable genes:
+
+```{r interaction}
+interaction <- run_interaction_test(x, exposure = "smoking",
+    covariates = "chemistry_v3")
+interaction$symbol <- rowData(x)[interaction$gene, "symbol"]
+head(interaction[order(interaction$p_interaction),
+    c("symbol", "p_interaction", "padj_interaction", "n_celltypes",
+        "n_donors")], 3)
+```
+
+# Gene sets
+
+`run_gsea()` ranks the genes of each cell type by the test statistic and runs
+`r Biocpkg("fgsea")` on the ranking. Gene sets are named lists of gene
+identifiers as in the row names of the object. The three sets below are short
+lists written for this example, not a curated collection; they are mapped from
+symbols to the Ensembl identifiers of the data.
+
+```{r gene-sets}
+symbols <- list(
+    xenobiotic_response = c("CYP1B1", "CYP1A1", "AHRR", "ALDH3A1", "NQO1",
+        "AKR1C1", "AKR1C2", "AKR1B10", "GPX2", "TXNRD1", "CBR1", "UGT1A6"),
+    cilia = c("FOXJ1", "DNAH5", "DNAI1", "CCDC39", "CCDC40", "RSPH1",
+        "TEKT1", "DNAH9", "CFAP43", "SPAG6"),
+    secretory = c("MUC5AC", "MUC5B", "SCGB1A1", "TFF3", "BPIFB1", "AGR2",
+        "SPDEF", "FOXA3")
+)
+gene_sets <- lapply(symbols, function(set) {
+    rownames(x)[rowData(x)$symbol %in% set]
+})
+lengths(gene_sets)
+```
+
+```{r gsea, eval=has("fgsea")}
+set.seed(1)
+enrichment <- run_gsea(fit, gene_sets = gene_sets, min_size = 5L)
+enrichment[, c("pathway", "celltype", "NES", "pval", "padj_global", "size")]
+```
+
+`size` is the number of genes of a set that were tested in the cell type. A set
+with fewer than `min_size` of them is left out for that cell type.
+
+# Combining cohorts
+
+`run_meta_exwas()` combines the estimates of independent cohorts by
+inverse-variance weighting. It needs results with standard errors, so results
+of the edgeR backend are refused, and its random-effects synthesis
+(`method = "random"`) needs at least three cohorts. The airway data are one
+study; to show the function, the four donors measured with the 10x v2 chemistry
+and the eight measured with v3 are treated as two cohorts, each with too few
+donors for an analysis of its own, and the genes of the sets above are
+combined.
+
+```{r meta, eval=has("variancePartition")}
+v3 <- rownames(exposureData(x))[exposureData(x)[, "chemistry_v3"] == 1]
+cohorts <- list(
+    v2 = x[, !x$donor_id %in% v3],
+    v3 = x[, x$donor_id %in% v3]
+)
+cohort_fits <- lapply(cohorts, function(cohort) {
+    cohort_fit <- run_sc_exwas(cohort, exposure = "smoking",
+        method = "voom_dream", celltypes = "Basal", min_donors = 4L)
+    cohort_fit[cohort_fit$gene %in% unlist(gene_sets), ]
+})
+meta <- run_meta_exwas(cohort_fits, cohort_names = names(cohort_fits))
+meta$symbol <- rowData(x)[meta$gene, "symbol"]
+head(meta[order(meta$meta_pvalue), c("symbol", "meta_effect", "meta_se",
+    "meta_pvalue", "n_cohorts", "direction")], 3)
+```
+
+Subsetting the columns of the object keeps the exposure data of the remaining
+donors. The combination treats the standard error of each cohort as known.
+With two donors against two in one cohort and four against four in the other
+they are anything but, so the p-values of this table show how the function is
+called and nothing about the genes.
+
+# Cell composition {#composition}
+
+`run_exposure_composition()` asks whether the proportions of the cell types
+differ with the exposure, with the donors as the units. The cells of the airway
+data were drawn in equal numbers per donor and cell type, so they carry no
+information about composition. The provenance record of the object holds the
+numbers of cells of each donor and cell type in the atlas from which they were
+drawn, and an object with one label per cell and no counts is enough for the
+function:
+
+```{r composition}
+eligible <- metadata(x)$source$eligible_cells
+eligible
+cells <- paste0("cell", seq_len(sum(eligible)))
+labels <- DataFrame(
+    donor_id = rep(rownames(eligible)[row(eligible)], eligible),
+    cell_type = rep(colnames(eligible)[col(eligible)], eligible),
+    row.names = cells
+)
+no_counts <- matrix(0, 0, length(cells), dimnames = list(NULL, cells))
+atlas_cells <- build_scee(
+    SingleCellExperiment(assays = list(counts = no_counts), colData = labels),
+    exposureData(x), sample_col = "donor_id"
+)
+composition <- run_exposure_composition(atlas_cells, exposure = "smoking",
+    covariates = "chemistry_v3")
+composition[, c("log2_ratio_change", "se", "pvalue", "padj",
+    "median_observed_proportion")]
+```
+
+`log2_ratio_change` is the coefficient of the exposure for the log2 ratio of a
+cell type to the geometric mean of the others, with a
+heteroscedasticity-consistent standard error, and `padj` is the Holm adjustment
+over the cell types. A test of the composition as a whole is in
+`metadata(composition)$omnibus`. The ratios are among these three cell types as
+they were captured; they say nothing about absolute numbers of cells in the
+tissue.
+
+# A cohort with measured exposures and proteins {#incov}
+
+The airway data have a smoking status and no measurement of what the donors
+were exposed to. The second data set of the package has such measurements:
+1,032 blood cells of 43 patients of the INCOV cohort [@su2020], 14 monocytes
+and 10 T cells each, with the counts of 192 antibodies for the same cells,
+four of them isotype controls, and the plasma levels of 13 compounds of
+exogenous origin among the donor variables. All donors had COVID-19 and were
+not in hospital when the blood was drawn. `?incov_pbmc_subset` gives the
+sources, their licences and every step from the public files to the object.
+
+```{r incov}
+y <- readRDS(system.file("extdata", "incov_pbmc_subset.rds",
+    package = "exposomeSC"))
+y
+table(y$cell_type)
+as.data.frame(exposureInfo(y)[, c("exposure", "family", "source_name")])
+```
+
+## Compounds without a value
+
+The plasma levels are relative abundances from untargeted mass spectrometry,
+scaled by the authors so that the median of a compound within a batch is 1.
+For some donors the table has no value of a compound:
+
+```{r missing-values}
+colSums(is.na(exposureData(y)[, c("caffeine", "paraxanthine", "theobromine",
+    "pfos", "pfoa", "saccharin")]))
+```
+
+The table does not say why a value is missing. In such measurements the usual
+reason is that the compound was not detected, but it is not the only one, and
+the data can speak against it. Paraxanthine is the main metabolite of
+caffeine:
+
+```{r caffeine}
+pair <- exposureData(y)[, c("caffeine", "paraxanthine")]
+round(pair[!complete.cases(pair), ], 2)
+```
+
+The donors without a value of caffeine have little paraxanthine, which fits
+caffeine that was not detected. The donors without a value of paraxanthine
+have caffeine well above the median of their batch, which is 1; their
+paraxanthine is unlikely to have been below detection, so paraxanthine is left
+out of what follows.
+
+`exposure_impute_lod()` replaces values below a limit of detection (LOD), by
+substitution, by regression on order statistics (`"ros"`) or by multiple
+imputation (`"multiple"`). `censored` marks the values that were below the
+limit; a missing value that is not marked stays missing.
+
+Three things are assumed here to show the function, and none is in the
+source. The section takes every missing value of the five compounds below to
+be a compound that was not detected. The table reports no limits of detection;
+the smallest value of a compound among all samples of the study, kept in
+`exposureInfo(y)$lowest_reported`, stands in for the limit, although the
+values were scaled batch by batch and one limit for all batches is itself an
+approximation. And `"ros"` takes the logarithms of the levels to be normally
+distributed.
+
+```{r compounds}
+compounds <- c("caffeine", "theobromine", "pfos", "pfoa", "saccharin")
+reported <- exposureData(y)[, compounds]
+```
+
+```{r lod}
+info <- exposureInfo(y)
+lowest <- setNames(info$lowest_reported, info$exposure)[compounds]
+signif(lowest, 2)
+filled <- exposure_impute_lod(reported, lod = lowest, method = "ros",
+    censored = is.na(reported))
+attr(filled, "lod_summary")
+fill_over_limit <- function(compound) {
+    gone <- is.na(reported[, compound])
+    round(sort(filled[gone, compound]) / lowest[[compound]], 3)
+}
+fill_over_limit("caffeine")
+fill_over_limit("saccharin")
+```
+
+`"ros"` gives one filled-in value for each missing one. The fills follow the
+distribution fitted to the reported values and say nothing about which donor
+had the larger level, which suits a summary and not an association. With a
+limit as low as the one assumed here, the three fills of caffeine all lie just
+below it, and only saccharin, with 16 missing values, gets a spread of them.
+For an association analysis `?exposure_impute_lod` advises
+`method = "multiple"`, which returns several filled-in data sets to analyse
+one by one and combine; the sections below use the single `"ros"` fill all the
+same, to stay short.
+
+The logarithms of the filled levels replace the reported levels in the object;
+`exposureData<-` checks that the donors still agree with the cells, and
+`exposureInfo<-` records what the values now are.
+
+```{r replace}
+levels <- exposureData(y)
+levels[, compounds] <- log2(filled)
+exposureData(y) <- levels
+round(head(exposureData(y)[, compounds], 3), 2)
+info$unit[match(compounds, info$exposure)] <-
+    "log2 of the relative abundance, missing values filled in"
+exposureInfo(y) <- info
+unique(exposureInfo(y)$unit)
+```
+
+## Dose and response
+
+`run_dose_response()` compares polynomial models of a gene's pseudobulk
+expression on a continuous exposure within one cell type, and
+`run_dose_response_gam()` fits a smooth curve with `r CRANpkg("mgcv")`. The
+dose here is the plasma level of caffeine, and the genes are 12
+interferon-stimulated genes with counts in most donors, which serve as the
+outcome in the rest of this section because the donors had a viral infection.
+
+```{r dose}
+interferon <- c("IFI6", "ISG15", "MX1", "IFITM3", "STAT1", "XAF1", "EPSTI1",
+    "LY6E", "IRF7", "ISG20", "MX2", "EIF2AK2")
+dose <- run_dose_response(y, exposure = "caffeine", celltype = "Monocyte",
+    target_genes = interferon)
+head(dose[order(dose$p_nonlinear), c("gene", "best_model", "linear_coef",
+    "p_nonlinear", "n_donors")], 4)
+```
+
+`best_model` is the polynomial with the lowest AIC, and `p_nonlinear` an F test
+of the cubic against the linear model; it is not adjusted for the number of
+genes.
+
+```{r gam, eval=has("mgcv")}
+smooth <- run_dose_response_gam(y, exposure = "caffeine",
+    celltype = "Monocyte", target_genes = interferon[1:4])
+smooth[, c("gene", "edf", "p_smooth", "p_nonlinear", "R2_loocv_gam")]
+```
+
+## Mixtures
+
+`run_sc_mixture()` scores each exposure by its quantile and regresses the
+pseudobulk expression of each target gene on the scores; it returns the sum of
+the coefficients for each gene and, in the metadata, the relative size of the
+coefficients of each exposure. It is a screen, without intervals or tests.
+`run_mixture_qgcomp()` fits quantile g-computation [@keil2020] with
+`r CRANpkg("qgcomp")` to the mean expression of the target genes and returns an
+interval and a p-value for the effect of raising all exposures by one quantile.
+
+```{r mixture}
+mixture_of <- c("caffeine", "theobromine", "pfos", "pfoa")
+mixture <- run_sc_mixture(y, exposures = mixture_of, celltype = "Monocyte",
+    target_genes = interferon, covariates = c("age", "sex_male"))
+head(mixture[order(-abs(mixture$mixture_effect)), ], 3)
+round(metadata(mixture)$weights, 2)
+```
+
+```{r qgcomp, eval=has("qgcomp")}
+joint <- run_mixture_qgcomp(y, exposures = mixture_of, celltype = "Monocyte",
+    target_genes = interferon, covariates = c("age", "sex_male"))
+joint[, c("mixture_effect", "ci_lower", "ci_upper", "mixture_pvalue",
+    "n_donors")]
+```
+
+## Genes and proteins
+
+`run_cell_coupling()` is for data with surface proteins measured in the same
+cells, kept as an alternative experiment. Within each donor it computes the
+Spearman partial correlation between a gene and a protein across the cells of
+one cell type, given the RNA and protein library sizes; a meta-regression
+across the donors then asks whether this correlation differs with the
+exposure. It takes every gene with every protein; the rows of five genes with
+their own proteins are shown.
+
+```{r coupling, eval=has("metafor", "ppcor")}
+pairs <- data.frame(
+    gene = c("HLA-DRA", "CD36", "ITGAM", "FCGR3A", "CD86"),
+    protein = c("HLA-DR", "CD36-1", "CD11B", "CD16", "CD86-1")
+)
+coupling <- run_cell_coupling(y, genes = pairs$gene,
+    proteins = pairs$protein, exposure = "ever_smoker", celltype = "Monocyte",
+    min_cells = 14L)
+own <- paste(coupling$gene, coupling$protein) %in%
+    paste(pairs$gene, pairs$protein)
+coupling[own, c("gene", "protein", "n_donors", "mean_r", "beta1", "se1",
+    "pval1")]
+```
+
+`mean_r` is the mean of the partial correlation over the donors, and `beta1`
+the slope, across donors, of its Fisher z on the exposure. The default
+`min_cells` is 30 cells per donor; the data have 14 monocytes per donor, too
+few for an analysis that is meant to be read.
+
+# Related packages
+
+exposomeSC adds a container for donor-level exposures and analyses that are
+specific to exposure studies; for the model fits themselves it calls other
+packages. The pseudobulk counts are summed by `r Biocpkg("scrapper")`, and the
+models are those of `r Biocpkg("edgeR")`, `r Biocpkg("DESeq2")` and
+`r Biocpkg("limma")` with `r Biocpkg("variancePartition")`. The packages below
+cover neighbouring ground.
+
+- `r Biocpkg("muscat")` analyses differential states in multi-sample,
+  multi-group single-cell data, with pseudobulk and mixed-model methods.
+  `run_sc_exwas()` fits a pseudobulk model of the same kind for a donor-level
+  exposure that is kept in the object.
+- `r Biocpkg("dreamlet")` tests pseudobulk differential expression in complex
+  study designs, with the mixed models of variancePartition.
+  `method = "voom_dream"` calls variancePartition itself, without a random
+  effect; it does not use dreamlet.
+- `r Biocpkg("rexposome")` and `r Biocpkg("omicRexposome")` hold exposome data
+  and associate them with bulk omic data. `as_scee()` takes the exposures of an
+  `ExposomeSet` of rexposome into the container.
+- `r Biocpkg("speckle")`, `r Biocpkg("crumblr")` and `r Biocpkg("sccomp")` test
+  differences in the composition of cell types, as
+  `run_exposure_composition()` does; its help page describes how it differs
+  from each.
+
+A study whose question is a comparison of groups of samples, without exposure
+measurements to keep with the cells, is served by the first two packages
+directly.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```
+
+# References

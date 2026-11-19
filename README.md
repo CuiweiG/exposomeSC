@@ -18,11 +18,10 @@ measurements of the same unit rather than independent replicates. The package
 therefore aggregates raw counts by donor and cell type and fits a robust edgeR
 quasi-likelihood model per cell type, with the donor as the unit of inference.
 
-The case study the package was built around is ever- versus never-smoking in
-the integrated Human Lung Cell Atlas. This README quotes no result from it:
-numbers enter the documentation only from result objects written by the
-analysis itself, checked against the code and input manifests that produced
-them, so that no figure in the text can drift from the run behind it.
+The case study the package was built around is smoking in the integrated
+Human Lung Cell Atlas, and a small part of those data is shipped with it. This
+README quotes no result; the tables and figures of the vignettes are computed
+from the shipped data when they are built.
 
 ## Installation
 
@@ -79,13 +78,18 @@ statistic.
 The primary estimand is the adjusted association between a donor-level
 exposure and relative expression *within a cell type*. The workflow:
 
-1. requires raw, non-negative integer counts and validated donor identifiers;
+1. takes raw counts and the donor of each cell from a container that has
+   checked the donors against the exposure table;
 2. aggregates the sparse matrix by donor and cell type;
 3. retains the complete target-cell-type transcriptome library size;
 4. fixes expression support without inspecting exposure labels;
 5. applies TMM normalisation and robust edgeR quasi-likelihood inference;
 6. checks group support, design rank and numerical estimability; and
 7. adjusts across the full feature-by-cell-type hypothesis family.
+
+The functions sum the counts as they are given and do not check that they are
+raw: counts that were normalised or corrected beforehand are summed like any
+others, and the models are then not the ones described here.
 
 Cell-type composition is a separate relative-composition outcome. It is not an
 offset for the primary expression estimand, and captured cell proportions are
@@ -110,8 +114,8 @@ associations; it does not supply causal identification.
 
 ## HLCA data provenance
 
-The primary study uses the integrated HLCA normal-lung collection of Sikkema
-*et al.* (2023), distributed under CC BY 4.0 through CZ CELLxGENE.
+The airway data come from the integrated HLCA collection of Sikkema *et al.*
+(2023), distributed under CC BY 4.0 through CZ CELLxGENE.
 
 | Item | Pinned source |
 |---|---|
@@ -178,15 +182,16 @@ data.table and R.utils.
 
 ## Documentation
 
-- [Introduction](vignettes/introduction.Rmd): the estimand and the package
-  contract
-- [Quick start](vignettes/exposomeSC-quickstart.Rmd): a small smoking example
-  end to end
+- [exposomeSC](vignettes/exposomeSC.Rmd): the container, the association
+  model and the further analyses, each run on one of the two real data sets
+  of the package
 - [Network tutorial](vignettes/network-tutorial.Rmd): exploratory cross-omic
-  network estimation and descriptive comparison, run on simulated data
-- [Simulation protocol](vignettes/simulation-benchmark.Rmd): how calibration
-  and aligned comparison are to be done, with a complete-null check and a power
-  approximation run in miniature
+  networks of two cell types and plasma metabolites, and their descriptive
+  comparison, run on the INCOV data
+- [Permutation and power](vignettes/permutation-and-power.Rmd): checks of a
+  result on the airway data, by permuting the exposure among the donors and
+  by a second backend, the two adjustments of the p-values, and a power
+  approximation
 
 The continuous-integration configuration lives on the `ci` branch; the default
 branch holds the package source only.

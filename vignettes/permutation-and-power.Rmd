@@ -1,0 +1,309 @@
+---
+title: "Checking a result: permutations, backends and power"
+author: "Cuiwei Gao"
+date: "`r BiocStyle::doc_date()`"
+package: exposomeSC
+output:
+  BiocStyle::html_document:
+    toc_float: true
+abstract: >
+  Four checks of an association analysis with exposomeSC, run on the airway
+  data of the package: what the analysis returns when the exposure is permuted
+  among the donors, how far two backends agree, what the two adjustments of
+  the p-values count, and how many donors a study needs. The vignette reports
+  what these checks give on 12 donors. It makes no general statement about
+  the calibration or the power of the methods.
+vignette: >
+  %\VignetteIndexEntry{Checking a result: permutations, backends and power}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+    fig.height = 3.2, dpi = 72)
+has <- function(...) {
+    all(vapply(c(...), requireNamespace, logical(1), quietly = TRUE))
+}
+```
+
+# Introduction
+
+A table of p-values says little about how far it can be trusted. This vignette
+goes through four checks that `r Biocpkg("exposomeSC")` makes easy, on the
+example data of the package: airway epithelial cells of six heavy smokers and
+six never smokers from the Human Lung Cell Atlas, which the main vignette
+describes. The first two are run on basal cells only, to keep the vignette
+short.
+
+With 12 donors the checks cannot settle anything about the methods. They show
+how each check is done and what it can and cannot tell.
+
+# Installation
+
+```{r install, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+}
+BiocManager::install("exposomeSC")
+```
+
+# The observed result
+
+```{r data, message=FALSE}
+library(exposomeSC)
+library(SingleCellExperiment)
+x <- readRDS(system.file("extdata", "hlca_airway_subset.rds",
+    package = "exposomeSC"))
+```
+
+```{r observed}
+observed <- run_sc_exwas(x, exposure = "smoking", covariates = "chemistry_v3",
+    celltypes = "Basal")
+summarise <- function(fit) {
+    data.frame(tests = nrow(fit), calls = sum(fit$padj_global < 0.05),
+        p_below_0.05 = round(mean(fit$pvalue < 0.05), 3))
+}
+summarise(observed)
+```
+
+A call is a gene with `padj_global` below 0.05. With one cell type in the run,
+`padj_global` is the Benjamini-Hochberg adjustment over the genes tested in
+basal cells.
+
+# Permuting the exposure among the donors {#permutation}
+
+A permutation shuffles the smoking statuses among the donors and leaves the
+counts and the covariates as they are. If smoking had no part in the counts,
+the observed labelling would be one of many that were equally likely, and the
+analysis of a shuffled labelling shows what the pipeline returns on these
+counts in that case. A single shuffled labelling is not unrelated to the
+observed one, though: some donors keep their own status, and a difference
+between smokers and never smokers passes in part into the shuffled comparison.
+
+The model adjusts for the 10x chemistry, and the status is permuted within
+each chemistry, so that the two chemistries keep their numbers of smokers:
+
+```{r design}
+design <- exposureData(x)
+table(smoking = design[, "smoking"], chemistry_v3 = design[, "chemistry_v3"])
+choose(4, 2) * choose(8, 4)
+```
+
+There are 420 ways to label two of the four donors of one chemistry and four
+of the eight donors of the other as smokers; the observed labelling is one of
+them. A labelling and its mirror image, with every status reversed, give the
+same tests, so these are 210 different analyses. Twenty labellings are drawn
+here, each with a seed of its own.
+
+```{r permutations}
+permute_within <- function(values, strata) {
+    for (level in unique(strata)) {
+        rows <- which(strata == level)
+        values[rows] <- values[rows][sample.int(length(rows))]
+    }
+    values
+}
+permuted_fit <- function(seed) {
+    set.seed(seed)
+    labels <- design
+    labels[, "smoking"] <- permute_within(design[, "smoking"],
+        design[, "chemistry_v3"])
+    permuted <- x
+    exposureData(permuted) <- labels
+    fit <- run_sc_exwas(permuted, exposure = "smoking",
+        covariates = "chemistry_v3", celltypes = "Basal")
+    metadata(fit)$status <- labels[, "smoking"]
+    fit
+}
+fits <- lapply(1:20, permuted_fit)
+permutations <- do.call(rbind, lapply(fits, function(fit) {
+    same_label <- sum(metadata(fit)$status == design[, "smoking"])
+    cbind(same_label = same_label, summarise(fit))
+}))
+permutations
+statuses <- t(vapply(fits, function(fit) metadata(fit)$status, numeric(12)))
+mirrored <- statuses[, 1] == 0
+statuses[mirrored, ] <- 1 - statuses[mirrored, ]
+nrow(unique(statuses))
+```
+
+`same_label` is the number of donors whose permuted status is their own; the
+observed labelling would have 12 and its mirror image 0, and
+`r sum(permutations$same_label %in% c(0, 12))` of the twenty have either. The
+last number counts the different analyses among the twenty, a labelling and
+its mirror image taken as one: drawn each on its own, two could have been the
+same. In
+`r sum(permutations$calls > 0)` of the 20 permutations at least one gene was
+called, and the fraction of p-values below 0.05 lay between
+`r min(permutations$p_below_0.05)` and `r max(permutations$p_below_0.05)`,
+with a mean of `r round(mean(permutations$p_below_0.05), 3)`; for the observed
+status it is `r summarise(observed)$p_below_0.05`.
+
+```{r histograms}
+#| fig.cap: >-
+#|   P-values of the genes tested in basal cells, for the observed smoking
+#|   status and for the permutation with the most calls.
+most <- which.max(permutations$calls)
+old <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+hist(observed$pvalue, breaks = 20, main = "Observed status",
+    xlab = "p-value", col = "grey80", border = "white")
+hist(fits[[most]]$pvalue, breaks = 20, main = paste("Permutation", most),
+    xlab = "p-value", col = "grey80", border = "white")
+par(old)
+```
+
+## Calls under a permuted status come together
+
+The permutation with the most calls is worth a look:
+
+```{r called}
+called <- fits[[most]]$gene[fits[[most]]$padj_global < 0.05]
+called <- sort(rowData(x)[called, "symbol"])
+called
+replication <- c("BIRC5", "CDC20", "MCM3", "MCM4", "MCM5", "TYMS")
+```
+
+The list was read after it was printed. Among its `r length(called)` genes are
+`r length(intersect(replication, called))` genes of DNA replication and
+mitosis: *BIRC5*, *CDC20*, *MCM3*, *MCM4*, *MCM5* and *TYMS*. Genes like these
+are expressed together in dividing cells, so they rise and fall together from
+donor to donor, and one difference between two groups of donors can bring many
+of them below the threshold at once. *MKI67* and *TOP2A* are two usual markers
+of dividing cells. The next lines say whether they were tested and whether
+either was called, and count, for each donor, the sampled basal cells with a
+count of either. A count of the called genes themselves would only say the
+calls again.
+
+```{r dividing}
+markers <- rownames(x)[rowData(x)$symbol %in% c("MKI67", "TOP2A")]
+markers %in% fits[[most]]$gene
+intersect(c("MKI67", "TOP2A"), called)
+basal_cells <- x[, x$cell_type == "Basal"]
+with_marker <- Matrix::colSums(counts(basal_cells)[markers, ] > 0) > 0
+status <- metadata(fits[[most]])$status
+names(status) <- rownames(design)
+by_donor <- tapply(with_marker, basal_cells$donor_id, sum)
+data.frame(permuted_status = status[names(by_donor)],
+    observed_status = design[names(by_donor), "smoking"],
+    cells_with_marker = as.vector(by_donor),
+    cells = as.vector(table(basal_cells$donor_id)[names(by_donor)]),
+    row.names = names(by_donor))
+by_status <- tapply(by_donor, status[names(by_donor)], sum)
+by_status
+```
+
+Of the sampled basal cells of the donors with permuted status 0,
+`r by_status[["0"]]` have a count of one of the two genes, against
+`r by_status[["1"]]` of the cells of the donors with status 1. A call under a
+shuffled status is no evidence of an effect of smoking. It need not be noise,
+though: a shuffled status can happen to divide the donors by something that
+does differ between them, as the share of dividing cells among the ten cells
+sampled from each donor may here. The model then finds a difference that is
+there, and what would be wrong is to read it as an effect of the status.
+
+## What the check shows
+
+* In `r sum(permutations$calls == 0)` of the 20 permuted labellings the
+  pipeline calls nothing, and between
+  `r min(permutations$p_below_0.05[permutations$calls == 0])` and
+  `r max(permutations$p_below_0.05[permutations$calls == 0])` of their
+  p-values are below 0.05. A test that called many genes for most labellings
+  would be suspect; that is the failure this check can find.
+* Calls come together, because genes are correlated. The number of calls in
+  one labelling therefore says little, and the number of labellings with any
+  call is the better summary.
+* Twenty labellings of 420 do not estimate an error rate, and 420 would not
+  either: the labellings overlap with the observed one (`same_label`), and
+  they are few.
+* The check assumes that donors could have had each other's status. For an
+  exposure that was not assigned at random this does not hold. Smokers and
+  never smokers differ in more than smoking, and a permutation removes those
+  differences from the comparison along with the exposure.
+
+# Two backends on the same data
+
+`method = "voom_dream"` fits another model to the same pseudobulk counts.
+Agreement between backends does not show that either is right; it shows how
+much of a result depends on the choice.
+
+```{r backends, eval=has("variancePartition")}
+voom <- run_sc_exwas(x, exposure = "smoking", covariates = "chemistry_v3",
+    method = "voom_dream", celltypes = "Basal")
+common <- intersect(observed$gene, voom$gene)
+c(edgeR = nrow(observed), voom_dream = nrow(voom), both = length(common))
+edger_common <- observed[match(common, observed$gene), ]
+voom_common <- voom[match(common, voom$gene), ]
+cor(edger_common$log2FC, voom_common$log2FC)
+table(edgeR = edger_common$padj_global < 0.05,
+    voom_dream = voom_common$padj_global < 0.05)
+```
+
+The backends do not test the same genes, because each has its own expression
+filter, so their `padj_global` values are adjusted over families of different
+sizes. The estimates of the genes that both test are strongly correlated but
+not equal, as the figure shows; the calls, which sit at the edge of a
+threshold, need not agree.
+
+```{r backend-plot, eval=has("variancePartition"), fig.width=4, fig.height=4}
+#| fig.cap: >-
+#|   Log2 fold changes of the genes tested by both backends in basal cells.
+plot(edger_common$log2FC, voom_common$log2FC, pch = 16, cex = 0.4,
+    col = "grey40", xlab = "edgeR log2FC", ylab = "voom-dream log2FC")
+abline(0, 1, lty = 2)
+```
+
+# Two adjustments of the p-values
+
+`run_sc_exwas()` returns `padj`, adjusted within each cell type, and
+`padj_global`, adjusted once over all tested genes and cell types.
+
+```{r multiplicity}
+full <- run_sc_exwas(x, exposure = "smoking", covariates = "chemistry_v3")
+table(celltype = full$celltype, padj = full$padj < 0.05,
+    padj_global = full$padj_global < 0.05)
+```
+
+The two are answers to different questions. `padj` controls the false
+discovery rate among the calls of one cell type, taken alone. `padj_global`
+controls it among all calls of the analysis, which is what a list of calls
+across cell types needs. Neither is uniformly the stricter one: a gene can
+pass the threshold of the larger family without passing that of its own cell
+type, when other cell types contribute many small p-values.
+
+# How many donors
+
+`estimate_power()` approximates the power of a pseudobulk test for one gene in
+one cell type at a Bonferroni level for the number of tests, from the number
+of donors, the log2 fold change per unit of the exposure, the standard
+deviation of the exposure, the dispersion and the mean pseudobulk count. It
+treats the dispersion as known and is optimistic for small numbers of donors.
+The Bonferroni level is stricter than the Benjamini-Hochberg adjustment behind
+`padj_global`, so the table is not the power to be called in the analysis
+above.
+
+The effect is per unit of the exposure, so the spread of the exposure matters
+as much as the size of the effect. A status that half of the donors have, as
+the smoking status here, has a standard deviation of 0.5; the default of
+`exposure_sd` is 1, which suits an exposure that was standardised. The call
+asks for the power to find a doubling of expression between two groups of
+equal size (`effect_size = 1`) at the Bonferroni level for as many tests as
+the analysis above made:
+
+```{r power}
+estimate_power(n_donors = c(12, 24, 48, 96), effect_size = 1,
+    exposure_sd = 0.5, n_genes = nrow(full), n_celltypes = 1,
+    dispersion = 0.1, base_mean = 100)
+```
+
+`n_genes` times `n_celltypes` is the number of tests; here all tests of the
+three cell types are given as one number.
+
+Donors, not cells, are the units: more cells per donor raise the pseudobulk
+count, which enters through `base_mean`, but they do not add to `n_donors`.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

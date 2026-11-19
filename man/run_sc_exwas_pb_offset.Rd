@@ -60,7 +60,10 @@ that pseudobulk models with proper offsets have the same statistical
 properties as generalised linear mixed models in single-cell case-control
 studies, without the pseudoreplication that inflates cell-level tests.
 P-values are Wald tests with an estimated dispersion and can be
-anticonservative when there are few donors.
+anticonservative when there are few donors. The function has no threshold
+on the number of cells: every donor with at least one cell of a cell type
+enters the model of that cell type, where \code{\link{run_sc_exwas}}
+leaves out a donor with fewer than \code{min_cells} cells.
 }
 \note{
 Report empirical calibration from a donor-permutation null, with the

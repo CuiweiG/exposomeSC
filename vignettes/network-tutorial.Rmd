@@ -1,251 +1,337 @@
 ---
-title: "Exploratory cross-omic network inference with exposomeSC"
+title: "Exploratory cross-omic networks within a cell type"
 author: "Cuiwei Gao"
-date: "`r Sys.Date()`"
+date: "`r BiocStyle::doc_date()`"
+package: exposomeSC
 output:
-  rmarkdown::html_vignette:
-    toc: true
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: exposomeSC.bib
+link-citations: true
+abstract: >
+  The network functions of exposomeSC estimate a sparse graph over the
+  transcripts of one cell type and a second omic layer measured once per
+  donor. This vignette runs them on real data: monocytes and T cells of 43
+  patients and metabolites measured in their plasma. It shows what the
+  functions take and return, how far the result depends on the penalties,
+  and what an edge can and cannot be taken to mean.
 vignette: >
-  %\VignetteIndexEntry{Exploratory cross-omic network inference with exposomeSC}
+  %\VignetteIndexEntry{Exploratory cross-omic networks within a cell type}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-    collapse = TRUE,
-    comment = "#>",
-    warning = FALSE,
-    message = FALSE,
-    fig.width = 7,
-    fig.height = 4.5
-)
-```
-
-# Installation
-
-```{r install, eval=FALSE}
-if (!require("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-BiocManager::install("exposomeSC")
-
-# Development version from GitHub:
-BiocManager::install("CuiweiG/exposomeSC")
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6,
+    fig.height = 4.2, dpi = 72)
+has <- function(...) {
+    all(vapply(c(...), requireNamespace, logical(1), quietly = TRUE))
+}
+plot_packages <- c("ggplot2", "igraph", "ggraph", "tidygraph")
+## the functions need coglasso from version 1.1.0
+has_coglasso <- has("coglasso") && packageVersion("coglasso") >= "1.1.0"
 ```
 
 # Introduction
 
-The network module estimates cell-type-resolved conditional-association
-structures that combine transcript pseudobulk with donor-level molecular
-measurements such as metabolomics. It is exploratory. An edge is a
-regularised conditional association under the fitted model—not a biochemical
-interaction or a causal relation.
+The network functions of `r Biocpkg("exposomeSC")` estimate, for one cell type,
+a sparse graph over transcripts of that cell type and the features of a second
+omic layer that is measured once per donor, such as metabolites in plasma. An
+edge joins two features that remain associated across the donors given the
+other features of the graph: a non-zero entry of a penalised estimate of the
+precision matrix.
 
-Network analysis answers a different question from sc-ExWAS. sc-ExWAS tests a
-prespecified marginal exposure coefficient for each feature and cell type.
-Network analysis describes multivariate dependence after preprocessing and
-covariate adjustment. Selection and tuning uncertainty, sample size and
-external stability must be reported separately.
+The functions are exploratory. An edge is a regularised conditional association
+under a Gaussian graphical model of transformed data. It is not a biochemical
+interaction and not a causal relation, and which edges are found depends on the
+transform, the penalties and the number of donors.
 
-The fitted network is a `CelltypeNetworkResult` object. It records the
-precision and adjacency matrices, edge selection frequencies, feature
-annotations, cell type, method and provenance-related metadata, which are read
-with `networkPrecision()`, `networkAdjacency()`, `networkStability()`,
-`networkNodes()`, `networkCelltype()`, `networkMethod()` and `metadata()`.
-`run_comparative_network()` returns a `NetworkComparison`, read with
-`diffEdges()`, `sharedEdges()`, `celltypeSpecificEdges()` and
-`comparisonSummary()`.
+These functions answer a different question from `run_sc_exwas()`, which tests
+one exposure against one gene at a time, and they do not use its results. They
+share the container and the pseudobulk step with it.
 
-```{r load-package}
-library(exposomeSC)
-```
+The vignette runs on the INCOV data of the package: blood cells of 43 patients
+with COVID-19 [@su2020] and metabolites measured in their plasma at the same
+blood draw (`?incov_pbmc_subset`). With 43 donors and at most 14 cells per
+donor and cell type, the networks below show how the functions are called and
+what they return. They are not findings.
 
-# Input alignment
+The estimators come from `r CRANpkg("glasso")` and `r CRANpkg("coglasso")`, and
+the plots need `r CRANpkg("ggplot2")`, `r CRANpkg("igraph")`,
+`r CRANpkg("ggraph")` and `r CRANpkg("tidygraph")`. exposomeSC only suggests
+these packages; a chunk that needs one of them is run when it is installed.
 
-The transcript and metabolite data must refer to the same donors. Raw
-single-cell counts are aggregated within donor and cell type before network
-estimation; donor-level metabolite rows are then aligned by identifier. Do not
-match rows by position.
+# Installation
 
-The examples below use a small simulated data set so that the vignette runs in
-seconds: 24 donors, monocytes and B cells, 12 genes and 4 donor-level
-metabolites. In monocytes four genes move with the exposure, and one metabolite
-tracks it.
-
-```{r example-data}
-has_coglasso <- requireNamespace("coglasso", quietly = TRUE)
-has_plot_packages <- all(vapply(c("ggplot2", "igraph", "ggraph", "tidygraph"),
-    requireNamespace, logical(1), quietly = TRUE))
-
-set.seed(2026)
-donors <- sprintf("D%02d", 1:24)
-celltypes <- c("Monocyte", "B cell")
-cell_donor <- rep(rep(donors, each = 20), times = length(celltypes))
-cell_type <- rep(celltypes, each = length(donors) * 20)
-pm25 <- stats::setNames(stats::rnorm(length(donors)), donors)
-
-counts <- matrix(stats::rpois(12 * length(cell_donor), 15), nrow = 12,
-    dimnames = list(paste0("G", 1:12), paste0("c", seq_along(cell_donor))))
-in_mono <- cell_type == "Monocyte"
-for (gene in 1:4) {
-    effect <- c(0.6, 0.6, -0.6, -0.6)[gene]
-    counts[gene, in_mono] <- stats::rpois(sum(in_mono),
-        15 * exp(effect * pm25[cell_donor[in_mono]]))
+```{r install, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
 }
-sce <- SingleCellExperiment::SingleCellExperiment(
-    assays = list(counts = counts),
-    colData = S4Vectors::DataFrame(cell_id = colnames(counts),
-        donor_id = cell_donor, cell_type = cell_type))
-
-donor_data <- cbind(PM2.5 = pm25,
-    age = round(stats::runif(length(donors), 30, 70)),
-    sex = rep(0:1, length.out = length(donors)))
-rownames(donor_data) <- donors
-scee <- build_scee(sce, donor_data, sample_col = "donor_id")
-
-metabolites <- matrix(stats::rnorm(length(donors) * 4), ncol = 4,
-    dimnames = list(donors, paste0("M", 1:4)))
-metabolites[, "M1"] <- metabolites[, "M1"] + 1.2 * pm25
+BiocManager::install("exposomeSC")
 ```
 
-The network functions transform the pseudobulk counts with DESeq2's
-variance-stabilising transformation by default. `DESeq2::vst()` needs at least
-1000 genes with a mean normalised count above 5, which these 12 genes are not,
-so the calls below ask for log-CPM values with `transform = "log_cpm"`. A call
-never switches from one transform to the other.
+# The data
 
-```{r build-network, eval=has_coglasso}
-mono_net <- run_celltype_network(
-    scee,
-    metabolites = metabolites,
-    celltype = "Monocyte",
-    covariates = c("age", "sex"),
-    method = "coglasso",
-    stability = TRUE,
-    nlambda_w = 3L,
-    nlambda_b = 3L,
-    rep_num = 5L,
-    transform = "log_cpm"
-)
+```{r data, message=FALSE}
+library(exposomeSC)
+library(SingleCellExperiment)
+x <- readRDS(system.file("extdata", "incov_pbmc_subset.rds",
+    package = "exposomeSC"))
+table(x$cell_type)
+plasma <- metadata(x)$plasma_metabolites
+dim(plasma)
+table(metadata(x)$metabolite_info$super_pathway)
 ```
 
-The exposure is deliberately left out of this model. The four exposure genes
-and M1 share its signal, so the network is expected to connect them; any other
-edge is a false positive, which 24 donors can produce even under stability
-selection. Adding `exposure = "PM2.5"` regresses the exposure out of both
-matrices before estimation, and that module is no longer expected: the network
-then describes dependence the exposure does not explain. Which of the two is
-the scientific question has to be settled before fitting.
+The second layer is a matrix with one row per donor. Its rows are matched to
+the donors of the cells by name, never by position:
 
-The tuning grid and the number of XStARS subsamples are deliberately small
-here; the defaults are a 15 by 15 grid and 20 subsamples. These calls do not
-reproduce the HLCA primary model. In a multistudy application, study and other
-prespecified design terms must be included consistently, and the
-feature-selection rule must be recorded before network fitting.
-
-# Collaborative graphical lasso
-
-The `coglasso` backend permits different penalties for within-omic and
-between-omic precision-matrix blocks. Penalty selection is based on resampling
-stability. The complete tuning grid, resample identifiers, edge-selection
-frequencies and final penalty must be retained; a network plot alone is not an
-adequate result record.
-
-```{r inspect-network, eval=has_coglasso && has_plot_packages}
-mono_net
-plot_edge_stability(mono_net)
-plot_celltype_network(
-    mono_net,
-    layout = "fr",
-    color_by = "omic_layer",
-    highlight_cross_omic = TRUE
-)
+```{r donors}
+identical(rownames(plasma), rownames(exposureData(x)))
 ```
 
-# Comparing cell types
+The examples use a small panel: 12 interferon-stimulated genes, because the
+donors had a viral infection, and ten metabolites of amino-acid pathways, on
+the log2 scale.
 
-Cell-type comparisons require aligned features, compatible preprocessing and
-adequate donor support in every network. Apparent differences can result from
-unequal measurement error or selection stability rather than a true change in
-conditional association.
+```{r features}
+interferon <- c("IFI6", "ISG15", "MX1", "IFITM3", "STAT1", "XAF1", "EPSTI1",
+    "LY6E", "IRF7", "ISG20", "MX2", "EIF2AK2")
+panel <- c("kynurenine", "kynurenate", "arginine", "methionine", "sarcosine",
+    "spermidine", "5-oxoproline", "3-indoxyl sulfate", "indolepropionate",
+    "dimethylarginine (SDMA + ADMA)")
+metabolites <- log2(plasma[, panel])
+colnames(metabolites)[10] <- "dimethylarginine"
+```
 
-```{r compare-networks, eval=has_coglasso && has_plot_packages}
-bcell_net <- run_celltype_network(
-    scee,
-    metabolites = metabolites,
-    celltype = "B cell",
-    covariates = c("age", "sex"),
-    method = "coglasso",
-    stability = TRUE,
-    nlambda_w = 3L,
-    nlambda_b = 3L,
-    rep_num = 5L,
-    transform = "log_cpm"
-)
+The calls of this vignette differ in the cell type and the estimator only, so
+they go through one helper:
 
-comparison <- run_comparative_network(mono_net, bcell_net)
+```{r helper}
+network <- function(celltype, ...) {
+    run_celltype_network(x, metabolites = metabolites, celltype = celltype,
+        covariates = c("age", "sex_male"), genes = interferon,
+        transform = "log_cpm", ...)
+}
+```
+
+# The transform of the counts
+
+The functions sum the raw counts of the cell type within each donor and
+transform the sums. The default, `transform = "vst"`, is the
+variance-stabilising transformation of `r Biocpkg("DESeq2")`, which needs
+1,000 genes with a mean normalised count above 5. Fourteen cells per donor do
+not give that many; the number of genes with a mean raw count above 5 is:
+
+```{r depth}
+monocytes <- assay(donor_pseudobulk(x)[["Monocyte"]], "counts")
+sum(rowMeans(monocytes) > 5)
+```
+
+A call with the default therefore stops. It does not switch to another
+transform, because the same call would then give different networks on
+different data or machines:
+
+```{r vst, error=TRUE, eval=has("glasso", "DESeq2")}
+run_celltype_network(x, metabolites = metabolites, celltype = "Monocyte",
+    genes = interferon, method = "block_glasso")
+```
+
+The helper above asks for `transform = "log_cpm"`, the base-2 logarithm of the
+counts per million plus one. Either transform is computed from all genes of the
+object; `genes` then names the genes that become nodes.
+
+# A network for one cell type
+
+`method = "block_glasso"` is the graphical lasso [@friedman2008] on the
+correlation matrix of the features, with one penalty for pairs of features of
+the same layer (`lambda_w`, default 0.3) and one for pairs of different layers
+(`lambda_b`, default 0.5). `covariates` are regressed out of both layers
+first.
+
+```{r monocyte-network, eval=has("glasso")}
+mono <- network("Monocyte", method = "block_glasso")
+mono
+```
+
+The result is a `CelltypeNetworkResult`. Its parts are read with accessors:
+
+```{r accessors, eval=has("glasso")}
+networkCelltype(mono)
+networkMethod(mono)
+head(networkNodes(mono), 3)
+dim(networkPrecision(mono))
+sum(networkAdjacency(mono)) / 2
+metadata(mono)[c("n_donors", "transform", "covariates")]
+```
+
+The penalties decide how many edges there are, within the layers and between
+them:
+
+```{r penalties, eval=has("glasso")}
+looser <- network("Monocyte", method = "block_glasso", lambda_w = 0.2,
+    lambda_b = 0.2)
+rbind(default = unlist(metadata(mono)$edge_counts),
+    looser = unlist(metadata(looser)$edge_counts))
+```
+
+```{r plot-network, eval=has("glasso", plot_packages)}
+#| fig.cap: >-
+#|   The network of monocytes at the looser penalties. Edges between a
+#|   transcript and a metabolite are highlighted.
+set.seed(1)
+plot_celltype_network(looser, layout = "fr", label_top = 22L)
+```
+
+# Penalties chosen by stability
+
+`method = "coglasso"` is the collaborative graphical lasso [@albanese2026],
+which also has one penalty for pairs within a layer and one for pairs between
+the layers, and a weight for the agreement of the layers. All three are chosen
+from a grid by the stability of the edges under subsampling of the donors. The
+grid and the number of subsamples are small here to keep the vignette short;
+the defaults are a 15 by 15 grid and 20 subsamples.
+
+```{r coglasso, eval=has_coglasso}
+set.seed(1)
+stable <- network("Monocyte", method = "coglasso", nlambda_w = 5L,
+    nlambda_b = 5L, rep_num = 10L)
+stable
+unlist(metadata(stable)$selection)
+```
+
+coglasso takes the largest penalty of each grid from the data: the largest
+correlation within a layer and the largest between the layers. When this
+vignette was written, the within-layer penalty chosen was that largest value,
+at which no two features of one layer are joined. The network then has edges
+between the layers only because the choice ended at the edge of the grid, not
+because the transcripts are unrelated to each other; the block graphical lasso
+above joins many of them.
+
+`networkStability()` returns, for every pair of features, the fraction of the
+subsamples in which the pair was joined at the chosen penalties.
+
+```{r stability, eval=has_coglasso}
+scores <- networkStability(stable)
+dim(scores)
+table(cut(scores[upper.tri(scores)], c(0, 0.25, 0.5, 0.75, 1),
+    include.lowest = TRUE))
+```
+
+```{r plot-stability, eval=has_coglasso && has("ggplot2")}
+#| fig.cap: >-
+#|   Pairs of features by the fraction of subsamples in which they were
+#|   joined at the chosen penalties. Not every pair shown is an edge of the
+#|   network.
+plot_edge_stability(stable)
+```
+
+The two estimators need not agree, and with 43 donors the result of either
+depends on its settings. When this vignette was written, a 4 by 4 grid and a
+6 by 6 grid each gave a coglasso network other than the one above, and the
+defaults of the function, a 15 by 15 grid and 20 subsamples, gave the same
+one.
+
+# Two cell types
+
+`run_comparative_network()` sets networks of several cell types side by side.
+It needs the same features in each. Naming the genes with `genes` provides
+them, as long as each gene has counts in each cell type: a gene that is
+constant across the donors of a cell type is left out of that network, with a
+message. `top_var_genes`, the other way to limit the transcripts, takes the
+most variable genes of each cell type, and these differ between cell types.
+
+```{r comparison, eval=has("glasso")}
+tcell <- network("T cell", method = "block_glasso")
+comparison <- run_comparative_network(mono, tcell)
 comparison
+unlist(comparisonSummary(comparison)[c("n_total_edges", "n_shared",
+    "n_differential")])
+head(sharedEdges(comparison), 3)
+head(diffEdges(comparison), 3)
+vapply(celltypeSpecificEdges(comparison), nrow, integer(1))
+```
 
+`max_diff` is the difference between the partial correlations of an edge in
+the two networks.
+
+```{r plot-comparison, eval=has("glasso", "ggplot2")}
+#| fig.cap: >-
+#|   Edges that are in one of the two networks only, by the difference of
+#|   their partial correlations.
 plot_network_comparison(comparison)
 ```
 
-This comparison is descriptive: it tests no edge and reports no p-values.
-Edge-presence or weight differences are not evidence of differential
-conditional association.
+The comparison is descriptive. It tests no edge and reports no p-value, and an
+edge that is in one network and not in the other can be within the noise of
+either estimate.
 
-# Exposure-restricted networks
+# Features associated with an exposure
 
-`run_exposure_network()` uses an exposure-association stage followed by network
-estimation. This is a two-stage exploratory procedure. Selecting and estimating
-on the same donors can exaggerate stability and effect size; nested resampling,
-sample splitting or independent validation is required for confirmatory use.
+`run_exposure_network()` works in two stages. It first selects, among the
+genes of the cell type and the features of the second layer, those associated
+with an exposure, and then estimates a network among the selected features
+only. The exposure here is age. Sex is given as a covariate: the features are
+screened by their rank correlation with age given sex, and sex is regressed
+out of them before the network is estimated. The candidates are all genes of
+the object and all
+`r ncol(plasma)` plasma metabolites.
 
-```{r exposure-network}
-exposure_net <- run_exposure_network(
-    scee,
-    metabolites,
-    celltype = "Monocyte",
-    exposure = "PM2.5",
-    covariates = c("age", "sex"),
-    selection_method = "univariate",
-    fdr_threshold = 0.05,
-    network_method = "block_glasso",
-    transform = "log_cpm"
-)
-exposure_net
-networkNodes(exposure_net)
-metadata(exposure_net)[c("selection_method", "n_donors", "transform")]
+```{r exposure-network, eval=has("glasso")}
+age_net <- run_exposure_network(x, log2(plasma), celltype = "Monocyte",
+    exposure = "age", covariates = "sex_male",
+    selection_method = "univariate", network_method = "block_glasso",
+    transform = "log_cpm")
+age_net
+metadata(age_net)[c("n_total_features", "selection_method", "fdr_threshold")]
+selected <- networkNodes(age_net)
+table(selected$omic_layer)
+selected$feature
 ```
 
-# Composition and provenance
+`selection_method = "univariate"` keeps the features whose Spearman
+correlation with the exposure, given the covariates, passes a false discovery
+rate of 0.05 among the candidates that vary across the donors with a value of
+the exposure; `"stability"` selects by stability
+selection [@meinshausen2010] instead. The call stops when fewer than three
+features are selected. `genes` names the candidate genes, as it names the nodes
+of `run_celltype_network()`; fewer candidates leave fewer tests to adjust for.
 
-Building a network within a cell type removes variation in broad cell-type
-mixture from the expression outcome, but it does not eliminate subtype mixture,
-sampling, dissociation, capture, annotation or residual confounding. The
-network model does not supply evidence for a composition-mediated pathway.
+The quantity that was tested is the partial rank correlation of a feature with
+age given sex: the correlation of the two after the ranks of sex are regressed
+out of the ranks of each. Regressing sex out of the values themselves and
+ranking what is left would not do for a gene with few counts, whose many equal
+values would then be ranked by sex. For the selected metabolites the
+correlation is:
 
-Every reported network should retain input hashes, donor inclusion, feature
-definitions, preprocessing, covariate design, tuning grid, random seeds,
-resampling output, software versions and the exact object used for plotting.
-The examples above run on simulated data and report no result from a real
-cohort.
+```{r exposure-sign, eval=has("glasso")}
+chosen <- selected$feature[selected$omic_layer == "metabolite"]
+donor_data <- as.data.frame(exposureData(x))
+given_sex <- function(v) residuals(lm(rank(v) ~ rank(sex_male), donor_data))
+ranks <- apply(plasma[, chosen, drop = FALSE], 2, given_sex)
+round(cor(given_sex(donor_data$age), ranks)[1, ], 2)
+```
 
-# References
+Features that change with age in the same direction are correlated with each
+other across donors of different ages, whatever else links them. The exposure
+is not regressed out of the features and is not a node of the network, so an
+edge between two features can reflect nothing more than the association that
+both have with the exposure. The network does not estimate how the dependence
+between features changes with the exposure.
 
-- Albanese A, Kohlen W, Behrouzi P (2026). Multi-omics network reconstruction
-  with collaborative graphical lasso. *Bioinformatics* 42(7):btag477.
-  doi:10.1093/bioinformatics/btag477.
-- Friedman J, Hastie T, Tibshirani R (2008). Sparse inverse covariance
-  estimation with the graphical lasso. *Biostatistics* 9(3):432-441.
-  doi:10.1093/biostatistics/kxm045.
-- Liu H, Roeder K, Wasserman L (2010). Stability Approach to Regularization
-  Selection (StARS) for High Dimensional Graphical Models. *Advances in Neural
-  Information Processing Systems* 23.
-- Meinshausen N, Bühlmann P (2010). Stability selection. *Journal of the Royal
-  Statistical Society: Series B* 72:417--473.
+# What a network does not show
+
+Selecting features and estimating a network on the same donors overstates the
+stability of the result; a network that is to be relied on needs donors that
+took no part in the selection. Building a network within a cell type removes
+the differences between broad cell types from the transcript values, but not
+those between subtypes, and not the effects of sampling, capture and
+annotation. And the graph is one of many that 43 donors are compatible with.
 
 # Session information
 
 ```{r session-info}
 sessionInfo()
 ```
+
+# References

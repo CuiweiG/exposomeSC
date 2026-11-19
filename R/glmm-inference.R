@@ -1,33 +1,24 @@
 # R/glmm-inference.R
-# Donor-level inference for sc-ExWAS, replacing the anticonservative GLMM
-# path.
+# Two models of the exposure effect beside the pseudobulk backends of
+# run_sc_exwas().
 #
-# The retired path fitted the mixed model with ML (lme4 REML = FALSE) and
-# referred a Wald statistic to the normal (p = 2 * pnorm(|z|)). Both choices
-# inflate type-I error for the small donor samples of an sc-ExWAS: ML biases
-# the variance components downward, and the Wald-normal reference ignores the
-# finite denominator degrees of freedom. This file replaces that path with two
-# estimators whose calibration is defensible:
-#
-#   (a) run_sc_exwas_pb_offset() -- donor offset-pseudobulk negative-binomial
-#       GLM. For a donor-level exposure (all of a donor's cells share A_i), the
-#       donor NB GLM with offset log s_i = log(donor total counts) has point
-#       estimate AND standard error equal to the cell-level NB-GLMM up to
-#       O(1/sqrt(n)), and is an order of magnitude faster (Lee & Han 2024,
-#       Bioinformatics 40(8):btae498). This is the recommended default for the
-#       direct/marginal channel. It does NOT extend to within-donor-varying
-#       terms.
+#   (a) run_sc_exwas_pb_offset() -- negative binomial GLM of the donor
+#       pseudobulk counts with the offset log(total count of the donor). For
+#       an exposure that is the same for all cells of a donor, its estimate
+#       and standard error agree with those of the cell-level negative
+#       binomial mixed model up to O(1/sqrt(n)), and it is much faster (Lee &
+#       Han 2024, Bioinformatics 40(8):btae498). It does not extend to terms
+#       that vary within a donor.
 #
 #   (b) run_sc_exwas_glmm() -- cell-level linear mixed model
-#       y ~ exposure * celltype + covariates + (1 | donor), fitted with
-#       lmerTest::lmer(REML = TRUE). p-values come from a finite denominator df
-#       -- Satterthwaite (default) or Kenward-Roger -- NOT the Wald normal. REML
-#       is MANDATORY: the Kenward-Roger covariance and the Satterthwaite
-#       Hessian are defined only on the REML fit.
+#       y ~ exposure * celltype + covariates + (1 | donor) +
+#       (1 | donor:celltype), fitted with lmerTest::lmer(REML = TRUE). The
+#       p-values use a finite denominator df, Satterthwaite (default) or
+#       Kenward-Roger, and not the normal distribution; both need the REML
+#       fit.
 #
-# Calibration: do not quote a nominal type-I rate for either estimator without
-# a donor-permutation check (permute the exposure ACROSS donors, refit the
-# frozen pipeline, and report a Wilson interval for the empirical FPR).
+# Neither has a guaranteed type-I error rate with few donors. A result can be
+# checked by permuting the exposure among the donors and fitting again.
 
 #' @include AllClasses.R
 #' @include AllGenerics.R
@@ -177,7 +168,10 @@ NULL
 #' properties as generalised linear mixed models in single-cell case-control
 #' studies, without the pseudoreplication that inflates cell-level tests.
 #' P-values are Wald tests with an estimated dispersion and can be
-#' anticonservative when there are few donors.
+#' anticonservative when there are few donors. The function has no threshold
+#' on the number of cells: every donor with at least one cell of a cell type
+#' enters the model of that cell type, where \code{\link{run_sc_exwas}}
+#' leaves out a donor with fewer than \code{min_cells} cells.
 #'
 #' @param x A \code{\linkS4class{SingleCellExposomeExperiment}}. Each
 #'   cell's donor is read from the \code{colData} column named by

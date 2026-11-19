@@ -27,10 +27,14 @@ NULL
 #'   gene. Default 100; \code{Inf} gives the large-count limit.
 #' @param exposure_sd Numeric. Standard deviation of the
 #'   exposure variable across donors. Default 1
-#'   (standardised).
+#'   (standardised). For a binary exposure that a proportion \eqn{q} of the
+#'   donors have, the standard deviation is \eqn{\sqrt{q(1 - q)}}, 0.5 for
+#'   two groups of equal size; \code{effect_size} is then the log2 fold
+#'   change between the groups.
 #'
 #' @return A \code{DataFrame} with columns: n_donors, power,
-#'   effect_size, n_tests, alpha_adjusted, dispersion, base_mean.
+#'   effect_size, exposure_sd, n_tests, alpha_adjusted, dispersion,
+#'   base_mean.
 #'
 #' @details
 #' For a negative-binomial GLM with a log link, the large-sample standard
@@ -90,6 +94,7 @@ estimate_power <- function(n_donors = seq(10, 100, by = 10),
             n_donors = n,
             power = power,
             effect_size = effect_size,
+            exposure_sd = exposure_sd,
             n_tests = n_tests,
             alpha_adjusted = alpha_adj,
             dispersion = dispersion,

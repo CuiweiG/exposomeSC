@@ -40,11 +40,15 @@ gene. Default 100; \code{Inf} gives the large-count limit.}
 
 \item{exposure_sd}{Numeric. Standard deviation of the
 exposure variable across donors. Default 1
-(standardised).}
+(standardised). For a binary exposure that a proportion \eqn{q} of the
+donors have, the standard deviation is \eqn{\sqrt{q(1 - q)}}, 0.5 for
+two groups of equal size; \code{effect_size} is then the log2 fold
+change between the groups.}
 }
 \value{
 A \code{DataFrame} with columns: n_donors, power,
-  effect_size, n_tests, alpha_adjusted, dispersion, base_mean.
+  effect_size, exposure_sd, n_tests, alpha_adjusted, dispersion,
+  base_mean.
 }
 \description{
 Approximates the power to detect a donor-level exposure effect on one gene

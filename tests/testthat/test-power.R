@@ -47,3 +47,15 @@ test_that("estimate_power uses the log2-scale negative-binomial SE", {
     high <- estimate_power(n_donors = 20, base_mean = Inf)$power
     expect_lt(low, high)
 })
+
+test_that("estimate_power reports the spread of the exposure it used", {
+    groups <- estimate_power(n_donors = c(12, 24), effect_size = 1,
+        exposure_sd = 0.5)
+    expect_identical(colnames(groups), c("n_donors", "power", "effect_size",
+        "exposure_sd", "n_tests", "alpha_adjusted", "dispersion", "base_mean"))
+    expect_identical(groups$exposure_sd, c(0.5, 0.5))
+    expect_identical(estimate_power(n_donors = 12)$exposure_sd, 1)
+    ## the effect and the spread enter as their product
+    standardised <- estimate_power(n_donors = c(12, 24), effect_size = 0.5)
+    expect_equal(groups$power, standardised$power)
+})

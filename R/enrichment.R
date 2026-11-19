@@ -13,10 +13,11 @@ NULL
 #'
 #' @param exwas_result A \code{DataFrame} returned by
 #'   \code{\link{run_sc_exwas}} or \code{\link{run_multi_exwas}}.
-#' @param gene_sets A named list of character vectors (gene
-#'   sets). Each element is a pathway name mapping to gene
-#'   symbols. Compatible with MSigDB collections from
-#'   \code{msigdbr}.
+#' @param gene_sets A named list of character vectors, one gene set
+#'   each. The genes are named as in the \code{gene} column of
+#'   \code{exwas_result}, which holds the row names of the object that was
+#'   analysed: Ensembl identifiers when the rows are Ensembl identifiers,
+#'   symbols when they are symbols.
 #' @param rank_by Character scalar naming the numeric column used to rank
 #'   genes. Default \code{"statistic"}, whose scale depends on the sc-ExWAS
 #'   backend: signed square-root QL F for edgeR, Wald statistic for DESeq2,
@@ -33,8 +34,9 @@ NULL
 #'
 #' @details
 #' This function requires the \code{fgsea} package
-#' (Bioconductor). Gene sets can be obtained from MSigDB via
-#' \code{msigdbr::msigdbr()} or from any named list.
+#' (Bioconductor). Gene sets can come from any source, for example from
+#' MSigDB via \code{msigdbr::msigdbr()}, as long as they use the identifiers
+#' of the result.
 #'
 #' Genes are ranked by the backend-specific association statistic (default)
 #' within each cell type, then fgsea is run per cell type. For edgeR QL this is

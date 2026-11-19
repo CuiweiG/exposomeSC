@@ -11,8 +11,10 @@
 #'     SingleCellExposomeExperiment from SCE + exposure matrix}
 #'   \item{\code{\link{run_sc_exwas}}}{Cell-type-specific ExWAS
 #'     via pseudobulk (edgeR, DESeq2 or voom-dream backend)}
-#'   \item{\code{\link{run_sc_exwas_glmm}}}{GLMM-based ExWAS
-#'     with donor random effects}
+#'   \item{\code{\link{run_sc_exwas_pb_offset}}}{Negative binomial model
+#'     of the pseudobulk counts with a donor offset}
+#'   \item{\code{\link{run_sc_exwas_glmm}}}{Mixed model of the cells with
+#'     donor random effects, linear by default}
 #'   \item{\code{\link{run_multi_exwas}}}{Batch ExWAS across
 #'     multiple exposures with global FDR}
 #'   \item{\code{\link{donor_pseudobulk}}}{Donor pseudobulk counts per
@@ -27,8 +29,8 @@
 #'     dose-response via mgcv}
 #'   \item{\code{\link{run_sc_mixture}}}{Quantile-scored
 #'     mixture screening}
-#'   \item{\code{\link{run_mixture_qgcomp}}}{Formal qgcomp
-#'     with bootstrap CI}
+#'   \item{\code{\link{run_mixture_qgcomp}}}{Quantile g-computation
+#'     with qgcomp}
 #'   \item{\code{\link{run_interaction_test}}}{Exposure x
 #'     celltype interaction F-test}
 #' }
