@@ -107,10 +107,12 @@ not absolute tissue abundance.
 | Downstream | `run_gsea()`, `run_cell_coupling()` |
 | Cross-omic networks (exploratory) | `simulate_crossomic_network()`, `run_celltype_network()`, `run_exposure_network()`, `run_comparative_network()` and their plots |
 
-The network functions return model-dependent summaries, not validated
-conditional-independence findings, and `run_comparative_network()` describes
-the differences between networks without testing them. The package estimates
-associations; it does not supply causal identification.
+The network functions fit sparse Gaussian graphical models with the graphical
+lasso and the collaborative graphical lasso. An edge is a summary under that
+model for the donors analysed, not a tested conditional independence, and
+`run_comparative_network()` describes the differences between networks
+without testing them. The package estimates associations; it does not supply
+causal identification.
 
 ## HLCA data provenance
 
