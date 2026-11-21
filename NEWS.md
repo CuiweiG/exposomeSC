@@ -1,1162 +1,257 @@
+# exposomeSC 0.99.3
+
+* Documentation only. NEWS is cut down to the changes that affect users,
+  and `?incov_pbmc_subset` gives the sources and dates of the terms that
+  apply to its single-cell data.
+
 # exposomeSC 0.99.2
 
 ## Removed from this release
 
 The first release keeps the donor-level association workflow and the
-exploratory cross-sectional networks. Functions that sit outside that core,
-or whose estimators have not been validated, are removed rather than shipped
-with warnings.
+exploratory cross-sectional networks. Functions outside that core, or whose
+estimators have not been validated, are removed rather than shipped with
+warnings.
 
 * `run_mediation()`, `run_causal_mediation()`, `run_network_mediation()`,
-  `mediational_evalue()` and `mediational_evalue_ci()`. Their identification
+  `mediational_evalue()` and `mediational_evalue_ci()`: their identification
   assumptions and resampling properties have not been validated, and the
   package reports associations, not causal effects.
-* `compute_iers()`. Its directness component needed a decomposition table
+* `compute_iers()`, whose directness component needed a decomposition table
   that no function in the package produces.
 * `run_state_coupling()` and `run_spatial_exwas()`, which lie outside the
   core donor-level analysis and have not been validated.
 * `run_differential_network()`, which split a continuous exposure at its
-  median and ignored covariates, and `run_temporal_network()`, whose only
-  tests were argument checks, with `plot_temporal_dynamics()` and the
-  `TemporalNetwork` class.
-* The experimental `method = "fisher_z"` of `run_comparative_network()`:
-  networks estimated from the same donors are not independent samples, and
-  penalised partial correlations do not follow the distribution that
-  Fisher's Z test assumes. The comparison is descriptive only, so the
-  arguments `method` and `adjust`, the columns `p_value` and `p_adjusted` of
-  the edge tables and the `method` element of `comparisonSummary()` are
-  removed with it. Call the function with the networks only: every argument
-  is now taken to be a network, so a call that still passes `method` or
-  `adjust`, `method = "descriptive"` included, stops with an error that
-  names the argument.
+  median and ignored covariates.
+* `run_temporal_network()`, whose tests checked only its arguments, with
+  `plot_temporal_dynamics()` and the `TemporalNetwork` class.
+* `method = "fisher_z"` of `run_comparative_network()`: networks estimated
+  from the same donors are not independent samples, and penalised partial
+  correlations do not follow the distribution the test assumes. The
+  comparison is now descriptive; the arguments `method` and `adjust`, the
+  columns `p_value` and `p_adjusted` and the `method` element of
+  `comparisonSummary()` are gone.
 * The unexported developmental function `run_erd_interventional()`.
-* The simulated example files `demo_sce.rds` and `demo_exposures.csv`, which
-  no example, vignette or test used, with their help topic `demo_data` and
-  the script `create_demo_data.R`. Two real data sets take their place (see
-  Documentation).
-* mediation and SpatialExperiment are no longer suggested, and neither are
-  BiocCheck and statmod, which nothing in the package used.
+* The simulated files `demo_sce.rds` and `demo_exposures.csv`, with
+  `?demo_data` and `create_demo_data.R`. Two real data sets replace them.
 
 ## Changes that can alter results
 
-* `run_sc_exwas(method = "edgeR")` now calls `glmQLFit(legacy = FALSE)`
-  without a preceding `estimateDisp()`. Earlier edgeR 4.x releases used
-  those estimates in different ways, so one call could give different
-  results on different edgeR versions; from edgeR 4.10.0 they are ignored.
-  edgeR 4.10.0 is now required, and the edgeR version is recorded in
-  `metadata(result)$parameters`.
-* `method = "block_glasso"` in `run_celltype_network()` and
-  `network_method = "block_glasso"` in `run_exposure_network()` are now the
-  graphical lasso (`glasso::glasso()`) on the correlation matrix, with
-  separate within- and between-layer penalties. They used to threshold a
-  ridge-regularised inverse, which is not the graphical lasso. They need the
-  glasso package.
-* `method = "coglasso"` and `network_method = "coglasso"` need coglasso 1.1.0
-  or later: they call `coglasso::xstars()` and the argument `p` of
-  `coglasso::coglasso()`, both new in that version. With an older coglasso
-  installed the functions stop and name the version they need.
-* `exposure_impute_lod()` treats `NA` as missing, not as below the LOD;
-  values reported as below the LOD are marked with the new `censored`
-  argument (or, without it, are the values at or below the LOD). Missing
-  values stay `NA`.
-* `exposure_impute_lod(method = "kaplan_meier")` is now
-  `method = "ros"`: it was always regression on order statistics, not the
-  reverse Kaplan-Meier estimator. Where the censored values were coded as
-  `NA` and nothing else was missing, passing `censored = is.na(x)` gives
-  the values of the earlier version, unless the detected values are all
-  equal: the earlier version then spread the imputed values below the LOD
-  (0.875 to 0.995 for four detected values of 1.01, four censored values and
-  an LOD of 1), where they are now all just below the LOD (0.999).
-* `exposure_impute_lod(method = "multiple")` now follows Lubin et al.
-  (2004): for each imputation it resamples the data, fits a log-normal
-  distribution by censored maximum likelihood and draws the censored values
-  from that distribution truncated at the LOD. It used to fit the detected
-  values only, ignoring the censoring, and did not carry the uncertainty of
-  the fit into the imputations. The fit starts from two points and keeps the
-  better fit: both use a spread on the log scale equal to the largest of the
-  spread of the detected values, half their distance to the LOD and 0.05;
-  the first is centred on the detected values, the second puts the censored
-  share of the distribution below the LOD. It retries with a second
-  optimiser when the first does not converge and skips a bootstrap sample
-  that has fewer than two distinct detected values or whose fit fails; when
-  none of 100 samples can be used, it draws from the fit to the observed
-  values, and it stops with a message naming the exposure only when that fit
-  fails too. Imputed values are drawn on the log-probability scale, so that
-  they stay inside (0, LOD]. With few detected values and many censored
-  ones, they can lie orders of magnitude below the LOD: for detected values
-  of 40, 50, 60 and 70 and 100 censored values below an LOD of 1, their
-  median is of the order of 1e-7, where the earlier version imputed
-  LOD/sqrt(2). With fewer than three detected values the method cannot be
-  used: the censored values are set to LOD/sqrt(2), with a warning, where
-  0.99.1 drew them uniformly between 0 and the LOD without a message.
-* `run_exposure_network(network_method = "coglasso")` stops with an
-  installation hint when coglasso is not installed, instead of switching to
-  the block graphical lasso.
-* `run_celltype_network()` and `run_exposure_network()` no longer replace
-  DESeq2's variance-stabilising transformation of the pseudobulk counts by
-  log-CPM values when DESeq2 is not installed or `DESeq2::vst()` fails,
-  which it does for fewer than 1000 genes with a mean normalised count
-  above 5. The replacement was made without a message, so one call could
-  give different networks on different machines. The transform is now the
-  argument `transform`, `"vst"` (the default) or `"log_cpm"`, and a call
-  that asks for `"vst"` and cannot have it stops with an error that names
-  the other. `transform = "log_cpm"` gives the transcript values that the
-  replacement used. Inside `DESeq2::vst()` one switch remains that the
-  package leaves to DESeq2: when the parametric fit of the dispersion
-  trend fails, DESeq2 uses a local fit in its place. Its note to that effect
-  used to be hidden with the other messages of DESeq2 and is now passed on.
-* `run_exposure_network()` with `covariates` selects by the partial rank
-  correlation of a feature with the exposure: the ranks of the covariates
-  are regressed out of the ranks of the feature and of the exposure. It used
-  to regress the covariates out of the values of the feature and to
-  rank-correlate what was left with the exposure. Values that were tied,
-  such as the zeros of a gene with few counts, were then put in the order of
-  the covariates, and the feature took over the rank correlation of the
-  covariates with the exposure. For the monocytes of the INCOV data, with
-  the plasma level of paraxanthine as the exposure and smoking as the
-  covariate (Spearman correlation 0.51), the univariate selection passed
-  3,226 of the 15,588 candidates at a false discovery rate of 0.05; it
-  passes none now, and none without the covariate. The selection for age
-  given sex in the network vignette keeps its seven features. The test has
-  one degree of freedom fewer for each covariate; a call without covariates
-  tests as before. The covariates are still regressed out of the
-  values before the network is estimated.
-* `run_exposure_network(selection_method = "stability")` counts the
-  candidates that vary across the donors with a value of the exposure, not
-  all candidates, in the default of `stability_q` and in `pfer_bound`. A
-  candidate that is constant, such as a gene without a count in the cell
-  type, is never ranked, so counting it made the default `stability_q` too
-  large and the reported bound too small: with all genes of the INCOV data
-  as candidates for monocytes, 1,670 of 15,588 candidates are constant, the
-  default was 55 and the bound reported for it 0.97, where the bound over
-  the candidates that vary is 1.09; the default is now 52. `stability_q` may
-  be at most the number of candidates that vary. The bound still assumes
-  that the candidates without an association are exchangeable, which
-  candidates with a count in very few donors are not (see
-  `?run_exposure_network`).
-* `run_exposure_composition()` with `n_permutations` above 0 and no `seed`
-  no longer gives the same permutation p-value at every call. The default of
-  `seed` was 1 and is `NULL` now, which draws from the caller's stream (see
-  Interface); pass an integer `seed`, or call `set.seed()` first, for a
-  p-value that can be repeated.
-* The `residual_df` diagnostic of the edgeR backend of `run_sc_exwas()`
-  gives the adjusted residual degrees of freedom of the quasi-likelihood fit
-  instead of the nominal ones (see Bug fixes).
-* Networks from `run_celltype_network()`, and the features that
-  `run_exposure_network()` selects with `covariates`, can change for data
-  with a feature that is constant across the donors, such as a metabolite
-  with one value in every donor: such a feature is now left out.
-  `method = "block_glasso"` kept it as a node without edges; with `exposure`
-  or `covariates`, a feature with the same non-zero value in every donor
-  could instead stay in as rounding noise scaled to unit variance (see Bug
-  fixes).
-* The permutation p-value of `run_exposure_composition()` can change when a
-  stratum of `permutation_strata` holds a single donor in a model row other
-  than the first (see Bug fixes).
+* `run_sc_exwas()` with the edgeR backend calls `glmQLFit(legacy = FALSE)`
+  without a preceding `estimateDisp()`. edgeR 4.x releases before 4.10.0
+  used those estimates in different ways, so a call could give different
+  results with different edgeR versions; edgeR 4.10.0, now required,
+  ignores them.
+* The voom-dream backend with `filter_genes = FALSE` no longer tests genes
+  without any count. Through limma's empirical Bayes prior, such genes
+  changed the standard errors and p-values of the other genes in their cell
+  type.
 * `run_sc_exwas_glmm(family = "nbinom")` gives each cell type its own
-  exposure slope also when `make.names()` maps several cell-type labels to
-  one name; such cell types shared one slope (see Bug fixes).
-* The dose-response functions give other results when a donor has no dose:
-  `n_donors` and the genes of the default screen change;
-  `run_dose_response()` chooses the degree of the polynomial from the donors
-  with a dose, so with five of them it fits a quadratic instead of a cubic
-  and `nonlinear_model`, `p_nonlinear`, `best_model` and `AIC_best` change;
-  and in `run_dose_response_gam()` the leave-one-out R² and, where the
-  default `k` changes, the columns of the smooth change (see Bug fixes).
-* `run_cell_coupling()` gives other `n_donors`, `mean_r` and `mean_n_cells`
-  when a donor has no moderator value, and leaves out a pair that is then
-  left with fewer than `min_donors` donors (see Bug fixes).
-* The linear mixed model of `run_sc_exwas_glmm()` gives other estimates with
-  one labelled cell type and unlabelled cells, and, when every cell of the
-  first cell type is left out, no longer reports the next type's estimate
-  under the first type's label (see Bug fixes).
+  exposure slope also when `make.names()` maps several labels to one name;
+  such cell types shared one slope. Before fitting, both families now leave
+  out unlabelled cells, the cells of donors with a missing exposure or
+  covariate, and any cell type left without cells. The linear mixed model
+  had reported the next cell type's estimate under the label of the first
+  when the first was left without cells, and with a single labelled cell
+  type it had analysed the unlabelled cells as cells of that type.
 * `run_multi_exwas()` with `covariates` and the default `exposures` no
-  longer tests the covariates as exposures, so with the edgeR backend it
-  returns fewer rows and other `padj_all` values (see Bug fixes).
-* `run_sc_exwas()`, `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()`,
-  `run_interaction_test()`, the dose-response functions,
-  `run_cell_coupling()` and the two network functions use the exposure that
-  a factor `exposure` names. They indexed the exposures by the factor's
-  integer code, so a call that succeeded used the exposure at that position,
-  except `run_celltype_network()` with `covariates`, which adjusted the
-  network for the covariates alone (see Bug fixes).
-* `run_dose_response_gam()` no longer returns an empty table when the
-  default `k` exceeds the number of distinct exposure values, and its
-  leave-one-out R² is no longer `NA` when a refit has fewer distinct values
-  than `k` (see Bug fixes).
+  longer tests the covariates as exposures, which changes `padj_all` and,
+  with the edgeR backend, the number of rows.
+* An `exposure` given as a factor selects the exposure it names, not the one
+  at the position of its integer code (`run_exposure_composition()` still
+  refuses a factor).
+* `exposure_impute_lod()` treats `NA` as missing, not as below the limit of
+  detection (LOD); the new argument `censored` marks the censored values,
+  by default those at or below the LOD.
+* Its method `"kaplan_meier"` is now `"ros"`, the regression on order
+  statistics it computed. Where the censored values were coded as `NA` and
+  nothing else was missing, `censored = is.na(exposure_matrix)` gives the
+  earlier values of `"lod_sqrt2"`, `"lod_2"` and `"ros"`, except with
+  `"ros"` when the detected values are all equal.
+* `method = "multiple"` now follows Lubin et al. (2004), a censored
+  log-normal fit to a bootstrap sample, where 0.99.1 fitted the detected
+  values alone. Its imputations differ from the earlier ones and, with few
+  detected and many censored values, can lie orders of magnitude below the
+  LOD. With fewer than three detected values it uses LOD/sqrt(2) and warns,
+  where 0.99.1 drew uniformly between 0 and the LOD.
+* The dose-response functions leave out donors with a missing exposure value
+  before they count donors, and `run_dose_response_gam()` caps the default
+  `k` at the number of distinct exposure values.
 * `run_sc_mixture()` gives an exposure whose coefficient cannot be estimated
-  the weight `NA` instead of 0; when no coefficient can be estimated, the
-  weights, `mixture_effect` and `mixture_coef` are `NA` instead of equal
-  weights and zero effects (see Bug fixes).
+  the weight `NA`, not 0, and gives `NA` weights and effects, not equal
+  weights and zero effects, when no coefficient can be estimated.
 * `run_mixture_qgcomp(bootstrap = FALSE)` refers the mixture effect to a t
-  distribution on the residual degrees of freedom of the fitted model:
-  `mixture_pvalue` is larger than before when `covariates` add to the
-  model's rank, and `ci_lower` and `ci_upper` are a t interval instead of a
-  normal interval, so they are wider in every call (see Bug fixes).
-* With `meta_moderators`, `run_cell_coupling()` leaves out a pair whose
-  exposure is constant or collinear with the moderators; it reported such a
-  pair with a moderator's coefficient or without the adjustment (see Bug
-  fixes).
-* `run_sc_exwas(method = "voom_dream", filter_genes = FALSE)` no longer
-  tests genes without any count. In a cell type that had such genes, `se`,
-  `statistic`, `pvalue` and `padj` of the other genes change; `padj_global`
-  (and `padj_all` of `run_multi_exwas()`) can change in every cell type;
-  `log2FC` and `logCPM` stay the same (see Bug fixes).
-* The edge tables of a `run_comparative_network()` result have no row names.
-  They had none before either, unless a column of the node table carried
-  names, as after `omic_layer = layer_of[features]`: the rows were then
-  named after their first node, with digits added to tell the names apart
-  (`g1`, `g11`, `g12`). The rows themselves are unchanged.
-* The results of `run_dose_response()` and `run_cell_coupling()` have no row
-  names. The rows of the first were named after the linear model, one of the
-  models whose AIC a row holds, and those of the second after the intercept
-  of the meta-regression, with digits added (`linear`, `linear1`, `linear2`
-  and `intrcpt`, `intrcpt1`, `intrcpt2`), which said nothing about the gene
-  or the pair of the row. The rows themselves are unchanged; code that took
-  rows by these names has to take them by the columns `gene` and `protein`.
+  distribution on the residual degrees of freedom of the fitted model: its
+  intervals are wider, and with covariates its p-values are larger.
+* `run_exposure_composition()` draws from the caller's random-number stream
+  unless `seed` is given (the default was 1). Its permutations leave the
+  residual of a donor that is alone in its `permutation_strata` stratum in
+  place; such a donor often took the residual of a donor in another stratum.
+* `run_cell_coupling()` leaves out donors with a missing moderator value,
+  and gene-protein pairs whose exposure is constant among their donors or
+  collinear with the moderators.
+* The block graphical lasso of the network functions is now
+  `glasso::glasso()` on the correlation matrix, with separate within- and
+  between-layer penalties; it used to threshold a ridge-regularised inverse.
+* The network functions stop when `transform = "vst"` cannot be computed,
+  instead of using log-CPM values, and `run_exposure_network()` stops when
+  coglasso is not installed, instead of using the block graphical lasso.
+* `run_exposure_network()` with `covariates` selects features by partial
+  rank correlation. Ranking the covariate-adjusted values had put tied
+  values, such as the zeros of sparse genes, in the order of the covariates,
+  so that such genes took on the correlation of the covariates with the
+  exposure.
+* Its stability selection, with or without covariates, counts only the
+  candidates that vary among the donors with an exposure value, in the
+  default `stability_q` and in the reported `pfer_bound`; constant
+  candidates had made the default too large and the bound too small.
+* Features that are constant across the donors are left out of a network,
+  and `run_exposure_network()` with `covariates` no longer selects them. The
+  block graphical lasso had kept such a feature as a node without edges and
+  coglasso had failed on it; after adjustment for `exposure` or
+  `covariates`, one with the same non-zero value in every donor could become
+  rounding noise, scaled to unit variance, and gain edges.
 
-## Interface
+## Changes to arguments and outputs
 
-* The package requires R 4.6.0 or later.
-* `exposureData<-` can add, drop or reorder exposures: `exposureInfo` now
-  follows the new column names, keeping the rows of retained exposures and
-  adding rows of missing metadata for new ones. The two setters
-  used to validate against each other, so an exposure could be replaced but
-  not added or removed through the API.
-* New `donor_pseudobulk()` returns the donor-by-cell-type pseudobulk counts
-  as one SummarizedExperiment per cell type, with the donors' exposure data
-  as column data.
-* `run_sc_exwas()` returns the same columns, in the same order, from every
-  backend: DESeq2 results report `logCPM` instead of `baseMean`, and
-  `padj_global` now follows `padj`. DESeq2 and voom-dream results are now
-  ordered by `padj_global` like edgeR results and, like them, carry
-  `metadata(result)$parameters` (including the backend, its version,
-  `se_method` and `statistic_type`) and `metadata(result)$diagnostics`.
-  `schema_version` is now `"exposomeSC_sc_exwas_v3"` for all backends.
-* `run_multi_exwas()` keeps each exposure's result metadata in
-  `metadata(result)$per_exposure`.
+* A `SingleCellExposomeExperiment` stores the name of its donor column
+  (`sampleColumn()`) instead of a `sampleMap` slot; objects saved with
+  0.99.1 must be rebuilt with `build_scee()`. `cbind()` and `rbind()` have
+  methods, and `exposureData<-` can add, drop or reorder exposures.
+* The analysis functions take the object as `x`, no longer take
+  `sample_col`, and default `celltype_col` to `"cell_type"`.
+* New `donor_pseudobulk()` returns the pseudobulk counts that the models use.
+* `run_sc_exwas(method = "dreamlet")` is now `"voom_dream"`, which is what it
+  ran (it never used the dreamlet package), and the DESeq2 alias
+  `"pseudobulk"` is gone. All backends return the same columns, sorted by
+  `padj_global`; DESeq2 results report `logCPM` instead of `baseMean`.
+* The `padj` column of `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`,
+  their adjustment across all strata, is now `padj_global`, as in
+  `run_sc_exwas()`.
 * `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()` and
-  `run_cell_coupling()` return a DataFrame instead of a data.frame.
-  `run_sc_mixture()` returns its per-gene table as a DataFrame with the
-  weights and summaries in `metadata()`. `run_mixture_qgcomp()` returns a
-  one-row DataFrame with the mixture effect, its standard error, confidence
-  interval and p-value, with the weights and the qgcomp fit in `metadata()`.
-  `exposure_impute_lod(method = "multiple")` returns a SimpleList of
-  completed matrices, and every method records what it did per exposure
-  (`lod_summary`).
+  `run_cell_coupling()` return a DataFrame instead of a data.frame, and
+  `run_sc_mixture()` and `run_mixture_qgcomp()` a DataFrame instead of a
+  list, with the mixture weights in `metadata()`.
+* `exposure_impute_lod(method = "multiple")` returns a SimpleList instead of
+  a list; `run_meta_exwas()` no longer returns `meta_z`, an alias of
+  `meta_statistic`; `estimate_power()` returns the `exposure_sd` it was
+  given as a column.
+* The results of `run_dose_response()` and `run_cell_coupling()` and the
+  edge tables of `run_comparative_network()` have no row names.
+* `run_gsea()` ranks by the `rank_by` column only.
+* `plot_stability_surface()` is now `plot_edge_stability()`, which draws a
+  reference line only at a `threshold` it is given, not at 0.6.
+* The network functions take `transform` (`"vst"` or `"log_cpm"`) and
+  `genes`, the genes to use, so that the networks of two cell types can be
+  built on the same genes. `run_exposure_network()` takes `lambda_w` and
+  `lambda_b` (defaults 0.3 and 0.5, the values it used before), records its
+  penalties, donors and covariates, and records its method as
+  `"exposure_restricted"` instead of `"exposure_driven"`. Networks wrapped
+  with `precomputed_network` name their omic-layer column `omic_layer`, not
+  `omic`.
+* The network classes have constructors and accessors, such as
+  `networkAdjacency()`, `networkNodes()` and `diffEdges()` (see
+  `?networkPrecision`).
+* Names that a model formula would misread (such as `"PCB-153"` or `.`),
+  names that a function uses for variables of its own, an exposure that is
+  also a covariate or moderator of its own analysis, and missing or infinite
+  metabolite values in the network functions are now errors that name the
+  problem. Such input used to give wrong or empty results or unrelated
+  errors, mostly without a message.
+* Other input that used to be dropped or misread without a message is now an
+  error: several labels in `celltype`, whose cells were pooled; a variable
+  to adjust for in the network functions, or an exposure of `as_scee()`,
+  that is not in the data; and a confounder of `run_cell_coupling()` that is
+  an unordered label with more than two values, which was ranked as if
+  ordered.
+* `run_multi_exwas()` stops when `run_sc_exwas()` fails for one of its
+  exposures, instead of leaving that exposure out of the result and of
+  `padj_all` with a warning.
 
-* `run_sc_exwas(method = "dreamlet")` is now `method = "voom_dream"`, which is
-  what it runs; it never used the dreamlet package. The `"pseudobulk"` alias
-  for DESeq2 is removed.
-* `plot_stability_surface()` is renamed `plot_edge_stability()`. The fixed
-  dashed line at 0.6 is gone; pass `threshold` to draw one.
-* A network from `run_exposure_network()` records its method as
-  `"exposure_restricted"`, formerly `"exposure_driven"`. The function
-  estimates one network among the features that pass a screen against the
-  exposure. The exposure is neither regressed out nor a node, and nothing is
-  compared between levels of exposure, so the network does not show how the
-  dependence between features changes with the exposure (see
-  Documentation).
-* The result of `run_exposure_network()` records its donors
-  (`metadata(result)$donors`) and how many of them have a value of the
-  exposure (`n_donors_exposure`); the selection is made on those, the
-  network on all.
-* `run_exposure_composition()` defaults to `seed = NULL` and then draws from
-  the caller's random-number stream, so `set.seed()` before the call works
-  as expected. An integer seed still works as before.
-* `run_gsea()` ranks by the column named in `rank_by` and stops if that
-  column is missing or not numeric. It no longer falls back between
-  `"statistic"` and `"stat"`, or `"log2FC"` and `"log2FoldChange"`.
-* `estimate_power()` returns the `exposure_sd` it was given as a column of
-  its table, beside `effect_size`.
-* `run_meta_exwas()` no longer returns `meta_z`, which duplicated
-  `meta_statistic`.
-* The `padj` column of `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`
-  is renamed `padj_global`. It adjusts across all gene-by-cell-type strata,
-  as `padj_global` does in `run_sc_exwas()`, where `padj` adjusts within a
-  cell type. The rename changes neither the values nor the order of the
-  rows. Code that reads the column must use the new name: `result$padj` is
-  now `NULL`.
-* `run_exposure_network()` takes `lambda_w` and `lambda_b`, the penalties of
-  the block graphical lasso (defaults 0.3 and 0.5, the values it used
-  before), and records the penalties of its network in
-  `metadata(result)$selection` (see Bug fixes). With coglasso it chooses
-  them from a 10 by 10 grid, which the help page now says and the result
-  records. `metadata(result)` also holds the `covariates` that were
-  regressed out and, in `constant_features`, the candidates that are
-  constant across the donors with a value of the exposure and could not be
-  selected.
-* `run_celltype_network()` and `run_exposure_network()` take `transform`,
-  the transform of the pseudobulk counts: `"vst"` (the default) or
-  `"log_cpm"` (see Changes that can alter results).
-* `run_celltype_network()` and `run_exposure_network()` take `genes`, the
-  row names of the genes to use: the transcript nodes of a cell-type
-  network, or the candidates of the selection. The transform is computed
-  from all genes before these are taken, so their values are not those of
-  an object cut down to them. `run_comparative_network()` needs networks
-  with the same features, and `top_var_genes` selects different genes in
-  different cell types; with the same `genes` the networks of two cell
-  types can be compared, provided that each of the genes varies across the
-  donors of each cell type. A gene that is constant in a cell type, such as
-  one without a count there, is left out of that network, with a message
-  that names up to five transcripts and five metabolites (see Bug fixes), and
-  the error of `run_comparative_network()` names up to five of the features
-  that its networks do not share. A name that is on more than one row of
-  the object is an error. The default, `NULL`, uses all genes as
-  before.
-* A SingleCellExposomeExperiment no longer keeps a second copy of the
-  cell-to-donor mapping in a `sampleMap` slot. It stores the name of the
-  donor column of `colData`, returned by the new `sampleColumn()`, and
-  `cellSampleMap()` is derived from that column. `cbind()` now combines
-  objects (it used to fail), renaming cells no longer makes the object
-  invalid, and replacing `colData`, one of its columns or the cell names
-  checks validity, so a donor without exposure data is an error at once.
-  Objects saved with 0.99.1 need to be rebuilt with `build_scee()`.
-* The analysis functions read each cell's donor from the stored column and
-  no longer take `sample_col`. Every function that takes the container
-  calls it `x` (formerly `scee` in `run_cell_coupling()`,
-  `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()`,
-  `run_celltype_network()` and `run_exposure_network()`), and
-  `celltype_col` defaults to `"cell_type"` throughout (formerly
-  `"celltype"` in `run_cell_coupling()` and no default in `run_sc_exwas()`,
-  `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`).
-* CelltypeNetworkResult and NetworkComparison have constructors,
-  `CelltypeNetworkResult()` and `NetworkComparison()`, and accessors:
-  `networkPrecision()`, `networkAdjacency()`, `networkStability()`,
-  `networkNodes()`, `networkCelltype()`, `networkMethod()` and `metadata()`
-  for networks, and `diffEdges()`, `sharedEdges()`,
-  `celltypeSpecificEdges()` and `comparisonSummary()` for comparisons.
-  NetworkComparison now has a validity method, and CelltypeNetworkResult
-  checks its stability matrix, node table, cell type and method. The node
-  table must have one row per node, and where the matrices have row or
-  column names they must equal its `feature` column, so a node table in
-  another order is an error rather than a source of mislabelled edges. The
-  adjacency matrix must be symmetric and hold only 0 and 1.
+## New data and vignettes
 
-## Bug fixes
+* `hlca_airway_subset`: raw counts of 352 airway epithelial cells from 12
+  donors of the Human Lung Cell Atlas core, six heavy smokers and six never
+  smokers (CC BY 4.0).
+* `incov_pbmc_subset`: 1,032 blood mononuclear cells from 43 patients of the
+  INCOV cohort (Su et al. 2020), with 192 antibody counts per cell, 13
+  plasma compounds of exogenous origin and 182 plasma metabolites. The
+  clinical and plasma tables are CC BY 4.0; for the single-cell values, from
+  ArrayExpress E-MTAB-9357, the authors state no licence and the EMBL-EBI
+  terms of use apply.
+* `inst/scripts/` holds the scripts that build both data sets, and the HLCA
+  preparation scripts, which now take their paths as arguments.
+* Three vignettes, in BiocStyle and on the real data: `exposomeSC`
+  (replacing `exposomeSC-quickstart` and `introduction`), `network-tutorial`
+  and `permutation-and-power` (replacing `simulation-benchmark`).
 
-* `plot_edge_stability()` matched legend labels to colours by position, so a
-  plot with a single edge type was labelled wrongly. Labels are now matched
-  by name.
-* `show()` for a SingleCellExposomeExperiment printed part of its summary
-  with `message()`; all of it now goes to standard output.
-* A dimension mismatch in a CelltypeNetworkResult is reported as one
-  validity message instead of two fragments.
-* `run_celltype_network(precomputed_network = )` named the omic layer column
-  of its node table `omic`, so `show()` counted no transcripts or metabolites
-  and `plot_celltype_network()` and `run_comparative_network()` failed on a
-  wrapped network. The column is now `omic_layer`, with an integer `block`
-  index, as for estimated networks.
-* `run_sc_exwas()` refuses a covariate called `exposure`. That name is the
-  model's exposure term, and a covariate of the same name silently replaced
-  the exposure in the design, so the reported test was of the wrong
-  variable.
-* The edgeR backend of `run_sc_exwas()` warns when it drops a covariate
-  column that is collinear with the other model terms from the design of a
-  cell type it fits. The dropped columns were recorded in
-  `metadata(result)$diagnostics` but the result otherwise looked adjusted
-  for them.
-* The `residual_df` diagnostic of the edgeR backend reads the adjusted
-  residual degrees of freedom that `glmQLFit(legacy = FALSE)` returns
-  (`df.residual.adj`). It looked for the legacy field `df.residual.zeros`
-  and so reported the nominal residual degrees of freedom.
-* `run_exposure_network(network_method = "coglasso")` warns when only one
-  omic layer passes the selection stage and the block graphical lasso is
-  used instead; the switch used to be silent.
-* `plot_celltype_network(edge_alpha_by = "stability")` stops when the
-  network has no stability scores, as `color_by = "stability"` already did;
-  it used to fall back to the edge weights without saying so.
-* `run_comparative_network()` no longer fails with "values must be type
-  'integer'" when `metadata(network)$n_donors` is stored as a double, which
-  is how a number is normally typed. It does not read the donor counts any
-  more: only the removed Fisher's Z test used them.
-* A CelltypeNetworkResult also checks that its precision matrix is
-  numeric, that the adjacency matrix is numeric with a zero diagonal, that
-  stability scores lie between 0 and 1, and that the node table has the
-  `omic_layer` column that `show()`, the plots and the comparison read. The
-  constructor and `run_celltype_network(precomputed_network = )` store a
-  logical adjacency as 0/1 integers, and the wrapper zeroes the diagonal.
-* `run_exposure_composition()` works when exactly two cell types pass the
-  support filter. With one ILR coordinate `anova()` has no Pillai test and
-  the call stopped; the exact F test of the added terms is used, and
-  Pillai's trace is reported as df1 F / (df1 F + df2).
-* `run_celltype_network()` leaves features that are constant across the
-  donors, such as genes with no counts in the cell type, out of the network
-  with a message, records them in `metadata(result)$constant_features`, and
-  stops when every transcript or every metabolite is constant. A constant
-  metabolite, or a constant gene when `top_var_genes` was not set, made
-  coglasso stop with "'from' must be a finite number", while
-  `method = "block_glasso"` kept it as a node without edges. With `exposure`
-  or `covariates`, a feature with the same non-zero value in every donor,
-  such as a metabolite measured at one level, was instead regressed into
-  rounding noise, which scaling could turn into a feature of unit variance;
-  the call then succeeded and the feature stayed in the network, where it
-  could get edges. The check now runs before `exposure` and `covariates` are
-  regressed out, and for the same reason `run_exposure_network()` with
-  `covariates` no longer tests or selects a constant feature. A metabolite
-  matrix without columns is an error in both functions; it used to fail with
-  unrelated errors or, in `run_exposure_network()`, sometimes gave a network
-  of transcripts only.
-* `run_celltype_network()` stops when `exposure` or `covariates`, and
-  `run_exposure_network()` when `covariates`, names a variable that is not
-  in `exposureData(x)`; both check the names before any computation. Such
-  names were dropped without a word, so a misspelt covariate left the
-  network unadjusted, and `run_celltype_network()` still listed it in
-  `metadata(result)$covariates`.
-* `as_scee()` stops when `exposures` names an exposure that the ExposomeSet
-  does not have. Unknown names used to be dropped silently, so a misspelt
-  exposure was left out of the object without notice.
-* `exposure_impute_lod()` stops, whatever the method, when an exposure in
-  `lod` has an infinite value that is not censored. `"lod_sqrt2"` and
-  `"lod_2"` returned it unchanged, as did `"ros"` and `"multiple"` for an
-  exposure with fewer than three detected values or with neither `NA` nor
-  censored values; otherwise `"ros"` and `"multiple"` stopped with "missing
-  value where TRUE/FALSE needed". The value at a censored position is still
-  ignored.
-* `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()` refuse a covariate
-  whose name their model formulas use for a variable of their own
-  (`exposure`, `donor`, `celltype`, `y` for the mixed model, plus `logoff`
-  and the `expo_<cell type>` columns of its negative binomial family; `y`,
-  `A`, `logoff` for the offset model). Nothing named the clash: `exposure`
-  made the linear mixed model test the covariate instead of the exposure,
-  and the negative binomial one report the covariate's slopes without a
-  p-value; `donor` replaced the donor grouping factor, so donors with equal
-  values were pooled; `celltype` replaced the cell-type factor, so the
-  linear mixed model reported only the first cell type and the negative
-  binomial one stopped with "No gene/cell-type stratum yielded an estimable
-  model"; `y` (with a `model.matrix()` warning), `A` and an
-  `expo_<cell type>` column were ignored, the last also leaving that cell
-  type's likelihood-ratio test without a p-value; and `logoff` turned the
-  library-size offset into a free coefficient. The same rule for
-  `run_sc_exwas()` is now stated in its argument documentation.
-* `run_cell_coupling()`, `run_sc_mixture()` and `run_mixture_qgcomp()`
-  refuse a variable whose name they use for a variable of their own, as the
-  mixed and offset models do: the moderators `yi`, `vi`, `donor_exp`,
-  `intrcpt` and `meta_formula` and the confounders `gene`, `protein`,
-  `lib_rna` and `lib_prot` of `run_cell_coupling()`; an exposure or
-  covariate called `y` in both mixture functions; one called `weights` or
-  `id__`, columns that qgcomp adds to the model data, in
-  `run_mixture_qgcomp()`; and, when that function does not bootstrap, an
-  exposure whose name contains `_q`. Nothing named the clash. A moderator
-  called `donor_exp` or `meta_formula` had its own slope reported as the
-  exposure effect, one called `yi` gave an exposure effect of 0 with a
-  p-value of 0, and one called `vi` supplied the sampling variances; a
-  confounder with one of the four names took the place of the gene, the
-  protein or a library size in the partial correlation. A covariate called
-  `y` replaced the response of `run_mixture_qgcomp()` and was dropped by
-  `run_sc_mixture()`, and an exposure called `y` stopped the first with a
-  qgcomp error about aliasing and got the weight 0 in the second, all with
-  only R's `model.matrix()` warnings; with `bootstrap = TRUE` the first
-  stopped for both with "subscript out of bounds". qgcomp set a variable
-  called `weights` to 1, which dropped such a covariate and stopped the fit
-  for such an exposure, and one called `id__` to the row numbers, which the
-  model then used in its place. Without bootstrapping it also removes every
-  `_q` from the names of the weights it returns, so the weight of an
-  exposure `sleep_quality` came back as `sleepuality` and that of `E1_q` as
-  a second `E1`. `intrcpt` is metafor's name for the intercept, which the
-  function now finds by name.
-* `run_cell_coupling()` refuses, and names, a confounder that would not
-  reach the partial correlation as one column under its own name: a column
-  of `colData(x)` that is a matrix or nested table with several columns or
-  with a column name other than that of the confounder, and a column with
-  the name of an argument of `data.frame()` (`row.names`, `check.rows`,
-  `check.names`, `fix.empty.names` or `stringsAsFactors`), which the
-  conversion of the columns takes for that argument. These stopped with
-  base R errors such as "replacement has 0 rows, data has 60" or "formal
-  argument "row.names" matched by multiple actual arguments"; of a matrix
-  with several columns that was protected with `I()` the first column was
-  used without a message. A one-column matrix without a column name, as
-  `scale()` returns, is used as before.
-* `run_celltype_network(precomputed_network = )` checks the labels and
-  dimensions of the network it wraps: the adjacency must be square, the
-  precision matrix must have the dimensions of the adjacency, the feature
-  names must be unique, non-missing and non-empty, `block_sizes` must hold
-  non-negative whole numbers named by omic layer, and `block_sizes` or
-  `feature_blocks` must label every feature, with no missing or empty
-  labels. A mismatch used to surface as a base R error from `rep()`,
-  `dimnames<-` or `DataFrame()`, and a duplicated name or a missing block
-  label was accepted silently. A 0 x 0 adjacency without feature names,
-  which failed with "length of 'dimnames' [1] not equal to array extent", is
-  now wrapped into an empty network.
-* `run_celltype_network()` accepts an exposure or a covariate called `...`
-  or `..1`, and `run_exposure_network()` a covariate of such a name. The
-  adjustment of the transcript and metabolite values evaluated the names of
-  the variables it regresses out in a formula, so such a name stopped both
-  functions with "'...' used in an incorrect context". A covariate called
-  `Y` or `j`, the names of two variables of that code, stopped them as well
-  ("incorrect number of dimensions", "subscript out of bounds"). The adjusted
-  values are unchanged.
-* `run_exposure_network()` refuses its exposure among its `covariates`, as
-  the association analyses of this release do: nothing of the exposure is
-  left to select by once it is adjusted for. The call used to run and, with
-  the selection described under Changes that can alter results, to pass
-  thousands of genes with few counts. For the same reason the function
-  stops, with an error that says so, when the exposure takes one value
-  among the donors with a value of it or when the ranks of the covariates
-  give its ranks, as they do for the same variable on another scale.
-* `run_exposure_network(selection_method = "univariate")` no longer warns
-  that "the standard deviation is zero" once for every candidate that is
-  constant among the donors with a value of the exposure and varies only
-  through the others. Such a candidate is not tested and is listed in
-  `metadata(result)$constant_features`.
-* `run_celltype_network()` and `run_exposure_network()` stop when two nodes
-  would have the same name: two rows of the object, two columns of
-  `metabolites`, or one of each. They used to return a network with two
-  nodes of one name, which no table of the result can tell apart.
-  Both take `covariates` given as a factor, which used to stop them with a
-  message about a column called "1".
-* `run_celltype_network()` says that `metabolites` must be a matrix with one
-  row for each donor when a network is to be estimated and the argument is
-  left out or is something else; the error was "is.matrix(metabolites) is
-  not TRUE". The default of the argument, `NULL`, is for a call with
-  `precomputed_network`, which the help page now says.
-* `run_comparative_network()` returns an empty comparison for networks
-  without nodes, and `plot_celltype_network()` the plot it draws for a
-  network without edges. Both stopped with "argument must be coercible to
-  non-negative integer".
-* `plot_celltype_network(edge_alpha_by = "stability")` maps the edge
-  opacity to the stability scores also when `highlight_cross_omic = FALSE`;
-  without the highlighting the opacity followed the edge weights whatever
-  `edge_alpha_by` said. A network in which some edges have no stability
-  score is refused, instead of being drawn with those edges fully opaque.
-* The source tarball keeps the vignette index `build/vignette.rds` that
-  `R CMD build` writes; the allow-lists in `.Rbuildignore` removed it. A
-  package installed from the tarball on a system where knitr could not be
-  loaded therefore had no vignette index: `vignette(package = "exposomeSC")`
-  listed nothing and `browseVignettes("exposomeSC")` found no vignettes.
-* The Freedman-Lane permutation test of `run_exposure_composition()` moves
-  residuals only within their `permutation_strata` stratum and leaves the
-  residual of a donor that is alone in its stratum in place. For such a
-  donor in model row k > 1, `sample()` read k as `1:k`, so in about
-  (k - 1) / k of the permutations the donor took the residual of a donor of
-  another stratum, that residual appeared twice, and the permutation
-  p-value was computed partly from invalid permutations. When every
-  stratum has at least two donors, the permutations, and so seeded
-  results, are unchanged.
-* `run_celltype_network()` leaves donors with a missing `exposure` or
-  covariate value, and `run_exposure_network()` donors with a missing
-  covariate value, out of the network, with a message, as `run_sc_exwas()`
-  leaves them out of its design; when fewer than five donors remain, the
-  error says so. One such donor used to stop both functions with the base
-  R error "values must be length ..., but FUN(X[[1]]) result is length
-  ...".
-* Names that go into a model formula must be syntactic R names: the
-  covariates of `run_sc_exwas()`, `run_sc_exwas_pb_offset()` and
-  `run_sc_exwas_glmm()`, the exposures and covariates of `run_sc_mixture()`
-  and `run_mixture_qgcomp()`, and the `meta_moderators` of
-  `run_cell_coupling()`. A name such as `"PCB-153"` or `"age-years"` is
-  refused with a message that suggests its `make.names()` form. These names
-  were pasted into the formula and misread (`age-years` as `age` minus
-  `years`), so the functions returned empty or all-`NA` results, mostly
-  without a warning, or stopped with an error about the data or about an
-  object such as `age`; a ratio such as `"MEHP/DEHP"` next to `"MEHP"` and
-  `"DEHP"` silently gave a different model. A column named after an
-  expression of other analysed columns, such as `"log(age)"` next to
-  `"age"`, used to be computed from those columns; it is refused as well
-  and must be renamed. The exposure of `run_sc_exwas()` is renamed
-  internally and can still have any name.
-* The names `.`, `...` and `..1`, `..2` and so on are refused in the same
-  places. `make.names()` leaves them as they are, but R reads them
-  specially: in a formula `.` stands for every column of the model data
-  other than the response, and `...` and `..1` for arguments passed down
-  from a calling function. A covariate called `.` changed the estimates of
-  `run_sc_exwas_pb_offset()` and `run_sc_exwas_glmm()` and, with
-  `bootstrap = TRUE`, those of `run_mixture_qgcomp()`, whose fitted model
-  then also held the columns `weights` and `id__` that qgcomp adds; it left
-  the DESeq2 backend of `run_sc_exwas()` with no rows and a warning, and
-  such a moderator left `run_cell_coupling()` with no rows and no warning.
-  A variable called `...` or `..1` stopped the edgeR backend,
-  `run_sc_exwas_glmm()` and `run_mixture_qgcomp()` with errors such as
-  "'...' used in an incorrect context" and "No gene/cell-type stratum
-  yielded an estimable model"; it gave no rows from the DESeq2 and
-  voom-dream backends, with a warning, and from `run_sc_mixture()` and
-  `run_cell_coupling()`, without one, and only `NA` from
-  `run_sc_exwas_pb_offset()`. To the edgeR and voom-dream backends, to
-  `run_sc_mixture()` and to `run_mixture_qgcomp()` without bootstrapping
-  `.` was a name like any other; it is an error there as well.
-* `run_sc_exwas_glmm(family = "nbinom")` keeps the exposure slopes of cell
-  types apart whose labels `make.names()` maps to one name, such as
-  `"CD16+ Mono"` and `"CD16- Mono"`. Their slope columns shared that name,
-  so the model held one slope, for the last of those cell types, and
-  reported it with its likelihood-ratio test for each of them: a cell type
-  without an effect was given the effect of another.
-* `run_cell_coupling(meta_moderators = )` accepts a one-sided formula such
-  as `~ age + sex`, as documented; a formula used to fail with "unique()
-  applies only to vectors". The formula may only list columns of
-  `exposureData(x)`: terms such as `I(age^2)` or `age:sex` are refused
-  rather than reduced to their variables.
-* `run_dose_response()` and `run_dose_response_gam()` leave donors with a
-  missing exposure value out, with a message, before they count donors.
-  Such donors were counted in the donor checks, in the default gene screen
-  and in `n_donors`, although the fits dropped them: `n_donors` was too
-  large; with `max_degree = 2`, four donors of which one had no dose fitted
-  a saturated quadratic (`AIC_best = -Inf`) instead of stopping; the
-  leave-one-out R² of `run_dose_response_gam()` was `NA` for every gene;
-  and the default `k` of its smooth counted them too, so that with two
-  such donors it could exceed the donors with a dose, every smooth failed
-  and the function returned an empty table without a message.
-* `run_cell_coupling()` leaves donors with a missing moderator value out of
-  the meta-regression, as it left out donors with a missing exposure, and
-  says how many donors it leaves out. `metafor::rma()` dropped such donors
-  with a warning, but `n_donors`, `mean_r`, `mean_n_cells` and the
-  `min_donors` check still counted them, so a pair could be reported from
-  fewer donors than `min_donors`. When fewer than `min_donors` donors with
-  enough cells have values of the exposure and of every moderator, the
-  function warns and returns an empty table; with missing exposures it
-  used to return that table with only the message "0 pairs tested".
-* `run_sc_exwas_glmm(family = "nbinom")` fits data with a single cell type.
-  Its formulas began with `0 + celltype`, which `model.matrix()` refuses for
-  a factor with one level, so every gene failed and the function stopped
-  with "No gene/cell-type stratum yielded an estimable model". A single cell
-  type now has a plain intercept.
-* `run_sc_exwas_glmm()` leaves out, with a message, the cells of donors with
-  a missing exposure or covariate and the cells without a cell-type label,
-  before it fits either family. The fits with several cell types already
-  dropped such cells, so their results are unchanged unless every cell of a
-  cell type is left out. Such a type is now left out of the model: when it
-  came first, the linear mixed model reported the next type's estimate under
-  its label, and when only one type kept cells, both families stopped. The
-  negative binomial model for a single cell type needs it: its reduced model
-  has no exposure or cell-type column and would keep cells that the full
-  model drops, which leaves every likelihood-ratio test without a p-value.
-  The linear mixed model with one labelled cell type no longer analyses
-  unlabelled cells as cells of that type.
-* `run_multi_exwas()` stops, naming the exposure, when `run_sc_exwas()`
-  fails for one of its exposures. It used to turn the error into a warning
-  and leave the exposure out: a misspelt argument such as
-  `method = "deseq2"` gave an empty table instead of an error, and the
-  failure of a single exposure, for example the documented `test_features`
-  error, shrank the family that `padj_all` adjusts over, with nothing in
-  the result to show it.
-* `run_multi_exwas()` no longer tests its covariates as exposures. By
-  default it tested every column of `exposureData(x)`, the covariates
-  included, each in a model adjusted for itself (the DESeq2 and voom-dream
-  backends failed on these models with a warning), and pooled those tests
-  into `padj_all`. The default is now every column except the covariates,
-  and listing a covariate in `exposures` is an error, as is a call whose
-  covariates are every column.
-* `run_sc_exwas()` checks `min_cells`, `min_donors` and `filter_genes` for
-  every backend; `min_cells` and `min_donors`, and for the edgeR backend
-  `min_group_donors`, must be whole numbers. Only the edgeR backend checked
-  them: with `method = "DESeq2"` or `"voom_dream"`, `min_cells = -1` kept
-  every donor and `filter_genes = NA` failed with "missing value where
-  TRUE/FALSE needed". No backend refused a fractional count: each applied
-  `min_donors = 3.5` as 4, and the edgeR backend recorded it as 3 in
-  `metadata(result)$parameters`. The DESeq2 and voom-dream backends now also
-  refuse `min_donors` below 3, as the edgeR backend did.
-* `run_dose_response()`, `run_dose_response_gam()`, `run_cell_coupling()`,
-  `run_sc_mixture()` and `run_mixture_qgcomp()` require `celltype` to be a
-  single label. A vector of cell types was recycled in the cell selection,
-  so `celltype = c("Mono", "NK")` pooled or interleaved the cells of both
-  types; the dose-response functions reported the estimate for those cells
-  once for each label, and `run_cell_coupling()`, `run_sc_mixture()` and
-  `run_mixture_qgcomp()` as if for one cell type. A number or a factor is
-  taken as its label, since the cell-type column is compared as text.
-  `run_celltype_network()` and `run_exposure_network()` check `celltype` the
-  same way. A vector used to return the network of those cells, with the
-  whole vector as its cell type, and a number or a factor used to run the
-  whole estimation and then fail when the result was built.
-* `run_sc_exwas()`, `run_sc_exwas_glmm()`, `run_sc_exwas_pb_offset()`,
-  `run_interaction_test()`, the dose-response functions,
-  `run_cell_coupling()` and the two network functions require `exposure` to
-  be a single name and take a factor as its label. A factor indexed
-  `exposureData` by its integer code, so `exposure = factor("E2")` analysed
-  the first exposure, which `run_sc_exwas()` and the network functions
-  labelled `E2`, and `run_celltype_network()` adjusted the network for the
-  first exposure. With `covariates`, `run_sc_exwas()` stopped with
-  "Exposure/covariate column(s) not found in exposureData: 1" and
-  `run_celltype_network()` adjusted the network for the covariates alone.
-  `run_celltype_network()` used to regress out every name of a vector
-  `exposure`; giving the extra names as `covariates` gives the same network.
-* `run_sc_mixture()`, `run_mixture_qgcomp()` and `run_interaction_test()`
-  refuse an exposure that is also listed in `covariates`, as
-  `run_exposure_composition()` does, and the two mixture functions refuse
-  duplicated exposures. In `run_sc_mixture()` the covariate replaced the
-  exposure's quantile score with its raw values, so that exposure's weight
-  was on another scale than the others; `run_mixture_qgcomp()` dropped the
-  adjustment without a word; and in `run_interaction_test()` the full and
-  reduced models coincided, so every gene was dropped without a message. A
-  duplicated exposure was counted twice in the weights and the mixture
-  effect of `run_sc_mixture()`, without a message, and stopped
-  `run_mixture_qgcomp()` with "duplicate subscripts for columns".
-* `run_dose_response_gam()` compares `k` with the number of distinct
-  exposure values. An exposure with fewer than four values stops with a
-  message that points to `run_dose_response()` or, for a binary exposure,
-  to `run_sc_exwas()`; the default `k` is at most the number of distinct
-  values; a `k` above that number, below 4 or not a single whole number is
-  an error; and the leave-one-out refits cap `k` the same way. With fewer
-  distinct values than `k` every smooth used to fail, and the function
-  returned an empty table without a message. A `k` below 3 was raised to 3
-  without a word, and with `k = 3` the test of nonlinearity could not be
-  fitted, so `p_nonlinear` was `NA` for every gene.
-* `run_sc_mixture()` gives an exposure whose coefficient cannot be
-  estimated the weight `NA`, with a warning, instead of 0. When two
-  exposures had the same quantile scores, for example a pollutant and a
-  monotone transform of it, the one listed later in `exposures` was
-  reported with weight exactly 0, as if it contributed nothing; it now gets
-  `NA`, and the one listed first still carries their joint weight. The
-  other weights are unchanged. When no coefficient can be estimated, the
-  weights, `mixture_effect` and `mixture_coef` are `NA` (the weights were
-  equal and the effects 0), and `q` must be a whole number of at least 2:
-  `q = 1` gave every donor the same score.
-* `run_dose_response()`, `run_dose_response_gam()`, `run_interaction_test()`,
-  `run_sc_mixture()`, `run_mixture_qgcomp()`, `run_sc_exwas_glmm()` and
-  `run_sc_exwas_pb_offset()` warn, naming them, when some of the
-  `target_genes` are not in the data. Such genes were dropped without a
-  word, which shrank the tested family and the denominator of the adjusted
-  p-values, or changed the genes a mixture is averaged over. When none is
-  present, `run_sc_exwas_pb_offset()` now says so instead of stopping with
-  "No gene/cell-type stratum yielded an estimable NB GLM".
-* `run_sc_exwas()`, `run_sc_exwas_glmm()` and `run_sc_exwas_pb_offset()`
-  refuse an exposure that is also listed in `covariates`, as
-  `run_multi_exwas()`, `run_exposure_composition()` and the mixture and
-  interaction functions do. The edgeR backend, the offset model and the
-  linear mixed model dropped the duplicate column as collinear (the last
-  with lme4's rank-deficiency message), so the fit was not adjusted for it;
-  the DESeq2 and voom-dream backends failed for every cell type and
-  returned no rows, with a warning; and the negative binomial mixed model
-  reported every likelihood-ratio test without a p-value.
-* `run_mixture_qgcomp(bootstrap = FALSE)` tests the mixture effect against a
-  t distribution with the residual degrees of freedom of the fitted model,
-  and gives the matching t interval. It passed on the p-value of
-  `qgcomp::qgcomp.noboot()`, which uses the null degrees of freedom minus
-  the number of exposures and so leaves the covariates out: with 10
-  donors, 3 exposures and 2 covariates the reference distribution had 6
-  instead of 4 degrees of freedom, which makes the p-value too small. Its
-  interval was a normal one, so it could exclude 0 while the p-value was
-  above 0.05. Without covariates the p-value is unchanged, but the
-  interval is wider in every call.
-* `run_mixture_qgcomp(bootstrap = TRUE)` stops when `qgcomp.boot()` returns
-  no p-value for the mixture effect. In that case it returned a two-sided
-  normal p-value computed from the estimate and its standard error as
-  `mixture_pvalue`, without a message, so that what the column held could
-  depend on the installed version of qgcomp. qgcomp 2.19.6 returns the
-  p-value, and results with it are unchanged.
-* `run_cell_coupling()` refuses a confounder that is an unordered label with
-  more than two values, such as a cell-cycle phase. The partial correlation
-  ranks each confounder, so such a label was adjusted for as an ordinal
-  score in alphabetical or level order (G1 < G2M < S), without a message.
-  Numeric, logical and ordered-factor confounders and two-valued labels are
-  used as before.
-* `run_cell_coupling()` takes the meta-regression coefficients by name and
-  leaves out, with a warning, a pair whose exposure does not vary among its
-  donors or is collinear with the moderators. It took them by position: when
-  the exposure was constant, for example in an object holding one exposure
-  group, `metafor::rma()` dropped it, so the call failed with "subscript out
-  of bounds", or, with `meta_moderators`, reported the first moderator's
-  coefficient and p-value as the exposure effect. When a moderator was
-  collinear with the exposure, for example the exposure itself, metafor
-  dropped the moderator, and the exposure effect was reported without that
-  adjustment. The exposure listed in `meta_moderators` is now an error, and
-  `meta_moderators = character(0)` means no moderators, as `NULL` does; it
-  used to fail with a parse error.
-* `run_exposure_network()` takes the penalties `lambda_w` and `lambda_b` of
-  the block graphical lasso, as `run_celltype_network()` does, and records
-  the penalties of its network in `metadata(result)$selection` for both
-  estimators, for coglasso with the selected `c`. The block graphical
-  lasso, also used when only one omic layer is selected, ran with fixed
-  penalties (0.3 within and 0.5 between layers) that were neither
-  documented nor recorded.
-* `rbind()` of SingleCellExposomeExperiment objects requires every argument
-  to be one, with the same sample column and `exposureInfo` and the same
-  exposure values for each donor. There was no method for it, so the
-  `SingleCellExperiment` method kept the exposure slots of the first
-  object, whatever the others held, without a check.
-* `exposure_impute_lod()` warns about names of `lod` that are not columns of
-  `exposure_matrix`, and stops when none is. A misspelt name left that
-  exposure unimputed without a message, and when no name matched, the
-  function returned the input matrix with a warning, which for
-  `method = "multiple"` is not the documented list of imputed matrices.
-* `run_celltype_network()` and `run_exposure_network()` stop with an error
-  that names the metabolites with a missing or infinite value for an
-  analysed donor. Such a value used to cause an unrelated error, for example
-  "'from' must be a finite number" from coglasso, or, in the selection stage
-  of `run_exposure_network()` without covariates, kept the metabolite from
-  being selected without a message. Without adjustment, a `NaN` was silently
-  replaced by the column mean, and the block graphical lasso stopped on an
-  `NA` with "missing value where TRUE/FALSE needed" and silently gave a
-  metabolite with an infinite value no edges.
-* `run_sc_exwas(method = "voom_dream", filter_genes = FALSE)` leaves out
-  the genes without any count, as the edgeR and DESeq2 backends do and as
-  its diagnostics record (`filter_method = "nonzero"`). Such a gene was
-  tested: its log-CPM values differ between donors only through the
-  library sizes, so it got an estimate and a p-value and counted in `padj`
-  and `padj_global` of the other genes. Its residual variance also entered
-  the empirical-Bayes prior of limma, so the standard errors, moderated
-  t statistics and p-values of the other genes of the cell type depended
-  on it as well.
+## Requirements
 
-## Internal changes
-
-* testthat is suggested from version 3.1.7, which the tests need.
-* Pseudobulk counts are summed with `scrapper::aggregateAcrossCells()`
-  instead of package code; the counts are identical. scrapper is a new
-  import, from version 1.6.0, the first release whose
-  `aggregateAcrossCells()` has the `compute.sum`, `compute.detected` and
-  `compute.median` arguments that the package sets.
-  (`scuttle::aggregateAcrossCells()` is deprecated in favour of the
-  scrapper function.)
-* The three `run_sc_exwas()` backends share their input checks and build
-  their results with one internal constructor. Results are unchanged apart
-  from the interface changes above.
-* The edgeR backend of `run_sc_exwas()`, one internal function of 420 lines
-  in 0.99.1, is divided along its steps: pseudobulk, design, fit, extraction
-  and assembly have functions of their own, and a driver runs them. The
-  division itself changes no result and no warning or error message.
-* The network summaries no longer loop over every pair of nodes. The edge
-  counts and edge tables of a network, the edge table of
-  `run_comparative_network()` and the cross-omic count that `show()` prints
-  find the edges in one vectorised step and list them in the order of the
-  loops, by row and then by column, so every table is unchanged row for row.
-* `simulate_crossomic_network()` fills its precision matrices without loops
-  over pairs of nodes as well. It lists the pairs and draws the random
-  numbers in the order of the loops, so a seed gives the data it gave before.
-* The `show()` methods of CelltypeNetworkResult and NetworkComparison read
-  the objects through their accessors. The slots of the two classes are now
-  read only by the accessor methods and the validity methods.
-
-## Documentation
-
-* The data shipped with the package are real.
-  `inst/extdata/hlca_airway_subset.rds` holds the
-  raw counts of 352 airway epithelial cells from 12 donors of the Human Lung
-  Cell Atlas, six heavy smokers and six never smokers, as a
-  SingleCellExposomeExperiment (`?hlca_airway_subset`). The donors and the
-  cell types were fixed before any result on cells of these donors was seen;
-  the number of cells per donor and cell type was set later by the size
-  limit of a source package, before this subset was drawn but after the
-  smoking model had been run on larger sets of cells of the same donors.
-  `inst/scripts/make_hlca_airway_subset.R` makes the file from the pinned
-  H5AD. The subset is redistributed under CC BY 4.0, with the source and
-  the two publications named in its help page. With the second data set
-  below it takes the place of the simulated demo files (see Removed from
-  this release).
-* A second real data set covers what the airway data lack: surface
-  proteins, measured exposures with missing values, and plasma metabolites.
-  `inst/extdata/incov_pbmc_subset.rds`
-  (`?incov_pbmc_subset`) holds the raw counts of 1,032 blood cells from 43
-  patients of the INCOV cohort (Su et al. 2020), 14 monocytes and 10 T
-  cells each, with the counts of 192 antibodies for the same cells, four of
-  them isotype controls, the plasma levels of 13 compounds of exogenous
-  origin among the donor variables and 182 plasma metabolites.
-  `inst/scripts/make_incov_pbmc_subset.R` makes the file from the public
-  sources after checking the size and the SHA-256 of each. The plasma and
-  clinical tables are redistributed under CC BY 4.0. For the single-cell
-  files of ArrayExpress E-MTAB-9357 the authors state no licence; the terms
-  of use of EMBL-EBI apply, and the help page says so.
-* One vignette, `exposomeSC`, replaces `exposomeSC-quickstart` and
-  `introduction`, which built the same simulated object and made almost the
-  same call. It uses BiocStyle, runs on the two real data sets and on nothing
-  simulated, and has an evaluated section for the container and for these
-  analysis functions: `run_sc_exwas()` with the edgeR and voom-dream
-  backends, `run_sc_exwas_pb_offset()`, `run_sc_exwas_glmm()`,
-  `run_multi_exwas()`, `run_interaction_test()`, `run_gsea()`,
-  `run_meta_exwas()`, `run_exposure_composition()`, `exposure_impute_lod()`,
-  `run_dose_response()`, `run_dose_response_gam()`, `run_sc_mixture()`,
-  `run_mixture_qgcomp()` and `run_cell_coupling()`. With the two vignettes
-  below, every exported analysis function is run in a vignette; the DESeq2
-  backend and `as_scee()` are described and not run. It sets the package
-  beside related Bioconductor packages and installs with BiocManager only.
-* The network vignette, `network-tutorial`, uses BiocStyle and runs on the
-  INCOV data: networks of monocytes and T cells with plasma metabolites,
-  from `run_celltype_network()` with both estimators, the accessors and the
-  three plots, `run_comparative_network()` and `run_exposure_network()`.
-  Every chunk that needs a suggested package is guarded, the one for the
-  graphical lasso included, and no chunk hides the messages or warnings of
-  an analysis. It no longer refers to an HLCA model that the package does not
-  hold or asks for a tuning grid that the result does not keep.
-  `simulate_crossomic_network()` is documented in its help page; no vignette
-  uses simulated data.
-* The vignette `simulation-benchmark` is replaced by
-  `permutation-and-power`, in BiocStyle and on the airway data. Where the
-  old one simulated counts under a null, the new one permutes the smoking
-  status among the donors and shows what the check can and cannot tell,
-  compares the edgeR and voom-dream backends on the same data, sets `padj`
-  beside `padj_global`, and runs `estimate_power()`. The description of a
-  benchmark protocol that the package does not carry out is removed, and
-  with it the statement that an unsupported entry of `test_features` is
-  reported as not estimable: `run_sc_exwas()` stops.
-* The scripts that prepare the full HLCA analysis object are shipped in
-  `inst/scripts/`: `fetch_hlca.R`, `extract_hlca_design_metadata.R`,
-  `extract_hlca_feature_metadata.R` and `create_hlca_input_manifest.R`. They
-  were in `data-raw/`, which is not part of the built package, and found
-  their files from the place of the script in a clone of the repository;
-  they now take the paths of their inputs and of their output file or
-  directory as arguments, and check them before any data are read. The
-  input manifest names its files in a column `file`, formerly
-  `relative_path`, and `fetch_hlca.R` stops when a manifest it is given has
-  no entry for its H5AD.
-* References added or corrected: edgeR v4, the graphical lasso, the
-  published coglasso paper, dream and variancePartition, and a DOI for Lee
-  and Han (2024).
-* `?run_sc_exwas` states which steps are delegated to other packages and
-  which choices exposomeSC makes itself. `?run_exposure_composition` compares
-  the method with propeller, crumblr, sccomp and voomCLR, with references.
-  `?exposure_impute_lod` describes each method correctly and points to the
-  LOD imputation in rexposome.
-* `?run_sc_exwas_pb_offset` says that the function has no threshold on the
-  number of cells: every donor with a cell of the cell type enters the
-  model. `?estimate_power` says what `exposure_sd` is for a binary exposure,
-  and `?run_gsea` that the genes of a gene set are given by the identifiers
-  of the result.
-* `?run_exposure_network` says where its selection cannot be relied on. The
-  approximate test of the univariate method is far too generous when the
-  exposure takes one value in all but a few donors and a gene has a count
-  in one or two of them; a covariate is taken as ordered; and a column of
-  `metabolites` that holds the exposure itself is always selected.
-* `?run_sc_exwas_glmm` and `?run_sc_exwas_pb_offset` state that their
-  adjusted p-value, now called `padj_global` (see Interface), adjusts across
-  all gene-by-cell-type strata, and what they do when a fit fails: the mixed
-  model leaves out a stratum it cannot fit, keeps a negative binomial
-  stratum whose likelihood-ratio test fails with an `NA` p-value, and stops
-  when it can fit none, and the offset model returns `NA` estimates for a
-  gene it cannot fit. `?run_sc_exwas_glmm` did not say which family its
-  adjusted p-value uses.
-* `?plot_celltype_network` says that edges are weighted by the absolute
-  entries of the precision matrix; it said partial correlation strength,
-  whose order can differ when the diagonal of the precision matrix varies.
-* `?run_exposure_network` and `?run_cell_coupling` no longer speak of
-  exposure-driven rewiring. The first describes its result as one network
-  among exposure-associated features, in which an edge can reflect the
-  association that two features share with the exposure; the second
-  describes its exposure coefficient as the slope, across donors, of the
-  Fisher z of the gene-protein coupling on the exposure.
+* R (>= 4.6.0) and edgeR (>= 4.10.0). The coglasso estimator needs coglasso
+  (>= 1.1.0), the block graphical lasso needs glasso, and the default
+  `transform = "vst"` needs DESeq2.
+* BiocGenerics and scrapper (>= 1.6.0) are new imports. mediation,
+  SpatialExperiment, BiocCheck and statmod are no longer suggested.
 
 # exposomeSC 0.99.1
 
-* `run_state_coupling()` returned an `NA` p-value for its slope-heterogeneity
-  test on both macOS builds of the Bioconductor staging checks, while every
-  Linux and Windows build passed. The multilevel fit stops at variance
-  components of zero for the example data, and whether the default optimiser
-  stops there cleanly depends on the platform. The fit now tries metafor's
-  optimisers in turn and keeps only a converged fit with finite coefficients.
-  If the F-test's coefficient covariance is still unusable, the same question
-  is put as a likelihood-ratio test between the full and the additive model,
-  both fitted by maximum likelihood, and the `method` field of the
-  `slope_heterogeneity` attribute names the test that was used.
+* The slope-heterogeneity test of `run_state_coupling()` returned an `NA`
+  p-value on the macOS builds of the Bioconductor staging checks. The fit
+  now tries metafor's optimisers in turn and keeps only a converged fit; if
+  the F test is still unusable, a likelihood-ratio test is used, and the
+  `method` field of the `slope_heterogeneity` attribute names the test.
 
 # exposomeSC 0.99.0
 
 Initial Bioconductor submission.
 
-## Corrections made before submission
+## Container and association analysis
 
-* `run_celltype_network(method = "coglasso")` selected its penalties twice.
-  It built the path with `coglasso::bs()`, which already runs its own
-  selection, then ran XStARS again on the result and discarded the first
-  selection. It now builds the path with
-  `coglasso::coglasso()` and selects once. `run_exposure_network()` had the
-  same pattern and is fixed the same way.
-* `subsample_ratio` never reached XStARS: it was converted into a repetition
-  count, `ceiling(1 / (1 - subsample_ratio))`, so the default 0.8 meant five
-  subsamples of coglasso's default size. It is now passed as
-  `stars_subsample_ratio`, and the number of subsamples is the new argument
-  `rep_num` (default 20, as in coglasso).
-* `stability_scores` held XStARS's single variability figure for the whole
-  selected model, as a one-by-one matrix, where the class documents
-  edge-level selection probabilities. It now holds the edge-level selection
-  frequencies at the selected penalties; the variability figure, the selected
-  penalties and the subsampling settings are kept in `metadata$selection`.
-  `plot_stability_surface()` had been drawing an empty plot for every
-  coglasso network as a result. The documentation of `stability` now says
-  what it does: it controls whether those frequencies are returned, not
-  whether XStARS runs, and `block_glasso` ignores it.
-* `plot_celltype_network()` drew edges that could not be seen, with the
-  absolute partial precision, typically a few hundredths, used directly as
-  opacity. It labelled the edge-type legend by position, so a network with
-  only cross-omic edges was labelled "Within-omic"; and it described any
-  network without stored edge counts as having no cross-omic edges. Opacity
-  is now scaled to a visible range, labels are matched by name, and the
-  subtitle counts the edges drawn.
-* The accessors `sampleMap()` and `exposureNames()` are renamed
-  `cellSampleMap()` and `exposureVariables()`. Both names were already
-  exported as S4 generics by current Bioconductor packages,
-  MultiAssayExperiment and rexposome, so whichever package was attached
-  last masked the other and the masked generic failed on the other's
-  objects. `as_scee()` bridges from rexposome, so its own workflow loads
-  both. The slot keeps its name, and objects built earlier remain valid.
-* `run_sc_exwas()` and `run_multi_exwas()` stop on arguments they do not use.
-  A misspelled argument such as `covariats = "age"` previously ran an
-  unadjusted analysis without any message.
-* `run_sc_exwas(method = "dreamlet")` is described accurately: a
-  one-row-per-donor design has no random effects, so `dream()` fits it with
-  limma and the moderated t statistic uses residual degrees of freedom. Cell
-  types skipped by the DESeq2 and voom-dream backends are now reported as
-  warnings rather than messages.
-* `estimate_power()` computed the standard error on the natural-log scale for
-  a log2 effect and omitted the Poisson term, which overstated power (0.996
-  where simulation gave 0.56 for 20 donors, a log2 effect of 0.5, dispersion
-  0.1, a mean count of 100 and 6,000 tests). It
-  now uses `sqrt(1/base_mean + dispersion) / (log(2) * exposure_sd * sqrt(n))`
-  and gains `base_mean`.
-* `run_interaction_test()` ignored `covariates` and treated cell types from
-  the same donor as independent. It now compares exposure slopes between cell
-  types with donor fixed effects and covariate-by-cell-type terms, and reports
-  `df_interaction`.
-* `run_dose_response()` tested the AIC-selected polynomial against the linear
-  model, which overstates the evidence for nonlinearity; `p_nonlinear` is now
-  the pre-specified test of the highest-degree polynomial, named in
-  `nonlinear_model`.
-* `run_dose_response_gam()` compared the linear and GAM fits with a deviance
-  F-test that rejected a truly linear response in 68-75% of simulated data
-  sets at the 5% level. `p_nonlinear` now tests a fully penalised smooth added
-  to a linear term (Wood 2013), which rejected 6-7% in the same simulation.
-* `run_mixture_qgcomp()` returned the intercept p-value as `mixture_pvalue`;
-  it now returns the p-value of the mixture effect. The documentation no longer
-  claims weights or weight intervals from `qgcomp.boot()`, which estimates
-  neither.
-* `run_sc_mixture()` computes weights as documented (mean absolute per-gene
-  coefficients), tolerates tied exposure values, drops donors with missing
-  data, and stops on unknown covariates.
-* `run_mediation()` is experimental and warns once per session, consistent with
-  `run_causal_mediation()`; it and the mixture functions stop on unknown
-  covariates instead of dropping them.
-* `run_sc_exwas_glmm()` adds a donor-by-cell-type random intercept. Without it,
-  cell-type-specific exposure tests rejected up to 13% of null simulations at
-  the 5% level.
-* `run_state_coupling()` tests slope heterogeneity with one multilevel
-  meta-regression that accounts for donors shared between bins, replacing a
-  Cochran Q test that treated bins as independent, and handles tied states.
-* `run_spatial_exwas()` no longer pools k-means regions across tissue sections
-  with unregistered coordinates, normalises on the whole transcriptome rather
-  than the reported genes, and seeds k-means.
-* `as_scee()` reads the `exp` assay of an `ExposomeSet`; previously it could
-  not extract exposures from one. It keeps the rows for the samples present in
-  the single-cell data, so a larger exposome cohort can be used directly.
-* `simulate_crossomic_network()` ran only with an explicit seed, generated
-  transcripts and metabolites independently of the cross-omic edges it
-  returned, and ignored `composition_confounding` and `n_cells_per_donor`. The
-  simulated data now follow the returned precision matrices, and composition
-  sets pseudobulk depth.
-* `compute_iers()` no longer accepts the unimplemented `weights = "adaptive"`
-  and ranks unrounded scores; `run_gsea()` runs `fgsea` serially so that
-  `set.seed()` makes its p-values reproducible; `run_cell_coupling()` drops a
-  confounder that is constant within a donor instead of adding random noise to
-  it; `seurat_to_exposure()` warns when values vary within a donor; and
-  `run_temporal_network()` labels edges present at the first and last time
-  points but not in between as `intermittent`.
-* edgeR normalisation uses `normLibSizes()`, the current name of
-  `calcNormFactors()`.
-* Internal helpers for a repeated-sample sensitivity analysis (sample
-  pseudobulk with donor-blocked voom) and for null-calibration runs are
-  removed. No exported function used them.
-
-## Random number state
-
-* Functions that take a `seed` argument now restore the caller's random
-  number generator when they return, including its kind. Previously
-  `simulate_crossomic_network()`, `run_erd_interventional()` and the
-  empirical-null permutation helpers left the global seed changed, and two
-  of them left the generator set to L'Ecuyer-CMRG. Results for a given
-  `seed` are unchanged.
-* Seeding now goes through `withr`, which is imported.
-
-## CORRECTED: edgeR quasi-likelihood uncertainty
-
-* `run_sc_exwas(method = "edgeR")` now reports coefficient standard errors as
-  numeric `NA`, because `edgeR::glmQLFTest()` supplies a quasi-likelihood F
-  test but no coefficient standard error. The earlier `abs(logFC / sqrt(F))`
-  quantity was not a valid standard error and is no longer produced.
-* edgeR results record `schema_version = "exposomeSC_sc_exwas_edger_v2"`,
-  `se_method = "not_available_edgeR_QL"`, and
-  `statistic_type = "signed_sqrt_qlf"`. The signed square-root QL statistic is
-  retained for directional ranking only; it is not a Wald statistic or a
-  basis for coefficient confidence intervals.
-* `run_meta_exwas()` rejects edgeR QL results, including older finite SE
-  proxies, because inverse-variance synthesis requires valid coefficient
-  standard errors. DESeq2 Wald and voom-dream uncertainty semantics are
-  unchanged.
+* `SingleCellExposomeExperiment` extends `SingleCellExperiment` with
+  sample-level exposure data, exposure metadata and the cell-to-donor
+  mapping; `build_scee()` builds one and `as_scee()` converts an ExposomeSet.
+* The accessors are `cellSampleMap()` and `exposureVariables()`, not
+  `sampleMap()` and `exposureNames()`, which MultiAssayExperiment and
+  rexposome export as S4 generics; whichever package was attached last
+  would have masked the other's.
+* `run_sc_exwas()` tests exposures within cell types on donor pseudobulk
+  counts, by default with robust edgeR quasi-likelihood models;
+  `run_multi_exwas()` runs several exposures.
+* `run_sc_exwas_glmm()` fits mixed models as an experimental sensitivity
+  analysis; its calibration depends on the design and must be checked.
+* `run_dose_response()`, `run_dose_response_gam()` and
+  `run_interaction_test()` for dose-response curves and exposure-by-cell-type
+  interaction; `run_sc_mixture()` and `run_mixture_qgcomp()` for mixtures.
+* `run_exposure_composition()` analyses the relative composition of captured
+  cells; it does not estimate absolute tissue abundance.
+* `run_meta_exwas()` for meta-analysis across cohorts, `run_spatial_exwas()`
+  for region-resolved ExWAS via SpatialExperiment, and the experimental
+  `run_mediation()` and `run_causal_mediation()`.
+* `exposure_impute_lod()` imputes values below the limit of detection,
+  `seurat_to_exposure()` extracts donor metadata, `run_gsea()` tests gene
+  sets with fgsea, and `estimate_power()` computes power.
+* edgeR results report the coefficient standard error as `NA`:
+  `glmQLFTest()` gives a quasi-likelihood F test but no standard error. The
+  signed square root of F is for ranking only.
+* `run_meta_exwas()` rejects edgeR results, since inverse-variance synthesis
+  needs valid standard errors.
+* Functions that take a `seed` restore the caller's random-number generator,
+  including its kind, when they return; seeding goes through withr.
 
 ## EXPERIMENTAL: Cross-omic network estimation
 
-* `run_celltype_network()` estimates exploratory cross-omic precision and
-  adjacency matrices per cell type. Its edges are model-dependent summaries,
-  not validated conditional-independence discoveries.
-
-* `run_exposure_network()` replaces the mislabelled `stability_lasso` option
-  with `selection_method = "stability"`: stability selection over a marginal
-  Spearman screen in half-samples, which stays defined when features outnumber
-  donors and reports the Meinshausen-Buhlmann bound on expected false
-  selections. The former option refitted ordinary least squares on all features
-  and failed whenever features outnumbered 80% of donors. The univariate screen
-  no longer fails on features without variation, and network metadata record
-  the expression transform (VST or log-CPM).
-
+* `run_celltype_network()` estimates cross-omic networks within a cell type.
+  Its edges are model-dependent summaries, not validated
+  conditional-independence discoveries.
+* `run_exposure_network()` restricts the network to features associated with
+  an exposure, by stability selection over a marginal Spearman screen or by
+  univariate tests; `network_method` chooses the estimator.
 * `run_comparative_network()` classifies edges as shared, unique or
-  differential and reports Jaccard overlap, without p-values by default. Its
-  `fisher_z` mode is experimental and warns once per session: networks from the
-  same donors are not independent samples, and penalised partial correlations
-  do not follow the distribution the test assumes. Partial correlations are
-  now derived from the precision matrices before the test.
-
-* `run_temporal_network()` records descriptive edge presence across separately
-  estimated time-point networks. It does not test longitudinal rewiring.
-
-* `run_network_mediation()` is experimental and warns once per session: its
-  selection, identification, resampling and confidence-interval properties
-  have not been validated. Each cross-omic edge is tested as a single-mediator
-  path with a two-sided percentile bootstrap p-value.
-
-* `run_exposure_network()` gains `network_method` to choose between the
-  collaborative and the block graphical lasso for the second stage.
-
-## NEW: Network visualisation
-
-* `plot_celltype_network()` renders cross-omic networks with
-  omic-layer colouring, stability-based edge opacity, and
-  bipartite layout options.
-
-* `plot_network_comparison()` plots how much each edge's partial
-  correlation varies across the compared cell types, for the edge set
-  chosen with `highlight`, which the function previously ignored.
-
-* `plot_stability_surface()` plots the selection probability of the most
-  stable edges. It is not a lambda-by-pi surface, because the result
-  object stores stability at the selected penalty only.
-
-* `plot_celltype_network(color_by = "stability")` colours nodes by the
-  largest selection probability among their edges instead of by omic
-  layer, and the graph theme no longer asks for a font that most
-  systems lack.
-
-* `plot_temporal_dynamics()` tracks edge presence across time
-  points with optional node highlighting.
-
-## NEW: Simulation engine
-
-* `simulate_crossomic_network()` generates realistic multi-omics
-  data with known network structure, cell-type heterogeneity,
-  and composition confounding for benchmarking.
-
-## NEW: S4 classes
-
-* `CelltypeNetworkResult`: stores precision matrix, adjacency,
-  stability scores, and node metadata per cell type.
-
-* `NetworkComparison`: stores differential, shared, and
-  cell-type-specific edges with statistical tests.
-
-* `TemporalNetwork`: stores time-resolved networks with edge
-  dynamics tracking.
-
-## Core infrastructure
-
-* `SingleCellExposomeExperiment` S4 class extending
-  `SingleCellExperiment` with sample-level exposure data,
-  exposure metadata, and cell-to-donor mapping.
-* `build_scee()` constructs integrated containers.
-* Accessors: `exposureData()`, `exposureInfo()`,
-  `cellSampleMap()`, `exposureVariables()` with replacement methods.
-* `[` subsetting preserves exposure data.
-
-## Cell-type-specific ExWAS
-
-* `run_sc_exwas()` provides donor-pseudobulk exposure-association workflows;
-  robust edgeR quasi-likelihood is the implemented default.
-* `run_sc_exwas_glmm()` provides experimental mixed-model sensitivity paths;
-  calibration is design-specific and must be assessed empirically.
-* `run_multi_exwas()` batches requested exposures. Fixed-family, fail-closed
-  handling is required before any cross-exposure multiplicity claim.
+  differential and reports Jaccard overlap; its `fisher_z` mode is
+  experimental. `run_temporal_network()` records edge presence over time.
+* `run_network_mediation()` is experimental. Plots, a simulator
+  (`simulate_crossomic_network()`) and the classes `CelltypeNetworkResult`,
+  `NetworkComparison` and `TemporalNetwork` complete the module.
 
 ## Exposure-Response Decomposition (ERD)
 
@@ -1170,40 +265,3 @@ Initial Bioconductor submission.
   resampling and identification have not been validated. A function in that
   state should not sit in the public interface. It stays in the package, with
   its tests, for development.
-
-## Dose-response and interaction
-
-* `run_dose_response()` polynomial dose-response with AIC.
-* `run_dose_response_gam()` GAM via mgcv with LOOCV R².
-* `run_interaction_test()` formal exposure × celltype
-  interaction F-test (Gelman & Stern 2006).
-
-## Mixture and composition
-
-* `run_sc_mixture()` quantile-scored mixture screening.
-* `run_mixture_qgcomp()` formal qgcomp with bootstrap CI.
-* `run_exposure_composition()` analyses relative captured-cell composition;
-  it does not estimate absolute tissue abundance.
-
-## Causal inference and meta-analysis
-
-* `run_mediation()` is excluded from confirmatory scope pending a defensible
-  identification and pre-selection contract.
-* `run_causal_mediation()` is experimental and warns once per session. With
-  `sensitivity = TRUE` it now returns `rho_at_zero` from
-  `mediation::medsens()`, which was previously dropped, and a `method` column
-  records whether `mediation::mediate()` or the difference-method bootstrap
-  fallback produced each row.
-* `run_meta_exwas()` cross-cohort meta-analysis with
-  fixed/random effects, I², and direction strings.
-* `run_spatial_exwas()` region-resolved ExWAS via
-  SpatialExperiment.
-
-## Preprocessing and interoperability
-
-* `exposure_impute_lod()` below-LOD imputation (LOD/sqrt(2),
-  ROS, multiple imputation).
-* `as_scee()` converts rexposome ExposomeSet to SCEE.
-* `seurat_to_exposure()` extracts donor-level metadata.
-* `run_gsea()` pathway enrichment via fgsea.
-* `estimate_power()` power/sample size calculator.

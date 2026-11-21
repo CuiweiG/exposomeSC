@@ -216,15 +216,25 @@ NULL
 #'   were selected, not changed; smoking and sex were recoded as described
 #'   above.
 #'
-#'   The single-cell values of genes and surface proteins are ArrayExpress
-#'   accession E-MTAB-9357
+#'   The single-cell values of genes and surface proteins are from
+#'   ArrayExpress accession E-MTAB-9357
 #'   (\url{https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-9357}),
-#'   released in October 2020 and downloaded on 19 November 2026. The
-#'   authors state no licence for this accession. The terms of use of
-#'   EMBL-EBI apply, under which EMBL-EBI itself places no restrictions on
-#'   the use or redistribution of the data beyond those of the original
-#'   data owners and of the terms themselves, and third parties may hold
-#'   rights in them.
+#'   released on 29 October 2020 and downloaded on 19 November 2026. No
+#'   licence is stated for this accession, either by the authors or in its
+#'   BioStudies record. According to BioStudies
+#'   (\url{https://www.ebi.ac.uk/biostudies/help}), data without a stated
+#'   licence are available under the EMBL-EBI terms of use
+#'   (\url{https://www.ebi.ac.uk/about/terms-of-use/}, revised on 14 October
+#'   2026). Under those terms EMBL-EBI adds no restrictions of its own on the
+#'   use or redistribution of the data beyond any set by the original data
+#'   owners, except where the terms themselves say otherwise. Third parties
+#'   may claim rights in the data, and users are responsible for ensuring
+#'   that their use does not infringe them. The object holds a subset of the
+#'   values that the authors released, transformed as described above.
+#'
+#'   The article itself is published under CC BY-NC-ND 4.0. The values in
+#'   this object come from the data that the authors deposited in Mendeley
+#'   Data and ArrayExpress, not from the article.
 #'
 #'   The object was made by \code{inst/scripts/make_incov_pbmc_subset.R},
 #'   which checks the size and the SHA-256 of every input file and carries
