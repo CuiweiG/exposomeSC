@@ -18,11 +18,11 @@
 ##     ArrayExpress E-MTAB-9357, from
 ##     https://ftp.ebi.ac.uk/biostudies/fire/E-MTAB-/357/E-MTAB-9357/Files/
 ##     (released in October 2020; the files carry the date 2024-01-18 and
-##     were downloaded on 2026-11-19). The authors state no licence for this
-##     accession; the terms of use of EMBL-EBI apply, under which EMBL-EBI
-##     itself places no restrictions on the use or redistribution of the
-##     data beyond those of the original data owners and of the terms
-##     themselves, and third parties may hold rights in them.
+##     were downloaded on 2026-11-19). On 2026-11-21 the authors who
+##     deposited the accession gave permission in these words: "The
+##     single-cell values from E-MTAB-9357 included in exposomeSC may be
+##     used and redistributed under CC BY 4.0, with citation of Su et al.
+##     (2020)."
 ## The script checks the size and the SHA-256 of every file before it reads
 ## any of them.
 ##
@@ -605,8 +605,12 @@ S4Vectors::metadata(scee)$source <- list(
         released = paste("2020-10-17 (public release date of the IDF",
                          "file), 2020-10-29 (BioStudies record)"),
         downloaded = "2026-11-19",
-        licence = paste("none stated by the authors; EMBL-EBI terms of",
-                        "use")),
+        licence = "CC BY 4.0",
+        permission = paste("2026-11-21, from the authors who deposited the",
+                           "accession: \"The single-cell values from",
+                           "E-MTAB-9357 included in exposomeSC may be used",
+                           "and redistributed under CC BY 4.0, with",
+                           "citation of Su et al. (2020).\"")),
     files = manifest,
     selection = paste("first blood draw; single cells, plasma metabolomics",
                       "and proteomics available; smoking status recorded;",

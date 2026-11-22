@@ -121,8 +121,12 @@ test_that("the INCOV subset is a valid object with the documented content", {
     expect_identical(source$tables$doi, "10.17632/tzydswhhb5.5")
     expect_identical(source$tables$licence, "CC BY 4.0")
     expect_identical(source$single_cells$accession, "E-MTAB-9357")
-    expect_match(source$single_cells$licence, "none stated by the authors",
-        fixed = TRUE)
+    expect_identical(source$single_cells$licence, "CC BY 4.0")
+    expect_match(source$single_cells$permission, "^2026-11-21, ")
+    expect_match(source$single_cells$permission, paste(
+        "\"The single-cell values from E-MTAB-9357 included in exposomeSC",
+        "may be used and redistributed under CC BY 4.0, with citation of",
+        "Su et al. (2020).\""), fixed = TRUE)
     expect_match(source$selection, "seed 20261119", fixed = TRUE)
     expect_identical(colSums(source$gated_cells),
         c(Monocyte = 9889, `T cell` = 38213, other = 15763))

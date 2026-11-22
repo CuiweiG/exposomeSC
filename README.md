@@ -173,7 +173,7 @@ compounds of exogenous origin.
 | Item | Source |
 |---|---|
 | Clinical records, plasma metabolites | Table S1 of [Mendeley Data, doi:10.17632/tzydswhhb5.5](https://doi.org/10.17632/tzydswhhb5.5), version 5, CC BY 4.0 |
-| Single-cell genes and surface proteins | [ArrayExpress E-MTAB-9357](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-9357); the authors state no licence, and the terms of use of EMBL-EBI apply |
+| Single-cell genes and surface proteins | [ArrayExpress E-MTAB-9357](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-9357), redistributed under CC BY 4.0 with the permission of the authors who deposited it |
 
 `inst/scripts/make_incov_pbmc_subset.R` checks the size and the SHA-256 of the
 88 input files, recovers the counts from the logarithms that the archive
@@ -202,12 +202,17 @@ branch holds the package source only.
 
 The code and the documentation of the package are under Artistic-2.0. The two
 data files in `inst/extdata` are not: they are parts of the data of others and
-keep their terms. `hlca_airway_subset.rds` is redistributed under CC BY 4.0. In
-`incov_pbmc_subset.rds` the clinical records and plasma measurements are
-redistributed under CC BY 4.0; for the single-cell counts, from ArrayExpress
-E-MTAB-9357, the authors state no licence, and the terms of use of EMBL-EBI
-apply. The two provenance sections above and the help pages of the data sets
-name the sources and the publications to cite.
+are redistributed under CC BY 4.0. `hlca_airway_subset.rds` keeps the licence
+of the atlas. In `incov_pbmc_subset.rds` the clinical records and plasma
+measurements are under CC BY 4.0 as published on Mendeley Data, and for the
+single-cell counts, from ArrayExpress E-MTAB-9357, the authors who deposited
+them gave this permission on 21 November 2026:
+
+> The single-cell values from E-MTAB-9357 included in exposomeSC may be used
+> and redistributed under CC BY 4.0, with citation of Su et al. (2020).
+
+The two provenance sections above and the help pages of the data sets name the
+sources and the publications to cite.
 
 Until a release is archived with a DOI, cite the exact Git commit used
 together with the primary data publications.

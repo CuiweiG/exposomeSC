@@ -190,7 +190,8 @@ NULL
 #'   43 donors, on the same relative scale. Their pathways are in
 #'   \code{metadata(x)$metabolite_info}.}
 #'   \item{Provenance}{\code{metadata(x)$source}: the reference, the
-#'   sources and their licences, the names, sizes and SHA-256 of the 88
+#'   sources and their licences, the permission for the single-cell values
+#'   (\code{single_cells$permission}), the names, sizes and SHA-256 of the 88
 #'   input files, the selection rule, the gates of each sample
 #'   (\code{gates}) and the numbers of monocytes, T cells and other cells
 #'   of each donor (\code{gated_cells}).}
@@ -219,18 +220,16 @@ NULL
 #'   The single-cell values of genes and surface proteins are from
 #'   ArrayExpress accession E-MTAB-9357
 #'   (\url{https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-9357}),
-#'   released on 29 October 2020 and downloaded on 19 November 2026. No
-#'   licence is stated for this accession, either by the authors or in its
-#'   BioStudies record. According to BioStudies
-#'   (\url{https://www.ebi.ac.uk/biostudies/help}), data without a stated
-#'   licence are available under the EMBL-EBI terms of use
-#'   (\url{https://www.ebi.ac.uk/about/terms-of-use/}, revised on 14 October
-#'   2026). Under those terms EMBL-EBI adds no restrictions of its own on the
-#'   use or redistribution of the data beyond any set by the original data
-#'   owners, except where the terms themselves say otherwise. Third parties
-#'   may claim rights in the data, and users are responsible for ensuring
-#'   that their use does not infringe them. The object holds a subset of the
-#'   values that the authors released, transformed as described above.
+#'   released on 29 October 2020 and downloaded on 19 November 2026. On 21
+#'   November 2026 the authors who deposited the accession gave permission
+#'   in these words: "The single-cell values from E-MTAB-9357 included in
+#'   exposomeSC may be used and redistributed under CC BY 4.0, with citation
+#'   of Su et al. (2020)." The object holds a subset of the values that the
+#'   authors released, transformed as described above.
+#'
+#'   The object as a whole is therefore distributed under CC BY 4.0. Work
+#'   that uses it should cite Su et al. (2020). The permission does not imply
+#'   that the authors endorse exposomeSC.
 #'
 #'   The article itself is published under CC BY-NC-ND 4.0. The values in
 #'   this object come from the data that the authors deposited in Mendeley

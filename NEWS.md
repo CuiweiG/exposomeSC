@@ -1,3 +1,10 @@
+# exposomeSC 0.99.4
+
+* The single-cell values of `incov_pbmc_subset` may now be used and
+  redistributed under CC BY 4.0, with the permission of the authors who
+  deposited E-MTAB-9357, so the whole data set is under that licence.
+  `?incov_pbmc_subset` quotes their statement.
+
 # exposomeSC 0.99.3
 
 * Documentation only. NEWS is cut down to the changes that affect users,

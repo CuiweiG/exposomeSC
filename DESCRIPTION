@@ -1,7 +1,7 @@
 Package: exposomeSC
 Title: Cell-Type-Resolved Exposome-Wide Association Studies for
     Single-Cell RNA-seq
-Version: 0.99.3
+Version: 0.99.4
 Authors@R:
     person(given = "Cuiwei",
            family = "Gao",
