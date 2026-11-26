@@ -1,0 +1,69 @@
+# Checks that the documentation still holds up: the citation() output,
+# the links (urlchecker) and the spelling (spelling, British English as
+# declared in DESCRIPTION). Links can break without any change here, so
+# this also runs once a week.
+#
+# R-devel for Bioconductor devel (main); see R-CMD-check.yaml.
+on:
+  push:
+    branches: [main, 'RELEASE_*']
+  pull_request:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+name: docs-check
+
+permissions: read-all
+
+env:
+  R_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '4.7' || 'devel' }}
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ env.R_VERSION }}
+          http-user-agent: ${{ env.R_VERSION == 'devel' && 'release' || '' }}
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'
+          extra-packages: any::urlchecker, any::spelling, local::.
+
+      - name: citation() output
+        run: |
+          pkg <- read.dcf("DESCRIPTION", "Package")[[1L]]
+          cit <- citation(pkg)
+          print(cit, style = "text")
+          print(toBibtex(cit))
+          doi <- unlist(lapply(unclass(cit), `[[`, "doi"))
+          if (file.exists("inst/CITATION") && length(doi) == 0L)
+            stop("inst/CITATION does not give a DOI")
+        shell: Rscript {0}
+
+      - name: Links (urlchecker)
+        if: ${{ !cancelled() }}
+        run: |
+          res <- urlchecker::url_check()
+          print(res)
+          if (NROW(res) > 0L) stop(NROW(res), " link(s) to fix, see above")
+        shell: Rscript {0}
+
+      - name: Spelling
+        if: ${{ !cancelled() }}
+        run: |
+          res <- spelling::spell_check_package()
+          print(res)
+          if (NROW(res) > 0L)
+            stop(NROW(res), " word(s) not in the dictionary: fix them or add them to inst/WORDLIST")
+        shell: Rscript {0}
