@@ -104,7 +104,7 @@
 </div>
 <div class="section level2">
 <h2 id="continuous-integration">Continuous integration<a class="anchor" aria-label="anchor" href="#continuous-integration"></a></h2>
-<p>The workflows in <code>.github/workflows/</code> run on <code>main</code> with R-devel, which Bioconductor devel uses: <code>R CMD check</code> on Linux, macOS and Windows, <code>BiocCheckGitClone()</code> and <code>BiocCheck()</code>, test coverage, and a check of <code><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation()</a></code>, links and spelling. The pkgdown site is built from <code>main</code>. <code>R_VERSION</code> and <code>R_BIOC_VERSION</code> at the top of each workflow set the R and Bioconductor versions; <code>R-CMD-check.yaml</code> explains why <code>main</code> does not pin a Bioconductor version yet. When Bioconductor 3.25 is released and <code>RELEASE_3_25</code> appears, check both.</p>
+<p>The workflows in <code>.github/workflows/</code> run on <code>main</code> with R-devel, which Bioconductor devel uses: <code>R CMD check</code> on Linux, macOS and Windows, <code>BiocCheckGitClone()</code> and <code>BiocCheck()</code>, test coverage, and a check of <code><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation()</a></code>, links and spelling. The pkgdown site is built from <code>main</code>. The versions are set at the top of each workflow; check them when Bioconductor 3.25 is released and <code>RELEASE_3_25</code> appears.</p>
 </div>
 </div>
 
