@@ -65,14 +65,14 @@
 <code>RELEASE_3_25</code>, after <code>devel</code>
 </td>
 <td>1.0.z (even y)</td>
-</tr></tbody></table><ul><li>GitHub <code>main</code> is Bioconductor <code>devel</code>. Bioconductor only builds <code>devel</code> and <code>RELEASE_*</code> branches, so every push to Bioconductor names the target explicitly: <code>main:devel</code>.</li>
+</tr></tbody></table><ul><li>GitHub <code>main</code> has the same code as Bioconductor <code>devel</code> but only our own commits; see Pushing.</li>
 <li>The review is over: changes no longer go through <code>BiocStaging/exposomeSC</code> or the <code>bioc-revision-2026-11</code> branch, but straight to Bioconductor’s own repository.</li>
 <li>Once <code>RELEASE_3_25</code> exists, a bug fix goes into <code>main</code> first and is then cherry-picked to <code>RELEASE_3_25</code>. Each branch gets its own version bump.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="version-numbers">Version numbers<a class="anchor" aria-label="anchor" href="#version-numbers"></a></h2>
 <p>Bioconductor uses x.y.z version numbers (<a href="https://contributions.bioconductor.org/versionnum.html" class="external-link uri">https://contributions.bioconductor.org/versionnum.html</a>):</p>
-<ul><li>Until the 3.25 release the version stays at 0.99.z. At the release the Bioconductor team sets the release branch to 1.0.0 and <code>devel</code> to 1.1.0; after that, y is even on the release branch and odd on <code>devel</code>. Do not change x or y yourself.</li>
+<ul><li>Until the 3.25 release the version stays at 0.99.z. At the release the Bioconductor team sets the release branch to 1.0.0 and <code>devel</code> to 1.1.0; after that, y is even on the release branch and odd on <code>devel</code>. Make the same change on <code>main</code> in a commit of our own, and do not change x or y otherwise.</li>
 <li>Bump z in every commit that should reach users (0.99.4 to 0.99.5). A pushed commit without a version bump is built, but not propagated: <code><a href="https://bioconductor.github.io/BiocManager/reference/install.html" class="external-link">BiocManager::install()</a></code> keeps serving the previous version.</li>
 <li>Commits that only touch files left out of the package by <code>.Rbuildignore</code> (for example <code>.github/</code>) do not need a bump.</li>
 <li>Builds run once a day and take about 24 hours, so a push appears on the build report (<a href="https://bioconductor.org/checkResults/" class="external-link uri">https://bioconductor.org/checkResults/</a>) one or two days later. It reaches users once a build with the new version finishes without errors.</li>
@@ -90,16 +90,15 @@
 </div>
 <div class="section level2">
 <h2 id="pushing">Pushing<a class="anchor" aria-label="anchor" href="#pushing"></a></h2>
-<p>Before committing, bring <code>main</code> up to date with Bioconductor, which can commit to <code>devel</code> too (for example the version bumps at each release):</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">git</span> checkout main</span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">git</span> fetch upstream</span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="fu">git</span> merge <span class="at">--ff-only</span> upstream/devel</span></code></pre></div>
-<p>Then push the same commit to both sides:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">git</span> push upstream main:devel</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">git</span> push origin main</span></code></pre></div>
-<p>To push exactly the commit that was checked, push by hash:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">git</span> push upstream <span class="op">&lt;</span>hash<span class="op">&gt;</span>:refs/heads/devel</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="fu">git</span> push origin <span class="op">&lt;</span>hash<span class="op">&gt;</span>:refs/heads/main</span></code></pre></div>
+<p><code>main</code> keeps only our own commits. While <code>devel</code> has nothing else, the same commit goes to both sides:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">git</span> push upstream <span class="op">&lt;</span>hash<span class="op">&gt;</span>:refs/heads/devel</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">git</span> push origin <span class="op">&lt;</span>hash<span class="op">&gt;</span>:refs/heads/main</span></code></pre></div>
+<p>Once the Bioconductor team has committed to <code>devel</code> (the version bumps at each release), never merge <code>upstream/devel</code> into <code>main</code>. Commit on <code>main</code>, then cherry-pick to <code>devel</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">git</span> fetch upstream</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">git</span> checkout <span class="at">-B</span> bioc-devel upstream/devel</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">git</span> cherry-pick <span class="op">&lt;</span>commits from main<span class="op">&gt;</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="fu">git</span> push upstream <span class="op">&lt;</span>hash on bioc-devel<span class="op">&gt;</span>:refs/heads/devel</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="fu">git</span> push origin <span class="op">&lt;</span>hash on main<span class="op">&gt;</span>:refs/heads/main</span></code></pre></div>
 <p>Never force-push: Bioconductor does not accept rewritten history.</p>
 </div>
 <div class="section level2">
