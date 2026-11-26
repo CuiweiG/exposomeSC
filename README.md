@@ -5,6 +5,7 @@
 *Study-aware, cell-type-resolved exposure association for population
 single-cell transcriptomes*
 
+[![DOI](https://img.shields.io/badge/DOI-10.18129%2FB9.bioc.exposomeSC-blue.svg)](https://doi.org/10.18129/B9.bioc.exposomeSC)
 [![License: Artistic-2.0](https://img.shields.io/badge/License-Artistic--2.0-blue.svg)](https://opensource.org/licenses/Artistic-2.0)
 
 </div>
