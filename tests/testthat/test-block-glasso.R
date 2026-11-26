@@ -6,9 +6,12 @@ chain_data <- function(n = 2000L, p = 6L, seed = 1L) {
         omega[i, i + 1L] <- omega[i + 1L, i] <- 0.4
     }
     set.seed(seed)
+    ## chol() is unique, so the sample is the same on every platform;
+    ## MASS::mvrnorm() depends on the signs of LAPACK's eigenvectors.
+    x <- matrix(stats::rnorm(n * p), n, p) %*% chol(solve(omega))
     list(
         omega = omega,
-        x = MASS::mvrnorm(n, rep(0, p), solve(omega)),
+        x = x,
         blocks = rep(c("transcript", "metabolite"), each = p / 2L)
     )
 }
