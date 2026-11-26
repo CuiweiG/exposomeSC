@@ -1,0 +1,16 @@
+## The year and version follow the installed release: Bioconductor sets
+## Date/Publication and R CMD build sets Packaged.
+year <- substr(c(meta$`Date/Publication`, meta$Date, meta$Packaged,
+                 format(Sys.Date()))[1L], 1L, 4L)
+note <- if (length(meta$Version)) sprintf("R package version %s", meta$Version)
+
+bibentry(
+  bibtype = "Manual",
+  key     = "R-exposomeSC",
+  title   = "{exposomeSC}: Cell-Type-Resolved Exposome-Wide Association Studies for Single-Cell {RNA}-seq",
+  author  = person("Cuiwei", "Gao", comment = c(ORCID = "0009-0002-4896-0601")),
+  year    = year,
+  note    = note,
+  doi     = "10.18129/B9.bioc.exposomeSC",
+  url     = "https://bioconductor.org/packages/exposomeSC"
+)

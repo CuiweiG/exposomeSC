@@ -214,5 +214,8 @@ them gave this permission on 21 November 2026:
 The two provenance sections above and the help pages of the data sets name the
 sources and the publications to cite.
 
-Until a release is archived with a DOI, cite the exact Git commit used
-together with the primary data publications.
+To cite the package, use `citation("exposomeSC")`: it gives the
+Bioconductor DOI,
+[10.18129/B9.bioc.exposomeSC](https://doi.org/10.18129/B9.bioc.exposomeSC),
+and the version installed. When you use the shipped data sets, please
+cite their primary publications as well.
