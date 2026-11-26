@@ -1,8 +1,7 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 #
-# R-devel for Bioconductor devel (main); see R-CMD-check.yaml for the R
-# and Bioconductor versions.
+# The R and Bioconductor versions are the same as in R-CMD-check.yaml.
 on:
   push:
     branches: [main, 'RELEASE_*']
@@ -14,7 +13,6 @@ permissions: read-all
 
 env:
   R_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '4.7' || 'devel' }}
-  R_BIOC_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '3.25' || '' }}
 
 jobs:
   test-coverage:
