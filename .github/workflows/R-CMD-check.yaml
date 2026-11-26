@@ -2,11 +2,18 @@
 # with a BiocCheck job added for Bioconductor.
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 #
-# main is Bioconductor devel (3.25), which is built with R-devel; pak then
-# installs the Bioconductor version that goes with that R. exposomeSC has
-# no release branch until Bioconductor 3.25 is released: RELEASE_3_25 will
-# then be built with R 4.7, and main with the next R-devel. Check both
-# values at that point.
+# main is Bioconductor devel (3.25), which is built with R-devel.
+# exposomeSC has no release branch until Bioconductor 3.25 is released:
+# RELEASE_3_25 will then use R 4.7 and Bioconductor 3.25, and main the
+# next R-devel and Bioconductor 3.26.
+#
+# R_BIOC_VERSION sets the Bioconductor version that pak installs from.
+# Without it pak uses the default built into R, which lags behind: on
+# 2026-11-26 R-devel gave 3.24 on Linux and macOS but 3.23 on Windows.
+# main goes without it for now, because the day after the 3.24 release
+# the 3.25 repository still lacked SingleCellExperiment; set it to '3.25'
+# once it is there. Check all of these values when Bioconductor 3.25 is
+# released.
 on:
   push:
     branches: [main, 'RELEASE_*']
@@ -18,6 +25,7 @@ permissions: read-all
 
 env:
   R_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '4.7' || 'devel' }}
+  R_BIOC_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '3.25' || '' }}
 
 jobs:
   R-CMD-check:
