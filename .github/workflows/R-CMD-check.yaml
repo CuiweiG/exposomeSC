@@ -44,6 +44,19 @@ jobs:
           r-version: ${{ env.R_VERSION }}
           http-user-agent: ${{ runner.os == 'Linux' && env.R_VERSION == 'devel' && 'release' || '' }}
 
+      # R-devel has no macOS binaries, so every dependency is compiled here
+      # (pak 0.11.2 also recompiles the packages that come with R,
+      # r-lib/pak#926). data.table, nlme and Matrix include <libintl.h>, and
+      # jpeg (needed by marquee) links libjpeg. CRAN's macOS build of R
+      # expects both under /opt/R/arm64; install.libs() puts CRAN's own
+      # builds there (r-lib/actions#1017).
+      - name: Install gettext and libjpeg for source builds (macOS, R-devel)
+        if: runner.os == 'macOS' && env.R_VERSION == 'devel'
+        run: |
+          sudo "$(command -v Rscript)" -e "source('https://mac.R-project.org/bin/install.R'); install.libs(c('gettext', 'jpeg'))"
+          test -f "/opt/R/$(uname -m)/include/libintl.h"
+          test -f "/opt/R/$(uname -m)/include/jpeglib.h"
+
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: any::rcmdcheck
