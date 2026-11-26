@@ -118,7 +118,7 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Cuiwei Gao \email{48gaocuiwei@gmail.com}
+\strong{Maintainer}: Cuiwei Gao \email{48gaocuiwei@gmail.com} (\href{https://orcid.org/0009-0002-4896-0601}{ORCID}) [copyright holder]
 
 }
 \keyword{package}

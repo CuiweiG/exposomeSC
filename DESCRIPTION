@@ -3,10 +3,9 @@ Title: Cell-Type-Resolved Exposome-Wide Association Studies for
     Single-Cell RNA-seq
 Version: 0.99.4
 Authors@R:
-    person(given = "Cuiwei",
-           family = "Gao",
-           email = "48gaocuiwei@gmail.com",
-           role = c("aut", "cre"))
+    person("Cuiwei", "Gao", email = "48gaocuiwei@gmail.com",
+           role = c("aut", "cre", "cph"),
+           comment = c(ORCID = "0009-0002-4896-0601"))
 Description: Tests donor-level environmental exposures for
     association with gene expression within cell types in single-cell
     RNA-seq cohorts (single-cell exposome-wide association studies,
