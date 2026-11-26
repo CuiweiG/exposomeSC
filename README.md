@@ -195,8 +195,9 @@ data.table and R.utils.
   by a second backend, the two adjustments of the p-values, and a power
   approximation
 
-The continuous-integration configuration lives on the `ci` branch; the default
-branch holds the package source only.
+On every push to `main`, GitHub Actions run `R CMD check` on Linux, macOS and
+Windows, `BiocCheck`, the test coverage and a check of the citation, the links
+and the spelling; the workflows are in `.github/workflows`.
 
 ## Licence and citation
 

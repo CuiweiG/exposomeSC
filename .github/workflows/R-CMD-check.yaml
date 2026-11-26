@@ -1,0 +1,93 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# with a BiocCheck job added for Bioconductor.
+# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+#
+# main is Bioconductor devel (3.25), which is built with R-devel; pak then
+# installs the Bioconductor version that goes with that R. exposomeSC has
+# no release branch until Bioconductor 3.25 is released: RELEASE_3_25 will
+# then be built with R 4.7, and main with the next R-devel. Check both
+# values at that point.
+on:
+  push:
+    branches: [main, 'RELEASE_*']
+  pull_request:
+
+name: R-CMD-check
+
+permissions: read-all
+
+env:
+  R_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '4.7' || 'devel' }}
+
+jobs:
+  R-CMD-check:
+    runs-on: ${{ matrix.os }}
+
+    name: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ env.R_VERSION }}
+          http-user-agent: ${{ runner.os == 'Linux' && env.R_VERSION == 'devel' && 'release' || '' }}
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          # The Bioconductor build system checks without --as-cran.
+          args: 'c("--no-manual", "--timings")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+
+  BiocCheck:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ env.R_VERSION }}
+          http-user-agent: ${{ env.R_VERSION == 'devel' && 'release' || '' }}
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::BiocCheck
+          needs: check
+
+      - name: BiocCheckGitClone
+        run: |
+          res <- BiocCheck::BiocCheckGitClone()
+          if (res$getNum("error") > 0) quit(status = 1)
+        shell: Rscript {0}
+
+      - name: BiocCheck
+        run: |
+          BiocCheck::BiocCheck(
+            "new-package" = FALSE,
+            "no-check-bioc-help" = TRUE,
+            "quit-with-status" = TRUE
+          )
+        shell: Rscript {0}
