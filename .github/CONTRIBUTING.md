@@ -18,9 +18,8 @@ exposomeSC is in Bioconductor devel (3.25) and has no release branch yet.
 | After the 3.25 release: new features, changed defaults, refactoring | `main` | `devel` | 1.1.z (odd y) |
 | After the 3.25 release: bug fixes and documentation corrections | `RELEASE_3_25`, after `main` | `RELEASE_3_25`, after `devel` | 1.0.z (even y) |
 
-- GitHub `main` is Bioconductor `devel`. Bioconductor only builds
-  `devel` and `RELEASE_*` branches, so every push to Bioconductor names
-  the target explicitly: `main:devel`.
+- GitHub `main` has the same code as Bioconductor `devel` but only our
+  own commits; see Pushing.
 - The review is over: changes no longer go through
   `BiocStaging/exposomeSC` or the `bioc-revision-2026-11` branch, but
   straight to Bioconductor's own repository.
@@ -36,7 +35,8 @@ Bioconductor uses x.y.z version numbers
 - Until the 3.25 release the version stays at 0.99.z. At the release the
   Bioconductor team sets the release branch to 1.0.0 and `devel` to
   1.1.0; after that, y is even on the release branch and odd on `devel`.
-  Do not change x or y yourself.
+  Make the same change on `main` in a commit of our own, and do not
+  change x or y otherwise.
 - Bump z in every commit that should reach users (0.99.4 to 0.99.5). A
   pushed commit without a version bump is built, but not propagated:
   `BiocManager::install()` keeps serving the previous version.
@@ -66,27 +66,24 @@ may read (R) and write (W); `packages/exposomeSC` should show `R W`.
 
 ## Pushing
 
-Before committing, bring `main` up to date with Bioconductor, which can
-commit to `devel` too (for example the version bumps at each release):
-
-```sh
-git checkout main
-git fetch upstream
-git merge --ff-only upstream/devel
-```
-
-Then push the same commit to both sides:
-
-```sh
-git push upstream main:devel
-git push origin main
-```
-
-To push exactly the commit that was checked, push by hash:
+`main` keeps only our own commits. While `devel` has nothing else, the
+same commit goes to both sides:
 
 ```sh
 git push upstream <hash>:refs/heads/devel
 git push origin <hash>:refs/heads/main
+```
+
+Once the Bioconductor team has committed to `devel` (the version bumps
+at each release), never merge `upstream/devel` into `main`. Commit on
+`main`, then cherry-pick to `devel`:
+
+```sh
+git fetch upstream
+git checkout -B bioc-devel upstream/devel
+git cherry-pick <commits from main>
+git push upstream <hash on bioc-devel>:refs/heads/devel
+git push origin <hash on main>:refs/heads/main
 ```
 
 Never force-push: Bioconductor does not accept rewritten history.
