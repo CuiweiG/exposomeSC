@@ -1,0 +1,8 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  exposomeSC: exposomeSC.html
+  network-tutorial: network-tutorial.html
+  permutation-and-power: permutation-and-power.html
+last_built: 2026-11-26T09:22Z

@@ -1,0 +1,88 @@
+# Plot cell-type-specific cross-omic network
+
+Renders a cell-type network graph with nodes coloured by omic layer and
+edges weighted by the absolute entries of the precision matrix or by
+stability.
+
+## Usage
+
+``` r
+plot_celltype_network(
+  network,
+  layout = c("fr", "circle", "grid", "bipartite"),
+  color_by = c("omic_layer", "stability", "community"),
+  highlight_cross_omic = TRUE,
+  label_top = 10L,
+  edge_alpha_by = c("weight", "stability")
+)
+```
+
+## Arguments
+
+- network:
+
+  [`CelltypeNetworkResult`](CelltypeNetworkResult-class.md).
+
+- layout:
+
+  Character; graph layout algorithm. `"fr"` (Fruchterman-Reingold,
+  default), `"circle"`, `"grid"`, or `"bipartite"`.
+
+- color_by:
+
+  Character; node colouring scheme. `"omic_layer"` (default) colours
+  nodes by omic layer, `"stability"` by the largest selection
+  probability among a node's edges (an error when the network has no
+  stability scores), and `"community"` by Louvain community.
+
+- highlight_cross_omic:
+
+  Logical; emphasize transcript-metabolite edges. Default TRUE.
+
+- label_top:
+
+  Integer; label top N nodes by degree. Default 10.
+
+- edge_alpha_by:
+
+  Character; `"weight"` (default), the absolute precision-matrix entry
+  of each edge, or `"stability"` (an error unless every edge has a
+  stability score). Precision entries are not scaled by the diagonal, so
+  their order can differ from that of the partial correlations, which
+  [`run_comparative_network`](run_comparative_network.md) compares.
+
+## Value
+
+A `ggplot` object (requires ggraph and igraph).
+
+## Examples
+
+``` r
+features <- c("G1", "G2", "M1")
+precision <- diag(3)
+precision[1, 3] <- precision[3, 1] <- -0.4
+adjacency <- (precision != 0) * 1L
+diag(adjacency) <- 0L
+dimnames(precision) <- dimnames(adjacency) <- list(features, features)
+network <- CelltypeNetworkResult(
+    precision = precision,
+    adjacency = adjacency,
+    node_info = S4Vectors::DataFrame(
+        feature = features,
+        omic_layer = c("transcript", "transcript", "metabolite")
+    ),
+    celltype = "Monocyte",
+    metadata = list(n_donors = 20L)
+)
+plot_packages <- c("igraph", "ggraph", "ggplot2", "tidygraph")
+if (all(vapply(plot_packages, requireNamespace,
+        logical(1), quietly = TRUE))) {
+    network_plot <- plot_celltype_network(
+        network,
+        layout = "circle",
+        label_top = 3L
+    )
+    inherits(network_plot, "ggplot")
+}
+#> [1] TRUE
+```

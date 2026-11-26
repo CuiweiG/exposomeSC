@@ -1,0 +1,57 @@
+# Edge stability plot
+
+Plots the stability-selection frequency of the most stable edges (up to
+50) at the selected penalty, coloured by whether the edge joins two omic
+layers. The network object stores frequencies at the selected penalty
+only, so this is not a stability surface over the tuning grid; keep the
+grid from the estimator if one is needed. A reference line is drawn only
+when `threshold` is given.
+
+## Usage
+
+``` r
+plot_edge_stability(network, threshold = NULL)
+```
+
+## Arguments
+
+- network:
+
+  [`CelltypeNetworkResult`](CelltypeNetworkResult-class.md) with
+  `stability=TRUE`.
+
+- threshold:
+
+  A single number between 0 and 1, or `NULL` (default). If given, a
+  dashed reference line is drawn at this selection frequency, for
+  example the cut-off used to call stable edges.
+
+## Value
+
+A `ggplot` object.
+
+## Examples
+
+``` r
+features <- c("G1", "G2", "M1")
+stability <- matrix(0, 3, 3, dimnames = list(features, features))
+stability[1, 3] <- stability[3, 1] <- 0.85
+precision <- diag(3)
+dimnames(precision) <- list(features, features)
+network <- CelltypeNetworkResult(
+    precision = precision,
+    adjacency = (stability > 0) * 1L,
+    stability = stability,
+    node_info = S4Vectors::DataFrame(
+        feature = features,
+        omic_layer = c("transcript", "transcript", "metabolite")
+    ),
+    celltype = "Monocyte",
+    metadata = list(n_donors = 20L)
+)
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+    stability_plot <- plot_edge_stability(network, threshold = 0.8)
+    inherits(stability_plot, "ggplot")
+}
+#> [1] TRUE
+```
